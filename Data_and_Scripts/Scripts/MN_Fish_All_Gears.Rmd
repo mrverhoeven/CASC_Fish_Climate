@@ -48,6 +48,8 @@ TN_Effort <- All_Effort %>%
 GN_GDE_GSH_Effort <- All_Effort %>%
   filter(GEAR %in% c("GN", "GDE", "GSH"))
 ```
+
+
 ```{r}
 BLG_all_gears <- all_gn_tn_gde_gsh %>%
   select(SURVEY_ID, GEAR, YEAR, COMMON_NAME, TOTAL_CATCH)%>%

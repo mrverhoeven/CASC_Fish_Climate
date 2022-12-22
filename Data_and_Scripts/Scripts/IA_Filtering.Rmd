@@ -1,0 +1,143 @@
+---
+title: "IA_Filtering"
+author: "Holly Kundel"
+date: '2022-06-15'
+output: html_document
+---
+
+
+Load in required packages
+```{r, warning=FALSE}
+library(readr)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+
+options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
+
+```
+
+Load in Raw Data from my Computer
+```{r}
+IA_Dat <- read_csv("Data_and_Scripts/Data/Data_Summaries/IA/IA_CPUE.csv") # we are currently waiting for Jeff K from IA to send us updated data 12/22/22
+```
+
+Which gears catch which fish?
+```{r}
+IA_Catch <- ggplot(data = IA_Dat, aes(x = SampleType, fill = CommonName))+
+  geom_histogram(stat = "count")+
+  facet_wrap(.~CommonName)+
+  labs(title = "Iowa")
+  
+IA_Catch
+```
+
+```{r}
+
+IA_Gear_Use <- ggplot(data = IA_Dat, aes(x = SampleType, fill = SampleType))+
+  geom_histogram(stat = "count")+
+  labs(title = "Iowa Gear Use")
+
+IA_Gear_Use
+
+```
+
+IA Summaries
+```{r}
+IA_CPUE <- IA_Dat %>%
+  rename(Total_Fish = 5, Effort =6)%>%
+  mutate(CPUE = Total_Fish/Effort)
+```
+
+```{r}
+IA_Lakes_Num <- IA_CPUE %>%
+  group_by(LakeId)%>%
+  summarise(Total_Sp_Gear_Combos = n()) #444 Total Lakes
+
+
+IA_Catch_Effort_Lakes <- IA_CPUE %>%
+  filter(Total_Fish > 0)%>%
+  group_by(CommonName, SampleType)%>%
+  summarise(Num_Lakes = n())%>%
+  mutate(Prop_Lakes = Num_Lakes/length(unique(IA_CPUE$LakeId)))
+
+IA_Lake_prop <- ggplot(IA_Catch_Effort_Lakes, aes(x= SampleType, y = Prop_Lakes, fill = SampleType))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  facet_wrap(.~CommonName)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(title = "IA fish catch and gear use", y="Proportion of lakes\n(out of 444)")
+
+IA_Lake_prop
+```
+
+```{r}
+IA_Catch_Effort_Species <- IA_CPUE %>%
+  filter(Total_Fish > 0)%>%
+  group_by(CommonName)%>%
+  summarise(Num_Lks = n_distinct(LakeId))%>%
+  mutate(Prop_Lakes_SP = Num_Lks/length(unique(IA_CPUE$LakeId)))%>%
+  mutate(Prop_Lakes_SP = round(Prop_Lakes_SP, digits = 2))%>%
+  mutate(SPECIES= as.factor(CommonName))%>%
+  mutate(SPECIES = fct_reorder(SPECIES, Prop_Lakes_SP))
+
+IA_sp_prop <- ggplot(IA_Catch_Effort_Species, aes(x= SPECIES, y = Prop_Lakes_SP, fill = SPECIES))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  geom_text(aes(label = Prop_Lakes_SP), nudge_y = 0.05)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(title = "IA fish catch by species", y="Proportion of lakes\n(out of 444)")
+
+IA_sp_prop
+```
+
+```{r}
+IA_CPUE_no_0 <- IA_CPUE%>%
+  filter(CPUE > 0)
+
+IA_CPUE_by_gear <- ggplot(IA_CPUE_no_0, aes(x = CommonName, y = CPUE, group = CommonName, fill = CommonName))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = CommonName), alpha = .25)+
+  theme_classic()+
+  facet_wrap(.~SampleType)+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  scale_y_log10()+
+  labs(title = "IA CPUE by Gear", y = "non-zero CPUE (log scale)")
+  
+IA_CPUE_by_gear
+```
+
+
+IA Lake Temp List for Chris
+```{r}
+IA_Lake_List <- IA_CPUE %>%
+  select(1,2,7,8)%>%
+  rename(Year = 1)
+
+write_csv(IA_Lake_List, "IA_Lake_List.csv")
+```
+
+
+# Additional Data Activities for IA
+
+
+IA_sp_map
+```{r}
+IA_lat_long <- read_excel("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/IA_Lakes_lat_longs.xlsx")
+
+IA_lat_long_use <- IA_lat_long %>%
+  select(Lake_ID, Latitude, Longitude)
+
+IA_SP_Map <- IA_CPUE %>%
+  rename(Lake_ID = LakeId, Species = CommonName, Total_Catch = Total_Fish)%>%
+  select(Lake_ID, Species, Total_Catch)%>%
+  pivot_wider(names_from = Species, values_from = Total_Catch, values_fn = sum)%>%
+  left_join(IA_lat_long_use, by = "Lake_ID")%>%
+  mutate(Cisco = NA)%>%
+  select(1:3,13,4:12)
+
+
+```
+

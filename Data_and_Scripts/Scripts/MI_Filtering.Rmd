@@ -1,0 +1,182 @@
+---
+title: "MI_Filtering"
+author: "Holly Kundel"
+date: '2022-06-13'
+output: html_document
+---
+Load in required packages
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(googledrive)
+library(ggplot2)
+library(forcats)
+
+options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
+
+```
+
+Load in Raw Data from Drive Directly
+- takes to long to go through all files. May incorporate this later.
+
+This does NOT work, ignore for now
+```{r}
+Data_Folder <- drive_ls(path = "https://drive.google.com/drive/u/0/folders/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_")
+
+MI_Folder <- drive_ls(path = "https://drive.google.com/drive/u/0/folders/1EYwXj3gRK5yavynOolig69C-5TaLhiOv")
+
+MI_try1 <- drive_read_string(file = as_id("1E8M5VV2PII0ZKa_Yj7XtREOM_-VkH2scQJ2gBH7pVBQ"), type = "csv")
+```
+
+Load in Raw Data from my Computer
+```{r}
+MI_Effort_Raw <- read_excel("Data_and_Scripts/Data/Data_Summaries/MI/mi_snt_effort_data_mar2021.xlsx")
+
+MI_Catch_Raw <-read_excel("Data_and_Scripts/Data/Data_Summaries/MI/mi_snt_catch_data_mar2021.xlsx")
+```
+
+Which gears catch which fish?
+```{r}
+MI_Catch <- ggplot(data = MI_Catch_Raw, aes(x = GEAR, fill = SPECIES))+
+  geom_histogram(stat = "count")+
+  facet_wrap(.~SPECIES)
+  
+MI_Catch
+
+MI_Gear_Use <- ggplot(data = MI_Effort_Raw, aes(x = GEAR, fill = GEAR))+
+  geom_histogram(stat = "count")
+
+MI_Gear_Use
+```
+Note: we will likely drop "GLGNET" we guess this is "Great Lakes Gill Net" because it isn't hardly used, and therefore doesn't catch our species of interest often
+
+Combine catch and effort to calculate CPUE
+- First expand catch data to get list of all possible years, species, and gears
+- Join above list with catch data, add 0s if no catch
+- Join with effort data, only keep years/gears that were actually used and keep 0s where applicable. 
+
+
+List of all possible years, species, and gears
+```{r}
+MI_all_potential_surveys <- MI_Catch_Raw %>%
+  expand(NEW_KEY, SURVEY_YEAR, SPECIES, GEAR)
+```
+
+Adding 0s to the catch data
+```{r}
+MI_Catch_long <- MI_all_potential_surveys %>%
+  left_join(MI_Catch_Raw, by = c("NEW_KEY", "SURVEY_YEAR", "SPECIES", "GEAR"))%>%
+  mutate(FISH_COUNT =replace_na(FISH_COUNT, 0))%>%
+  select(NEW_KEY, SURVEY_YEAR, SPECIES, GEAR, FISH_COUNT)
+```
+
+Join Catch and Effort Data
+```{r}
+MI_Catch_Effort <-MI_Catch_long %>%
+  right_join(MI_Effort_Raw, by =  c("NEW_KEY", "SURVEY_YEAR", "GEAR"))%>%
+  mutate(CPUE = FISH_COUNT/EFFORT)
+```
+
+Plotting summaries
+```{r}
+MI_Lakes_Num <- MI_Catch_Effort %>%
+  group_by(NEW_KEY)%>%
+  summarise(Total_Sp_Gear_Combos = n()) #464 Total Lakes
+
+
+MI_Catch_Effort_Lakes <- MI_Catch_Effort %>%
+  filter(FISH_COUNT > 0)%>%
+  group_by(SPECIES, GEAR)%>%
+  summarise(Num_Lakes = n())%>%
+  mutate(Prop_Lakes = Num_Lakes/length(unique(MI_Catch_Effort$NEW_KEY)))
+
+MI_Lake_prop <- ggplot(MI_Catch_Effort_Lakes, aes(x= GEAR, y = Prop_Lakes, fill = GEAR))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  facet_wrap(.~SPECIES)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(title = "MI fish catch and gear use", y="Proportion of lakes\n(out of 464)")
+MI_Lake_prop
+```
+
+```{r}
+MI_Catch_Effort_Species <- MI_Catch_Effort %>%
+  filter(FISH_COUNT > 0)%>%
+  group_by(SPECIES)%>%
+  summarise(Num_Lks = n_distinct(NEW_KEY))%>%
+  mutate(Prop_Lakes_SP = Num_Lks/length(unique(MI_Catch_Effort$NEW_KEY)))%>%
+  mutate(Prop_Lakes_SP = round(Prop_Lakes_SP, digits = 2))%>%
+  mutate(SPECIES= as.factor(SPECIES))%>%
+  mutate(SPECIES = fct_reorder(SPECIES, Prop_Lakes_SP))
+
+MI_Lake_prop <- ggplot(MI_Catch_Effort_Species, aes(x= SPECIES, y = Prop_Lakes_SP, fill = SPECIES))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  geom_text(aes(label = Prop_Lakes_SP), nudge_y = 0.05)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(title = "MI fish catch by species", y="Proportion of lakes\n(out of 464)")
+MI_Lake_prop
+```
+Mean non-zero CPUE
+```{r}
+MI_mean_CPUE_no_0 <- MI_Catch_Effort%>%
+  filter(CPUE > 0)
+
+MI_mean_CPUE_by_gear <- ggplot(MI_mean_CPUE_no_0, aes(x = SPECIES, y = CPUE, group = SPECIES, color = GEAR, fill = GEAR))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = GEAR), alpha = .25)+
+  theme_classic()+
+  facet_wrap(.~GEAR)+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  scale_y_log10()+
+  labs(title = "MI CPUE by Gear", y = "non-zero CPUE (log scale)")
+  
+MI_mean_CPUE_by_gear
+
+MI_mean_CPUE_by_gear2 <- ggplot(MI_mean_CPUE_no_0, aes(x = SPECIES, y = CPUE, group = SPECIES, fill = SPECIES))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = SPECIES), alpha = .25)+
+  theme_classic()+
+  facet_wrap(.~GEAR)+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  scale_y_log10()+
+  labs(title = "MI CPUE by Gear", y = "non-zero CPUE (log scale)")
+  
+MI_mean_CPUE_by_gear2
+
+
+```
+Check to ensure that newly provided fish length data is already included in above data sets. 
+```{r}
+MI_fish_lengths <- read_excel("~/CASC/CASC_Fish_Abundance/Data_Summaries/MI/mi_snt_catch_inchgrp_clean_0622.xls")
+# more species than our 7 of interest. Lists survey, but not specific gear used. 
+```
+
+
+# Additional MI data activities
+
+Get list of lakes/survey dates for temp data
+```{r}
+MI_Temp_List <- MI_Effort_Raw %>%
+  select(Survey_Number, NEW_KEY, COUNTY, LAT_DD, LONG_DD, Water_Body_Name, SAMPLE_START_DATE)%>%
+  group_by(Survey_Number, NEW_KEY, COUNTY, LAT_DD, LONG_DD, Water_Body_Name, SAMPLE_START_DATE)%>%
+  summarise(Total = n())%>%
+  select(-Total)
+
+write_csv(MI_Temp_List, "MI_Lake_List.csv")
+```
+MI SP Map
+```{r}
+MI_SP_Map <- MI_Catch_Effort%>%
+  rename(Lake_ID = NEW_KEY, Latitude = LAT_DD, Longitude = LONG_DD, Total_Catch = FISH_COUNT, Species = SPECIES)%>%
+  select(Lake_ID, Species, Total_Catch, Latitude, Longitude)%>%
+  pivot_wider(names_from = Species, values_from = Total_Catch, values_fn = sum)%>%
+  rename("Black Crappie" = BCR, Bluegill = BLG, Cisco = CIS, "Largemouth Bass" = LMB, "Northern Pike" = NOP, "Smallmouth Bass" = SMB, Walleye = WAE, "Yellow Perch" = YEP)%>%
+  mutate("Channel Catfish" = 0)%>%
+  mutate("White Crappie" = 0)%>%
+select(1,4,5,6, 12, 7, 8, 10, 13, 2,3)
+```
+

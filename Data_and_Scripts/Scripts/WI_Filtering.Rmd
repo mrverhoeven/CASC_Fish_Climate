@@ -1,0 +1,296 @@
+---
+title: "WI_Filtering"
+author: "Holly Kundel"
+date: '2022-07-29'
+output: html_document
+---
+Load in Packages
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+
+options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
+```
+
+
+Load in Data AND remove streams and creeks, etc.
+```{r}
+WI_Fish_Data <- read_csv("Data_and_Scripts/Data/Data_Summaries/WI/wdnr_inland_fish_data.csv") #this is a very large file, and we need a way to load it in better without crashing R
+
+# create new df so we don't alter the original raw data, will also select the columns we need.
+WI_Fish_Dat_lakes <- WI_Fish_Data %>%
+  select(wbic, waterbody.name)%>% #select columns of interest
+  group_by(wbic, waterbody.name)%>% #group all fish from the same date
+  summarise(Total_Fish = n()) #3859 lakes with fish data
+
+#read in lat longs for wbics
+WI_wbic_lat_longs <- read_csv("Data_and_Scripts/Data/Data_Summaries/WI/wi_lake_wbic_lat_long_PNF.csv")
+
+# use 'left_join' to add the lat/longs to the lakes where we have fish data
+WI_Lakes <- WI_Fish_Dat_lakes %>%
+  left_join(WI_wbic_lat_longs, by = c("wbic" = "lake.id"))%>%
+  rename(Latitude = lat, Longitude = long)%>%
+  mutate(Lake_ID_Type = "WBIC")%>% #useful when combinging with other states data
+  mutate(State = "WI")%>% #will help distinguish other states when we combine
+  rename(Lake_ID = wbic)%>% #creating a common column name to use with all states
+  rename(Waterbody_Name = waterbody.name)%>% #rename to common column name
+  select(Lake_ID, Lake_ID_Type, Waterbody_Name, State, Latitude, Longitude)%>% #re-order and keep columns of interest
+  mutate(Lake_ID = as.character(Lake_ID)) #the other lake IDs are characters, so changing data type to match others
+
+#attempt to remove creeks, streams, and rivers, not perfect, but non-lakes should be dropped when added to fish data
+WI_Lakes3 <- WI_Lakes %>%
+  mutate(River = str_detect(Waterbody_Name, "river")) %>%
+  mutate(Creek = str_detect(Waterbody_Name, "creek"))%>%
+  mutate(Canal = str_detect(Waterbody_Name, "canal"))%>%
+  mutate(Stream = str_detect(Waterbody_Name, "stream"))%>%
+  mutate(Brook = str_detect(Waterbody_Name, "brook"))%>% #added 7/29
+  mutate(Flowage = str_detect(Waterbody_Name, "flowage"))%>% #added 7/29
+  mutate(Channel = str_detect(Waterbody_Name, "channel"))%>% #added 7/29
+  mutate(Ditch = str_detect(Waterbody_Name, "ditch"))%>% #added 7/29
+  mutate(Lotic = case_when(River == TRUE ~ 1,
+                           Creek == TRUE ~ 1,
+                           Canal == TRUE ~ 1,
+                           Stream == TRUE ~ 1,
+                           Brook == TRUE ~ 1,
+                           Flowage == TRUE ~ 1,
+                           Channel == TRUE ~ 1,
+                           Ditch == TRUE ~ 1,
+                           TRUE ~ 0)) %>%
+  filter(Lotic == 0) # Now 2048 after removing 7/29 additions, was 2195 instead of 3859
+```
+
+Do the above but with the effort data
+```{r}
+WI_Effort_Data <- read_csv("Data_and_Scripts/Data/Data_Summaries/WI/wdnr_inland_effort_data.csv")
+
+# create new df so we don't alter the original raw data, will also select the columns we need.
+WI_Effort_Dat_lakes <- WI_Effort_Data %>%
+  select(wbic, waterbody.name, sample.date)
+
+
+WI_Gears <- WI_Effort_Data %>%
+  group_by(gear)%>%
+  summarise(Total=n())
+
+write_csv(WI_Gears, "WI_Gears")
+
+#read in lat longs for wbics
+WI_wbic_lat_longs <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/WI/wi_lake_wbic_lat_long_PNF.csv")
+
+# use 'left_join' to add the lat/longs to the lakes where we have fish data
+WI_Effort_lat_longs <- WI_Effort_Dat_lakes %>%
+  left_join(WI_wbic_lat_longs, by = c("wbic" = "lake.id"))%>%
+  rename(Latitude = lat, Longitude = long, Waterbody_Name = waterbody.name)%>%
+  select(-state)
+
+#attempt to remove creeks, streams, and rivers
+WI_Effort_Lakes <- WI_Effort_lat_longs %>%
+  mutate(River = str_detect(Waterbody_Name, "river")) %>%
+  mutate(Creek = str_detect(Waterbody_Name, "creek"))%>%
+  mutate(Canal = str_detect(Waterbody_Name, "canal"))%>%
+  mutate(Stream = str_detect(Waterbody_Name, "stream"))%>%
+  mutate(Brook = str_detect(Waterbody_Name, "brook"))%>% #added 7/29
+  mutate(Flowage = str_detect(Waterbody_Name, "flowage"))%>% #added 7/29
+  mutate(Channel = str_detect(Waterbody_Name, "channel"))%>% #added 7/29
+  mutate(Ditch = str_detect(Waterbody_Name, "ditch"))%>% #added 7/29
+  mutate(Lotic = case_when(River == TRUE ~ 1,
+                           Creek == TRUE ~ 1,
+                           Canal == TRUE ~ 1,
+                           Stream == TRUE ~ 1,
+                           Brook == TRUE ~ 1,
+                           Flowage == TRUE ~ 1,
+                           Channel == TRUE ~ 1,
+                           Ditch == TRUE ~ 1,
+                           TRUE ~ 0)) %>%
+  filter(Lotic == 0)%>% #113,902 down to 59,238
+  select(1:5)
+
+write_csv(WI_Effort_Lakes, "WI_Lake_List.csv")
+```
+
+WI Data Summaries
+- These summaries were run with the CPUE file since the fish file (where every line is an individual fish is too big), must find a way to make that usable, and then we won't use this file going forward
+
+
+```{r}
+WI_inland_cpue_data <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/WI/wdnr_inland_cpue_data.csv")
+
+#5853 with lotic
+
+WI_inland_cpue_lakes <- WI_inland_cpue_data %>%
+  rename(Waterbody_Name = waterbody.name)%>%
+  mutate(River = str_detect(Waterbody_Name, "river")) %>%
+  mutate(Creek = str_detect(Waterbody_Name, "creek"))%>%
+  mutate(Canal = str_detect(Waterbody_Name, "canal"))%>%
+  mutate(Stream = str_detect(Waterbody_Name, "stream"))%>%
+  mutate(Brook = str_detect(Waterbody_Name, "brook"))%>% #added 7/29
+  mutate(Flowage = str_detect(Waterbody_Name, "flowage"))%>% #added 7/29
+  mutate(Channel = str_detect(Waterbody_Name, "channel"))%>% #added 7/29
+  mutate(Ditch = str_detect(Waterbody_Name, "ditch"))%>% #added 7/29
+  mutate(Lotic = case_when(River == TRUE ~ 1,
+                           Creek == TRUE ~ 1,
+                           Canal == TRUE ~ 1,
+                           Stream == TRUE ~ 1,
+                           Brook == TRUE ~ 1,
+                           Flowage == TRUE ~ 1,
+                           Channel == TRUE ~ 1,
+                           Ditch == TRUE ~ 1,
+                           TRUE ~ 0)) %>%
+  filter(Lotic == 0)%>%
+  select(1:11)%>%
+  mutate(species = str_replace_all(species, "_", " "))%>%
+  mutate(TARGET_SPECIES = case_when(species == "bluegill" ~ "1",
+                                    species == "black crappie" ~ "1",
+                                    species == "largemouth bass" ~ "1",
+                                    species == "northern pike" ~ "1",
+                                    species == "smallmouth bass" ~ "1",
+                                    species == "walleye" ~ "1",
+                                    species == "yellow perch" ~ "1",
+                                    TRUE ~ "0"))%>%
+  mutate(Gear = case_when(cpe_units == "N/miles_shocked" ~ "EF",
+                          cpe_units == "N/net_night" ~ "Netting",
+                          TRUE ~ "NA"))%>%
+  filter(Gear != "NA")
+  
+#1731 after applying my filters
+#129 species, several hybrid sunfish
+
+```
+
+```{r}
+WI_Catch_Effort_Lakes <- WI_inland_cpue_lakes %>%
+  filter(total_catch > 0)%>%
+  group_by(species, Gear)%>%
+  summarise(Num_Lakes = n())%>%
+  mutate(Prop_Lakes = Num_Lakes/length(unique(WI_inland_cpue_lakes$wbic)))
+
+WI_Lake_prop <- ggplot(WI_Catch_Effort_Lakes, aes(x= Gear, y = Prop_Lakes, fill = Gear))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  facet_wrap(.~species)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(title = "WI fish catch and gear use", y="Proportion of lakes\n(out of 1,731)")
+
+WI_Lake_prop
+```
+```{r}
+WI_Catch_Effort_Lakes2 <- WI_inland_cpue_lakes %>%
+  filter(total_catch > 0)%>%
+  filter(TARGET_SPECIES == 1)%>%
+  group_by(species, Gear)%>%
+  summarise(Num_Lakes = n())%>%
+  mutate(Prop_Lakes = Num_Lakes/length(unique(WI_inland_cpue_lakes$wbic)))
+
+WI_Lake_prop2 <- ggplot(WI_Catch_Effort_Lakes2, aes(x= Gear, y = Prop_Lakes, fill = Gear))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  facet_wrap(.~species)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(title = "WI fish catch and gear use", y="Proportion of lakes\n(out of 1,731)")
+
+WI_Lake_prop2
+```
+```{r}
+WI_Catch_Effort_Species <- WI_inland_cpue_lakes %>%
+  filter(total_catch > 0)%>%
+  group_by(species)%>%
+  summarise(Num_Lks = n_distinct(wbic))%>%
+  mutate(Prop_Lakes_SP = Num_Lks/length(unique(WI_inland_cpue_lakes$wbic)))%>%
+  mutate(Prop_Lakes_SP = round(Prop_Lakes_SP, digits = 2))%>%
+  mutate(SPECIES= as.factor(species))%>%
+  mutate(SPECIES = fct_reorder(SPECIES, Prop_Lakes_SP))%>%
+  mutate(TARGET_SPECIES = case_when(species == "bluegill" ~ "1",
+                                    species == "black crappie" ~ "1",
+                                    species == "largemouth bass" ~ "1",
+                                    species == "northern pike" ~ "1",
+                                    species == "smallmouth bass" ~ "1",
+                                    species == "walleye" ~ "1",
+                                    species == "yellow perch" ~ "1",
+                                    TRUE ~ "0"))
+
+all_wi_lk <- WI_inland_cpue_lakes%>%
+  group_by(wbic)%>%
+  summarise(Total_gear_sp = n()) #1731 Total Lakes
+
+WI_Lake_prop <- ggplot(WI_Catch_Effort_Species, aes(x= SPECIES, y = Prop_Lakes_SP, fill = SPECIES))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  geom_text(aes(label = Prop_Lakes_SP), nudge_y = 0.05, size = 2.5)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = "none")+
+  labs(title = "Proportion of WI lakes with each species", y="Proportion of lakes\n(out of 1,731)")+
+  gghighlight(TARGET_SPECIES == 1)
+
+WI_Lake_prop
+```
+```{r}
+WI_CPE_no_0_target <- WI_inland_cpue_lakes %>%
+  filter(cpe > 0)%>%
+  filter(TARGET_SPECIES == 1)
+
+WI_mean_CPUE_by_gear <- ggplot(WI_CPE_no_0_target, aes(x = species, y = cpe, group = species, fill = species))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = species), alpha = .05)+
+  theme_classic()+
+  facet_wrap(.~Gear)+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  scale_y_log10()+
+  labs(title = "WI CPUE by Gear", y = "non-zero CPUE (log scale)")
+  
+WI_mean_CPUE_by_gear
+```
+
+```{r}
+WI_CPE_no_0 <- WI_inland_cpue_lakes %>%
+  filter(cpe > 0)
+
+WI_mean_CPUE_by_gear2 <- ggplot(WI_CPE_no_0, aes(x = species, y = cpe, group = species, fill = species))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = species), alpha = .05)+
+  theme_classic()+
+  facet_wrap(.~Gear)+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  scale_y_log10()+
+  labs(title = "WI CPUE by Gear", y = "non-zero CPUE (log scale)")
+  
+WI_mean_CPUE_by_gear2
+```
+
+
+# Additional WI Data Activities
+
+WI Lake List for Temp UPDATE LATER WHEN REFINED BY FISH DATA
+```{r}
+WI_Lake_List_Temp <- WI_Lakes3%>%
+  select(1,3,5,6)
+
+write_csv(WI_Lake_List_Temp, "WI_Lake_List_draft.csv")
+```
+
+WI Species Map
+```{r}
+WI_Lat_Longs <- WI_wbic_lat_longs %>%
+  select(2:4)%>%
+  rename(Lake_ID = lake.id, Latitude = lat, Longitude = long)
+
+WI_SP_MAP <- WI_inland_cpue_lakes%>%
+  rename(Lake_ID = wbic, Species = species, Total_Catch = total_catch)%>%
+  select(Lake_ID, Species, Total_Catch)%>%
+  mutate(Species = str_to_title(Species))%>%
+  mutate(Species = case_when(str_detect(Species, "cisco") ~ "Cisco",
+                             str_detect(Species, "Cisco") ~ "Cisco",
+                             TRUE ~ Species))%>%
+  filter(Species %in% c("Black Crappie", "Bluegill", "Cisco", "Channel Catfish", "Largemouth Bass", "Northern Pike", "Smallmouth Bass", "Walleye", "White Crappie", "Yellow Perch"))%>%
+  pivot_wider(names_from = Species, values_from = Total_Catch, values_fn = sum)%>%
+  mutate("Channel Catfish"= 0)%>%
+  mutate("White Crappie" = 0)%>%
+  select(1,9,7,8,10,4,6,5,2,11,3)%>%
+  left_join(WI_Lat_Longs, by = "Lake_ID")
+
+```
+

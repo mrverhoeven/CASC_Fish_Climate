@@ -1,0 +1,164 @@
+---
+title: "IL_Filtering"
+author: "Holly Kundel"
+date: '2022-09-08'
+output: html_document
+---
+Load in required packages
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+
+options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
+
+```
+
+Load in Raw Data from my Computer
+```{r, warning =FALSE}
+IL_Effort <- read_excel("Data_and_Scripts/Data/Data_Summaries/IL/ildnr_effort_and_bio_data.xlsx", sheet = "Effort")
+
+IL_Catch <- read_excel("Data_and_Scripts/Data/Data_Summaries/IL/ildnr_effort_and_bio_data.xlsx", sheet = "Bio Data")
+
+IL_Lake_Info <- read_excel("Data_and_Scripts/Data//Data_Summaries/IL/ildnr_effort_and_bio_data.xlsx", sheet = "Lake info")
+```
+
+Create lake temp list for Chris
+```{r}
+IL_Lake_List <- IL_Effort %>%
+  select(1:3, 10,16)
+
+IL_Lake_List_distinct <- distinct(IL_Lake_List) #removes duplicate rows if multiple gears were used in a survey
+
+write_csv(IL_Lake_List_distinct, "IL_Lake_List.csv")
+```
+
+```{r}
+IL_Gears <- IL_Catch %>% 
+  group_by(`Gear Used`)%>%
+  summarise(total = n())
+
+IL_Species <- IL_Catch %>%
+  group_by(Species)%>%
+  summarise(total = n()) #target plus channel catfish
+```
+
+```{r}
+IL_CPUE <- IL_Catch %>%
+  select(1:22)%>%
+  rename(Gear_Used = 'Gear Used', Gear_Type = 'Gear Type', Total_Effort_minutes = 17, Run_or_Net = 14 )%>%
+  mutate(CPUE = case_when(Gear_Type == "Electro Fishing" ~ (Count/Total_Effort_minutes),
+                          Gear_Type == "Nets" ~ (Count/Run_or_Net),
+                          Gear_Type == "Seine Hauls" ~ (Count/Run_or_Net)))%>%
+  mutate(Gear_Category = case_when(Gear_Used == "Boat electrofishing AC" ~ "EF",
+                                   Gear_Used == "Boat electrofishing AC (Night)" ~ "EF",
+                                   Gear_Used == "Boat electrofishing DC -- Smith Root" ~ "EF",
+                                   Gear_Used == "Boat electrofishing DC -- Smith Root (Night)" ~ "EF",
+                                   Gear_Used == "Boat electrofishing DC -- Wisconsin" ~ "EF",
+                                   Gear_Used == "Boat electrofishing DC -- Wisconsin (Night)" ~ "EF",
+                                   Gear_Used == "Boat electrofishing DC - Unspecified Manufacturer" ~ "EF",
+                                   Gear_Used == "Gill net - 125 ft experimental" ~ "GN",
+                                   Gear_Used == "Gill net - 250 ft experimental" ~ "GN",
+                                   Gear_Used == "Minnow seine" ~ "SE",
+                                   Gear_Used == "Trap net 0.5 in bar mesh" ~ "TN",
+                                   Gear_Used == "Trap net 1 in bar mesh" ~ "TN",
+                                   Gear_Used == "Trap net 1.5 in bar mesh" ~ "TN"))
+
+
+```
+
+
+Plotting Summaries
+```{r}
+IL_Lakes_Num <- IL_CPUE %>%
+  group_by(LakeNumber)%>%
+  summarise(Total_Sp_Gear_Combos = n()) #364 Total Lakes
+
+
+IL_Catch_Effort_Lakes <- IL_CPUE %>%
+  filter(Count > 0)%>%
+  group_by(Species, Gear_Used)%>%
+  summarise(Num_Lakes = n())%>%
+  mutate(Prop_Lakes = Num_Lakes/length(unique(IL_CPUE$LakeNumber)))
+
+IL_Lake_prop <- ggplot(IL_Catch_Effort_Lakes, aes(x= Gear_Used, y = Prop_Lakes, fill = Gear_Used))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  facet_wrap(.~Species)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = "none")+
+  labs(title = "IL fish catch and gear use", y="Proportion of lakes\n(out of 364)")
+
+IL_Lake_prop
+```
+
+```{r}
+IL_Catch_Effort_Lakes2 <- IL_CPUE %>%
+  filter(Count > 0)%>%
+  group_by(Species, Gear_Category)%>%
+  summarise(Num_Lakes = n())%>%
+  mutate(Prop_Lakes = Num_Lakes/length(unique(IL_CPUE$LakeNumber)))
+
+IL_Lake_prop2 <- ggplot(IL_Catch_Effort_Lakes2, aes(x= Gear_Category, y = Prop_Lakes, fill = Gear_Category))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  facet_wrap(.~Species)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(title = "IL fish catch and gear use", y="Proportion of lakes\n(out of 364)")
+
+IL_Lake_prop2
+```
+
+```{r}
+IL_Catch_Effort_Species <- IL_CPUE %>%
+  filter(Count > 0)%>%
+  group_by(Species)%>%
+  summarise(Num_Lks = n_distinct(LakeNumber))%>%
+  mutate(Prop_Lakes_SP = Num_Lks/length(unique(IL_CPUE$LakeNumber)))%>%
+  mutate(Prop_Lakes_SP = round(Prop_Lakes_SP, digits = 2))%>%
+  mutate(SPECIES= as.factor(Species))%>%
+  mutate(SPECIES = fct_reorder(SPECIES, Prop_Lakes_SP))
+
+IL_sp_prop <- ggplot(IL_Catch_Effort_Species, aes(x= SPECIES, y = Prop_Lakes_SP, fill = SPECIES))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  geom_text(aes(label = Prop_Lakes_SP), nudge_y = 0.05)+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(title = "IL fish catch by species", y="Proportion of lakes\n(out of 364)")
+
+IL_sp_prop
+```
+```{r}
+IL_CPUE_no_0 <- IL_CPUE%>%
+  filter(CPUE > 0)
+
+IL_CPUE_by_gear <- ggplot(IL_CPUE_no_0, aes(x = Species, y = CPUE, group = Species, fill = Species))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = Species), alpha = .25)+
+  theme_classic()+
+  facet_wrap(.~Gear_Used)+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  scale_y_log10()+
+  labs(title = "IL CPUE by Gear", y = "non-zero CPUE (log scale)")
+  
+IL_CPUE_by_gear
+```
+
+
+# Addtional data activities for IL
+
+
+IL_sp_map
+```{r}
+IL_SP_Map <- IL_CPUE %>%
+  rename(Lake_ID = LakeName, Total_Catch = Count)%>%
+  select(Lake_ID, Species, Total_Catch, Latitude, Longitude)%>%
+  pivot_wider(names_from = Species, values_from = Total_Catch, values_fn = sum)%>%
+  mutate('White Crappie' = NA)%>%
+  mutate(Cisco = NA)%>%
+  select(1, 4:6, 13, 7,10,9,8,11,12,2,3)
+
+
+```

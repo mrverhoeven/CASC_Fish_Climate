@@ -1,0 +1,504 @@
+---
+title: "IN_Filtering"
+author: "Holly Kundel"
+date: '2022-06-29'
+output: html_document
+---
+Load in required packages
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+library(forcats)
+library(gghighlight)
+library(stringr)
+library(purrr)
+
+options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
+
+```
+
+Indiana is slightly different from other states because the data is divided into glacial lakes and reservoirs.
+
+Load in Raw Data from Computer (in future try to read in data from explainer file in Drive)
+Data Gretchen worked with
+```{r, warning=FALSE}
+in.fish.community.data <- read_excel("Data_and_Scripts/Data/Data_Summaries/IN/in_glacial_lakes2010_2020_fishdata.xlsx")
+in.effort.community.data <- read_excel("Data_and_Scripts/Data/Data_Summaries/IN/in_glacial_lakes_2010_2020_effort.xlsx")
+```
+
+Add in lake ID Number for IN Glacial Lakes 9/7/22
+```{r}
+
+```
+
+Add Gear Code to Effort Data to Match
+Gretchen's code
+```{r}
+gear.translate <- data.frame("Gear"=unique(in.effort.community.data$Gear))%>% 
+  mutate(gear_code = case_when(Gear=="Standard Trap Net" ~ "TN",
+                             Gear=="Experimental Gill Net"~"GN",
+                             Gear=="Nighttime Electrofishing"~"EF"))
+
+in.effort.community.data <- in.effort.community.data %>%
+  right_join(gear.translate) %>%  #should add something like , by = c("gear.name"= "Gear"
+  rename(effort='Total Effort by Gear Type (Units; trap/gill nets = overnight lifts, total nighttime electrofishing = hours)',
+         gear.name=Gear, Gear=gear_code )
+
+#summarize catch by species and gear and lake/county/year
+fish.catch <- in.fish.community.data %>%
+  group_by(Lake, County, Year, Species, Gear) %>%
+  summarise(total.catch=length(Length), mean.length=mean(Length)) %>%
+  filter(Gear!="X"&Gear!="#REF!")
+#a few missing data points for gear that we will ignore (5 fish out of 69k)
+
+#identify surveyed years
+surveyed.years <- unique(select(in.effort.community.data, Lake, County,Year, Gear, effort))
+
+#expand fish and link to actual effort (expand will include unsurveyed years)
+fish.long <- ungroup(fish.catch) %>%
+  expand( Lake, County, Year, Species, Gear) %>%
+  right_join(surveyed.years) #Joining, by = c("Lake", "County", "Year", "Gear")
+
+#link to effort and #create temporary id for now
+fish.catch.effort <- fish.catch %>% right_join(fish.long) %>% #Joining, by = c("Lake", "County", "Year", "Species", "Gear")
+  replace_na(list(total.catch=0)) %>%
+  mutate(cpue=total.catch/effort) %>%
+  mutate(temp.id=paste(County, Lake, sep="_"))
+```
+My quick summary plot
+```{r}
+IN_fish_catch_effort_lk <- as.data.frame(fish.catch.effort)%>%
+  filter(Species %in% c("Black Crappie", "Bluegill", "Largemouth Bass", "Northern Pike", "Smallmouth Bass", "Walleye", "Yellow Perch"))
+
+IN_Lk_CATCH <- ggplot(data = IN_fish_catch_effort_lk, aes (x = Gear, y= total.catch, fill = Species))+
+  geom_bar(stat = "identity")+
+  facet_wrap(.~Species, scales = "free")+
+  theme_bw()+
+  labs(y = "Total Catch", title = "IN Species Total Catch by Gear: Glacial Lakes", caption = "*note differences in y-axis scales")
+
+
+IN_Lk_CATCH
+
+```
+
+Summary Stats for All Species (Gretchen's Code)
+```{r}
+lake.count <- fish.catch.effort %>%
+  filter(total.catch!=0) %>%
+  group_by( Species) %>%
+  summarise(N.lakes=length(unique(temp.id))) %>%
+  arrange(-N.lakes) %>%
+  mutate(percent.lakes=N.lakes/length(unique(fish.catch.effort$temp.id))) %>%
+  mutate(Species=factor(Species, levels=arrange(lake.count,-N.lakes)$Species))
+
+IN_all_Species <- ggplot(lake.count, aes(Species, percent.lakes))+
+  geom_bar(stat="identity", fill="lavender", colour="navyblue")+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(y = "Proportion of lakes\n(out of 132)", title = "In All Species")
+
+IN_all_Species
+```
+Species Richness (Gretchen's Code)
+```{r}
+species.count <- fish.catch.effort %>% 
+  filter(total.catch!=0) %>%
+  group_by(temp.id) %>% 
+  summarise(N.Species=length(unique(Species))) %>%
+  arrange(-N.Species) %>%
+  mutate(percent.species=N.Species/length(unique(fish.catch.effort$Species))) 
+
+species.count <- species.count%>%
+  mutate(temp.id=factor(temp.id, levels=arrange(species.count,-N.Species)$temp.id))
+
+IN_Sp_Richness <- ggplot(species.count, aes(temp.id, N.Species))+
+  geom_bar(stat="identity", fill="lightblue", colour="black")+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=90, hjust=1, vjust=.5))+
+  labs(y = "Number of species\n(out of 83)", title = "IN Species Richness", x = "Lake")
+
+IN_Sp_Richness
+```
+More Gretchen Code
+```{r}
+#extract species of interest
+target.species=c("Bluegill", "Largemouth Bass","Northern Pike", "Smallmouth Bass", "Yellow Perch", "Black Crappie", "Walleye", "Cisco")
+
+lake.count=lake.count %>%
+  mutate(key.species=case_when(Species%in%target.species~1, TRUE~0))
+
+
+IN_All_sp_highlight <- ggplot(lake.count, aes(Species, percent.lakes))+
+  geom_bar(stat="identity", colour="black", fill="turquoise")+
+  theme_classic()+theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = "none")+
+  ylab("Proportion of lakes\n(out of 132)")+
+  gghighlight(key.species==1)
+
+IN_All_sp_highlight
+```
+Check Species by gear (Gretchen's code)
+```{r}
+lake.count.gear <- fish.catch.effort %>%
+  filter(total.catch!=0) %>%
+  group_by( Species, Gear) %>%
+  summarise(N.lakes=length(unique(temp.id))) %>%
+  arrange(-N.lakes, Gear) %>% 
+  mutate(percent.lakes=N.lakes/length(unique(fish.catch.effort$temp.id))) %>%
+  mutate(Species=factor(Species, levels=arrange(lake.count,-N.lakes)$Species))
+
+lake.count.gear=lake.count.gear %>%
+  mutate(key.species=case_when(Species%in%target.species~1, TRUE~0))
+
+
+In_Sp_by_gear_plot <- ggplot(lake.count.gear, aes(Species, percent.lakes, group=Gear, fill=Gear))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  theme_classic()+theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = c(.8,.8))+
+  ylab("Proportion of lakes\n(out of 132)")+
+  gghighlight(key.species==1, use_direct_label = FALSE, use_group_by = FALSE)+facet_wrap(~Gear, ncol=1)
+
+In_Sp_by_gear_plot
+```
+Just target Species (Gretchen's Code)
+```{r}
+IN_target_sp_gears <- lake.count.gear %>%
+  filter(key.species==1) %>%
+  ggplot( aes(Gear, percent.lakes, group=Gear, fill=Gear))+geom_bar(stat="identity", colour="black", position="dodge")+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = c(.8,.2))+
+  ylab("Proportion of lakes\n(out of 132)")+
+  facet_wrap(~Species)
+
+IN_target_sp_gears
+```
+Mean Catch by Gear (Gretchen)
+```{r}
+#mean catch by gear
+mean.cpue <- fish.catch.effort %>%
+  filter(total.catch!=0) %>%
+  group_by( Species, Gear) %>%
+  summarise(mean.non.zero.cpue=mean(total.catch/effort), lci.non.zero.cpue=quantile(total.catch/effort, .0275), uci.non.zero.cpue=quantile(total.catch/effort, .975, na.rm=T),mean.length=mean(mean.length), lci.length=quantile(mean.length, .0275, na.rm=T),uci.length=quantile(mean.length, .975, na.rm=T) )
+
+mean.cpue <- mean.cpue %>%
+  mutate(key.species=case_when(Species%in%target.species~1, TRUE~0))
+
+#just target species
+
+IN_Mean_CPUE_by_gear <- mean.cpue %>% 
+  filter(key.species==1) %>%
+  ggplot( aes(Species, mean.non.zero.cpue, group=Gear, colour=Gear))+
+  geom_pointrange(aes(ymax=uci.non.zero.cpue, ymin=lci.non.zero.cpue))+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = c(.8,.8))+
+  ylab("Mean non-zero CPUE")+
+  facet_wrap(~Gear, scales="free_y")
+
+IN_Mean_CPUE_by_gear
+```
+
+```{r}
+IN_Violin_CPUE_by_gear <- fish.catch.effort %>%
+  filter(Species%in%target.species) %>%
+  ggplot( aes(Species, total.catch/effort, group=Species, colour=Gear, fill=Gear))+
+  geom_violin()+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = c(.8,.8))+
+  ylab("Non-Zero CPUE")+
+  facet_wrap(~Gear, scales="free_y")+
+  scale_y_log10()
+
+IN_Violin_CPUE_by_gear 
+```
+Mean length and CPUE (Gretchen)
+```{r}
+IN_mean_length_CPUE <- fish.catch.effort %>%
+  filter(Species%in%target.species)%>%
+  ggplot( aes( total.catch/effort, mean.length, group=Gear, colour=Gear, shape=Gear))+
+  geom_point(size=2, alpha=.7, position=position_jitter(width=.05))+
+  theme_classic()+theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = c(.8,.2))+
+  xlab("Mean non-zero CPUE")+facet_wrap(~Species, scales="free")+
+  ylab("Mean length")+
+  scale_x_log10()
+
+IN_mean_length_CPUE
+```
+End Gretchen's code looking at the community data
+
+IN Reservoir Fish Data
+Read in reservoir data
+```{r}
+IN_Resr_Fish <- read_excel("Data_and_Scripts/Data/Data_Summaries/IN/in_reservoir_fish_community_fish_data.xlsx")
+
+IN_Resr_Effort <- read_excel("Data_and_Scripts/Data/Data_Summaries/IN/in_reservoir_fish_community_effort.xlsx")
+
+```
+
+Get list of all possible lakes, years, species, and gears
+- Since the fish catch data doesn't have year info, will need to combine with effort
+- then expand list
+- join expanded list to catch (adding 0s where none are caught)
+- then join with effort to remove survey gears that weren't used
+```{r}
+IN_Resr_List <- IN_Resr_Fish %>%
+  rename(Survey_ID = 'Survey ID', Lake_Name = 'Lake Name')%>%
+  group_by(Survey_ID, Species, Gear)%>%
+  summarise(Total_Catch = n())%>%
+  full_join(IN_Resr_Effort, by = "Survey_ID")%>%
+  mutate(Sample_Start = ymd(Sample_Start_Date))%>%
+  mutate(Year = year(Sample_Start))%>%
+  mutate(Species = str_to_lower(Species))%>% #will help R grup species, uppercase and lowercase names used
+  mutate(Gear_Abbrev = case_when(Gear=="Gill net std exp" ~ "GN",
+                                 Gear == "Gill net STB exp" ~ "GN",
+                                 Gear=="Trap net std"~"TN",
+                                 Gear=="Night EF"~"EF"))%>% #will help keep gears straight, 7 entries for GN are slightly different (std vs STB)
+  mutate(Gear_Abbrev = as.factor(Gear_Abbrev))%>% 
+  filter(Survey_ID != 2, Survey_ID != 373, Survey_ID != 273) #2 and 373 don't have any effort data, 273 lacks fish data
+
+# List of all possible Species, gears. Only one survey per lake so no need for years or lakes here
+IN_Resr_List_Long <- IN_Resr_List %>% 
+  expand(Survey_ID, Gear_Abbrev, Species) #this is too many years given they only did one survey per lake regardless of year but can filter out later, , Year=2016:2019. Not including year because there was only one survey per lake. 
+
+#Combine catch, and rename columns for easier use
+IN_Resr_Fish_Usable <- IN_Resr_Fish %>%
+  rename(Survey_ID = 'Survey ID', Lake_Name = 'Lake Name', Length_in = `Length (in)`, Weight_lb = `weight (lb)`, Gear_Number = `Gear Number`)%>%
+  mutate(Gear_Abbrev = case_when(Gear=="Gill net std exp" ~ "GN",
+                                 Gear == "Gill net STB exp" ~ "GN",
+                                 Gear=="Trap net std"~"TN",
+                                 Gear=="Night EF"~"EF"))%>%
+  mutate(Species = str_to_lower(Species))%>%
+  group_by(Survey_ID, Species, Gear_Abbrev)%>%
+  summarise(Total_Catch = n())
+
+#Pull in catch data and add 0s if a species was not caught
+IN_Resr_Total_Catch <- IN_Resr_Fish_Usable %>%
+  right_join(IN_Resr_List_Long, by = c("Survey_ID", "Gear_Abbrev", "Species"))%>%
+  mutate(Total_Catch = replace_na(Total_Catch, 0))
+
+# Split effort up by gear (so it isn't one line per survey, it is one line per gear)
+IN_Resr_Effort_by_Gear <- IN_Resr_Effort%>%
+  rename(EF = 9, GN = 10, TN = 11)%>%
+  pivot_longer(c(EF, GN, TN), names_to = "Gear_Abbrev", values_to = "Effort")%>%
+  mutate(Effort_Units = case_when(Gear_Abbrev == "GN" ~ "Number of nets",
+                                  Gear_Abbrev == "TN" ~ "Number of nets",
+                                  Gear_Abbrev == "EF" ~ "Number of hours"))
+
+
+# Combine catch and effort to calculate CPUE
+IN_Resr_CPUE <- IN_Resr_Total_Catch %>%
+  right_join(IN_Resr_Effort_by_Gear, by = c("Survey_ID", "Gear_Abbrev"))%>%
+  filter(Survey_ID != 273) %>% #no catch data
+  mutate(CPUE = Total_Catch/Effort)
+
+In_Resr_CPUE_just_target_sp <- IN_Resr_CPUE %>%
+  filter(Species %in% c("black crappie", "bluegill", "largemouth bass", "northern pike", "smallmouth bass", "walleye", "yellow perch")) #no cisco
+```
+
+Summary Stats and Plots
+```{r}
+IN_Resr_CATCH <- ggplot(data = In_Resr_CPUE_just_target_sp, aes (x = Gear_Abbrev, y= Total_Catch, fill = Species))+
+  geom_bar(stat = "identity")+
+  facet_wrap(.~Species, scales = "free")+
+  theme_bw()+
+  labs(y = "Total Catch", title = "IN Species Total Catch by Gear: Reservoirs", caption = "*note differences in y-axis scales")
+
+IN_Resr_CATCH
+
+
+
+IN_resr_number <- IN_Resr_CPUE %>%
+  group_by(Lake_Name)%>%
+  summarise(Total = n()) #63 reservoirs 
+
+IN_resr_count <- IN_Resr_CPUE %>%
+  filter(Total_Catch > 0) %>%
+  group_by(Species) %>%
+  summarise(N.resr=length(unique(Lake_Name))) %>%
+  arrange(-N.resr) %>%
+  mutate(Percent_lakes = N.resr/length(unique(IN_Resr_CPUE$Lake_Name))) %>%
+  mutate(Species= as.factor(Species))%>%
+  mutate(Species = fct_reorder(Species, Percent_lakes, .desc = TRUE)) #69 species
+        
+
+IN_all_Species_Reser <- ggplot(IN_resr_count, aes(Species, Percent_lakes))+
+  geom_bar(stat="identity", fill="cyan3", colour="navyblue")+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(y = "Proportion of reservoirs\n(out of 63)", title = "In All Species: Reservoirs")
+
+IN_all_Species_Reser
+```
+Species Richness 
+```{r}
+species_count <- IN_Resr_CPUE %>% 
+  filter(Total_Catch > 0) %>%
+  group_by(Lake_Name) %>% 
+  summarise(N.Species.res=length(unique(Species))) %>%
+  arrange(-N.Species.res) %>%
+  mutate(percent.species=N.Species.res/length(unique(fish.catch.effort$Species))) 
+
+species_count2 <- species_count%>%
+  mutate(Lake_Name= as.factor(Lake_Name))%>%
+  mutate(Lake_Name = fct_reorder(Lake_Name, N.Species.res, .desc = TRUE))
+
+IN_Sp_Richness_Resr <- ggplot(species_count2, aes(Lake_Name, N.Species.res))+
+  geom_bar(stat="identity", fill="lightgreen", colour="black")+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=90, hjust=1, vjust=.5))+
+  labs(y = "Number of species\n(out of 69)", title = "IN Species Richness Reservoirs", x = "Reservoir")
+
+IN_Sp_Richness_Resr
+```
+Species Richness, highlight target species
+```{r}
+#extract species of interest
+target_species <- c("black crappie", "bluegill", "largemouth bass", "northern pike", "smallmouth bass", "walleye", "yellow perch")
+
+IN_resr_count_target <- IN_resr_count %>%
+  mutate(target_species=case_when(Species%in%target_species~1, TRUE~0))
+
+
+IN_All_sp_highlight <- ggplot(IN_resr_count_target, aes(Species, Percent_lakes))+
+  geom_bar(stat="identity", colour="black", fill="orchid")+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = "none")+
+  labs(y = "Proportion of lakes\n(out of 63)", title = "IN All Species: Reservoirs")+
+  gghighlight(target_species==1)
+
+
+IN_All_sp_highlight
+```
+
+Species by Gear
+```{r}
+target_species_res <- c("black crappie", "bluegill", "largemouth bass", "northern pike", "smallmouth bass", "walleye", "yellow perch") #pasted from above
+
+lake.count.gearR <- fish.catch.effort %>%
+  filter(total.catch!=0) %>%
+  group_by(Species, Gear) %>%
+  summarise(N.lakes=length(unique(temp.id))) %>%
+  arrange(-N.lakes, Gear) %>% 
+  mutate(percent.res=N.lakes/length(unique(fish.catch.effort$temp.id))) %>%
+  mutate(Species=factor(Species, levels=arrange(lake.count,-N.lakes)$Species))
+
+lake.count.gearR_target=lake.count.gearR %>%
+  mutate(Species = str_to_lower(Species))%>%
+  mutate(target_species_res=case_when(Species %in% target_species_res~1, TRUE~0))%>%
+  mutate(Gear = as.factor(Gear))
+
+
+In_Sp_by_gear_plot <- ggplot(lake.count.gearR_target, aes(x = Species, y = percent.res, fill=Gear))+
+  geom_bar(stat="identity", color="black")+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  labs(y="Proportion of reservoirs\n(out of 63)", title = "IN Reservoirs")+
+  gghighlight(target_species_res==1, use_direct_label = FALSE, use_group_by = FALSE)+
+  facet_wrap(.~Gear, ncol = 1)
+
+In_Sp_by_gear_plot #the highlighted bars don't look right..? 
+```
+
+
+Just target Species by Gear
+```{r}
+IN_target_sp_gears_Resr <- lake.count.gearR_target %>%
+  filter(target_species_res==1) 
+
+IN_target_sp_gears_Resr_plot <- ggplot(data = IN_target_sp_gears_Resr, aes(Gear, percent.res, group=Gear, fill=Gear))+
+  geom_bar(stat="identity", colour="black", position="dodge")+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = c(.8,.1))+
+  ylab("Proportion of reservoirs\n(out of 63)")+
+  facet_wrap(~Species)
+
+IN_target_sp_gears_Resr_plot
+```
+Mean Catch by Gear
+```{r}
+Mean_CPUE_Resr <- IN_Resr_CPUE %>%
+  filter(CPUE != 0) %>%
+  group_by(Species, Gear_Abbrev) %>%
+  summarise(Mean_non_0_CPUE = mean(CPUE), lci.non.zero.cpue=quantile(CPUE, .0275), uci.non.zero.cpue=quantile(CPUE, .975, na.rm=T))
+
+Mean_CPUE_Resr2 <- Mean_CPUE_Resr %>%
+  mutate(target_species_res=case_when(Species %in% target_species_res ~ 1, TRUE~0))%>%
+  filter(target_species_res==1)
+
+#just target species
+
+IN_Mean_CPUE_by_gear_Resr <- ggplot(data = Mean_CPUE_Resr2, aes(Species, Mean_non_0_CPUE, group=Gear_Abbrev, color=Gear_Abbrev))+
+  geom_pointrange(aes(ymax=uci.non.zero.cpue, ymin=lci.non.zero.cpue))+
+  theme_classic()+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = c(.95,.8))+
+  facet_wrap(~Gear_Abbrev, scales="free_y")+
+  labs(y = "Mean non-zero CPUE", color = "Gear")
+
+IN_Mean_CPUE_by_gear_Resr
+```
+In the future, it may be nice to combine the lakes and reservoirs datasets to get the full picture.
+
+
+IN lake and reservoir lists for temp
+```{r}
+IN_temp_list_lakes <-in.effort.community.data %>%
+  mutate(Month = "June")%>%
+  select(-Gear, -5)%>%
+  group_by(Lake, County, Year, Month)%>%
+  summarise(total = n())%>%
+  select(-total)
+
+write_csv(IN_temp_list_lakes, "IN_lake_list.csv")
+
+
+#### Adding IN Lake IDs 9-7-22
+IN_Lake_List <- read_excel("~/CASC/CASC_Fish_Abundance/Data_Summaries/IN/2020FINFO_Lake_List.xlsx") #has IN lake IDs
+
+IN_temp_list_lakes_with_ID <- IN_temp_list_lakes %>%
+  mutate(County = str_to_title(County))%>%
+  left_join(IN_Lake_List, by = c("Lake" = "Name", "County" = "County"))%>%
+  select(-6, -7, -8, -9, -10, -11, -12)%>%
+  filter(is.na(Id))#going to export as csv and manually fix :( 28 won't match
+
+write_csv(IN_temp_list_lakes_with_ID, "IN_lk_temp_list_fix.csv")
+
+IN_temp_list_resr <- IN_Resr_Effort %>%
+  select(1:4)
+
+write_csv(IN_temp_list_resr, "IN_reservoir_list.csv")
+```
+
+#Additional data activities for IN
+
+IN Sp Map
+```{r}
+IN_Lake_Info <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IN/IN_Lake_List2.csv") #manually fixed lake list
+IN_Lat_Long <- read_excel("~/CASC/CASC_Fish_Abundance/Data_Summaries/IN/2020FINFO_Lake_List.xlsx")
+
+IN_Lat_Long_Basic <- IN_Lat_Long %>%
+  rename(Lake_ID = Id)%>%
+  select(Lake_ID, Latitude, Longitude)
+
+IN_GL_CPUE <- fish.catch.effort %>%
+  mutate(County = str_to_title(County))%>%
+  left_join(IN_Lake_Info, by = c("Lake","County"))%>%
+  rename(Lake_ID = Id, Total_Catch = total.catch)%>%
+  ungroup()%>%
+  select(Lake_ID, Species, Total_Catch)%>%
+  left_join(IN_Lat_Long_Basic, by = "Lake_ID") #missing several lat longs
+  
+  
+IN_Resr_CPUE2 <- IN_Resr_CPUE %>%
+  rename(Lake_ID = Lake_ID_Number)%>%
+  mutate(Species = str_to_title(Species))%>%
+  ungroup()%>%
+  select(Lake_ID, Species, Total_Catch, Latitude, Longitude)
+
+IN_SP_Map <- IN_GL_CPUE %>%
+  bind_rows(IN_Resr_CPUE2)%>%
+  filter(Species %in% c("Black Crappie", "Bluegill", "Cisco", "Channel Catfish", "Largemouth Bass", "Northern Pike", "Smallmouth Bass", "Walleye", "White Crappie", "Yellow Perch"))%>%
+   pivot_wider(names_from = Species, values_from = Total_Catch, values_fn = sum)
+  
+```
+

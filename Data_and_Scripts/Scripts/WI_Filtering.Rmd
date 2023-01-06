@@ -14,6 +14,7 @@ library(lubridate)
 library(tidyr)
 library(ggplot2)
 library(forcats)
+library(arrow)
 
 options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
 ```
@@ -21,7 +22,7 @@ options(scipen = 999) #ensures that survey ID numbers aren't rounded with scient
 
 Load in Data AND remove streams and creeks, etc.
 ```{r}
-WI_Fish_Data <- read_csv("Data_and_Scripts/Data/Data_Summaries/WI/wdnr_inland_fish_data.csv") #this is a very large file, and we need a way to load it in better without crashing R
+WI_Fish_Data <- read_csv_arrow("Data_and_Scripts/Data/Data_Summaries/WI/wdnr_inland_fish_data.csv") #this is a very large file, so using arrow to load
 
 # create new df so we don't alter the original raw data, will also select the columns we need.
 WI_Fish_Dat_lakes <- WI_Fish_Data %>%
@@ -63,6 +64,15 @@ WI_Lakes3 <- WI_Lakes %>%
                            Ditch == TRUE ~ 1,
                            TRUE ~ 0)) %>%
   filter(Lotic == 0) # Now 2048 after removing 7/29 additions, was 2195 instead of 3859
+
+```
+
+```
+Winnebago_trawl_check <- WI_Fish_Data %>%
+  select(1:15)%>%
+  filter(wbic == 131100)%>%
+  group_by(gear)%>%
+  summarise(total = n()) #WI Fish Data only has electofishing and fyke netting for Lake Winnebago, so the trawl data will need to be added in separately
 ```
 
 Do the above but with the effort data

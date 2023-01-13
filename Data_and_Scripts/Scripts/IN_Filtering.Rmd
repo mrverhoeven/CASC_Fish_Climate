@@ -361,7 +361,7 @@ IN_resr_count_target <- IN_resr_count %>%
 
 
 IN_All_sp_highlight <- ggplot(IN_resr_count_target, aes(Species, Percent_lakes))+
-  geom_bar(stat="identity", colour="black", fill="orchid")+
+  geom_bar(stat="identity", color="black", fill="orchid")+
   theme_classic()+
   theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1), legend.position = "none")+
   labs(y = "Proportion of lakes\n(out of 63)", title = "IN All Species: Reservoirs")+

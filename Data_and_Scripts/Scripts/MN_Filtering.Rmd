@@ -50,15 +50,16 @@ TN_Effort <- All_Effort %>%
 GN_GDE_GSH_Effort <- All_Effort %>%
   filter(GEAR %in% c("GN", "GDE", "GSH"))
 ```
+
 Load in Electrofishing Data
 - From Corey Geving, via email 8/26/22
 
 ```{r}
 # note, as of 12/22/22 these data have not been added to MN state summaries
 
-EF_Catch_LMB_SMB <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/MN/ELECTROFISHING_CATCH_LMB_SMB.csv")
+EF_Catch_LMB_SMB <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/ELECTROFISHING_CATCH_LMB_SMB.csv")
 
-EF_Effort_LMB_SMB <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/MN/ELECTROFISHING_EFFORT.csv") #some non bass too
+EF_Effort_LMB_SMB <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/ELECTROFISHING_EFFORT.csv") #some non bass too
 
 
 # get into cpue for purposes of quick summaries
@@ -208,6 +209,7 @@ MN_mean_CPUE_by_gear <- ggplot(MN_mean_CPUE_no_0, aes(x = COMMON_NAME, y = CPUE,
   
 MN_mean_CPUE_by_gear
 ```
+
 ```{r}
 MN_CPUE_no_0 <- all_mn %>%
   filter(CPUE > 0)

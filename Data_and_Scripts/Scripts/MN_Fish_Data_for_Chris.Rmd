@@ -106,7 +106,7 @@ MN_lake_info <- mn_lake_list_info %>%
 MN_Fish_GN_TN <- CPUE_GN_TN_target_sp %>%
   left_join(MN_lake_info, by = "DOW")
 
-write_csv(MN_Fish_GN_TN, "MN_Fish_GN_TN_Jan.12.23")
+write_csv(MN_Fish_GN_TN, "MN_Fish_GN_TN_Jan.12.23.csv")
 ```
 
 
@@ -154,10 +154,11 @@ EF_LMB_SMB <- Electrofishing_effort %>%
   mutate(GEAR = "EF")%>%
   rename(LKNAME = WATER_BODY_NAME, DOW = DOW_KITTLE, SURVEYTYPE =SURVEY_TYPE_NAME, SURVEYDATE = SURVEY_ID_DATE, YEAR = SURVEY_YEAR)%>%
   mutate(CPUE = TOTAL_CATCH/EFFORT)%>%
-  select(SURVEY_ID, LKNAME, DOW, SURVEYTYPE, SURVEYDATE, COMMON_NAME, GEAR, CPUE, EFFORT, TOTAL_CATCH, YEAR )
+  select(SURVEY_ID, LKNAME, DOW, SURVEYTYPE, SURVEYDATE, COMMON_NAME, GEAR, CPUE, EFFORT, TOTAL_CATCH, YEAR )%>%
+  left_join(MN_lake_info, by = "DOW")
 
 
-write_csv(EF_LMB_SMB, "MN_EF_LMB_SMB_Jan.12.23")
+write_csv(EF_LMB_SMB, "MN_EF_LMB_SMB_Jan.12.23.csv")
 ```
 
 Combine GN, TN, and EF

@@ -14,6 +14,7 @@ library(lubridate)
 library(tidyr)
 library(ggplot2)
 library(forcats)
+library(arrow)
 
 options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
 ```
@@ -21,7 +22,7 @@ options(scipen = 999) #ensures that survey ID numbers aren't rounded with scient
 
 Load in Data AND remove streams and creeks, etc.
 ```{r}
-WI_Fish_Data <- read_csv("Data_and_Scripts/Data/Data_Summaries/WI/wdnr_inland_fish_data.csv") #this is a very large file, and we need a way to load it in better without crashing R
+WI_Fish_Data <- read_csv_arrow("Data_and_Scripts/Data/input/wdnr_inland_fish_data.csv") #this is a very large file, and we need a way to load it in better without crashing R
 
 # create new df so we don't alter the original raw data, will also select the columns we need.
 WI_Fish_Dat_lakes <- WI_Fish_Data %>%

@@ -22,7 +22,7 @@ options(scipen = 999) #ensures that survey ID numbers aren't rounded with scient
 
 Data from Corey (received 5/3/22)
 - has total catch and effort by species, not individual fish
-```{r}
+```{r, warning=FALSE}
 all_gn_tn <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GNTN-SURVEYS.csv")
 
 all_gde_gsh <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")

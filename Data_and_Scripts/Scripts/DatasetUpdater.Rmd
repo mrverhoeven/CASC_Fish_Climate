@@ -1,0 +1,75 @@
+---
+title: "Dataset Updater"
+author: "Mke Verhoeven"
+date: '2023-01-18'
+output: html_document
+---
+
+You'll need to have access to the google drive folder where these data are
+stored before running this script. 
+
+Load in Packages
+ 
+```{r}
+# load libraries
+  library(googledrive)
+  library(purrr)
+  library(data.table)
+  library(arrow)
+  library(dplyr)
+  
+  #drive authorization request
+
+  # link to google drive & force new token auth (can change to 1 to use existing account)
+  drive_auth(email = FALSE)
+  
+  #import a single file
+  #option 1: load from url (not working)
+  # wi_fish_dat <- read_csv_arrow(
+  #   drive_read_string(
+  #     as_id("https://drive.google.com/file/d/1z9mwiQCVPsN6BBxAM63eRwvyNkuul9f1/view?usp=share_link")))
+  # 
+  
+  # option 2: load from Google drive for desktop (works great, doesn't use googledrive())
+  wi_fish_dat <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wdnr_inland_fish_data.csv") # add arg as_data_frame = F to load without the collected data.frame
+  
+  #option 3: download the file and store it locally, then load to memory from disk (works but copies all data to disk)
+  # drive_download(as_id("https://docs.google.com/spreadsheets/d/1psVnQ8OMW4Us5vrF7DvGxxnqWGQYmrYt/edit?usp=share_link&ouid=103884323050402170010&rtpof=true&sd=true"), path = paste("Data/input/WI_inland_cpue_dat.csv"), overwrite = T )
+  # 
+  # WI_Fish_Data <- read_csv_arrow("Data_and_Scripts/Data/input/wdnr_inland_fish_data.csv") #this is a very large file, and we need a way to load it in better without crashing R
+  # 
+  head(wi_fish_dat)
+  
+  # convert to data.table? Uses more memory to hold file, faster ops in data munging
+   # alldat <-  wi_fish_dat %>% 
+   #   collect() %>% 
+   #    data.table()
+   # 
+
+```
+  
+  
+  
+This code is not used now, but can be implemented to copy a remote GDrive to local disk
+  
+```{r}  
+  # # store folder url as a file ID
+  # # identify this folder on Drive
+  # # let googledrive know this is a file ID or URL, as opposed to file name
+  #   infolder <- drive_get(as_id("https://drive.google.com/open?id=18pifxDCG85yhFSskJSCYhJVN3tTRl9wY"))
+  #   outfolder <- drive_get(as_id("https://drive.google.com/open?id=18s1G78WA9Hu4_6k_fIPMROV9DVo-dI_5"))
+  #   
+  #   
+  # # identify the csv files in each folder
+  # input_files <- data.table(drive_ls(infolder))
+  # output_files <- data.table(drive_ls(outfolder))
+  # 
+  # 
+  # # download them, overwriting your currrent project data folder:
+  # walk(input_files$id, ~ drive_download(as_id(.x), path = paste("data/input", input_files[id==.x, name], sep = "/"), overwrite = T ))
+  # walk(output_files$id, ~ drive_download(as_id(.x), path = paste("data/output", output_files[id==.x, name], sep = "/"), overwrite = T ))
+  #   
+
+```
+  
+  

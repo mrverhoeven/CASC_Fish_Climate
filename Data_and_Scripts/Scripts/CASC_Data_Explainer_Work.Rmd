@@ -10,6 +10,7 @@ First attempt to use the CASC Data Explainer File to rename columns and create u
 
 ```{r}
 library(readr)
+library(readxl)
 library(dplyr)
 library(stringr)
 library(arrow)
@@ -20,24 +21,38 @@ Read in CASC Data Explainer
 ```{r}
 CASC_Data_explainer_02Feb23 <- read_csv_arrow("Data_and_Scripts/Data/Data_Explainer/CASC_Data_Explainer_for_R_Data_Manipulation_02Feb23.csv")
   
-  #"G:\.shortcut-targets-by-id\1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/CASC_Data_Explainer_for_R_manipulation.gsheet"
+## donesn't work :( CASC_Data_explainer <- read_excel("G:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/CASC_Data_Explainer_for_R_manipulation.xlsx")
 ```
 
 Read in MN Data (starting with 2 files)
 ```{r}
-all_gn_tn <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GNTN-SURVEYS.csv")
-
-all_gde_gsh <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
+mn_gde_gsh_fish_effort_03May2022 <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
 ```
 
 Get new column names from data explainer
 ```{r}
-CDE_cols <- colnames(CASC_Data_explainer_02Feb23)
+CDE_cols <- colnames(CASC_Data_explainer_02Feb23) #all possible column names, including garbage column
 
-gde_gsh_cols <- colnames(all_gde_gsh)
+gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
+  filter(`New File Name`== "mn_gde_gsh_fish_effort_03May2022")%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  select(14:25) #keep only columns of relevance (remove our file tracking and urls)
 
-all_gde_gsh_col <- setnames(all_gde_gsh, old = gde )
+# note for files that have items in the "garbage bin" column, we may have a different process where we remove garbage columns after 'filter' but before dropping na columns
+
+old_cols <- as.vector(gde_gsh_col_id[1,]) #pulls exisitng column names that are in row 1
+new_cols <- as.vector(colnames(gde_gsh_col_id)) #pulls column names that have a match in our file of interest 
+
+all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>%
+  rename(new_cols = old_cols)
+
+#all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>% rename(all_of(old_cols))
 ```
+
+# Rename using a named vector and `all_of()`
+lookup <- c(pl = "Petal.Length", sl = "Sepal.Length")
+rename(iris, all_of(lookup))
+
 
 # Using data.table
 library(data.table)

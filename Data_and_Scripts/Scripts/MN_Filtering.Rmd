@@ -13,6 +13,7 @@ library(lubridate)
 library(tidyr)
 library(ggplot2)
 library(gghighlight)
+library(colorspace)
 
 options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
 
@@ -49,6 +50,8 @@ TN_Effort <- All_Effort %>%
 
 GN_GDE_GSH_Effort <- All_Effort %>%
   filter(GEAR %in% c("GN", "GDE", "GSH"))
+
+cols(all_gn_tn)
 ```
 
 Load in Electrofishing Data
@@ -210,6 +213,29 @@ MN_mean_CPUE_by_gear <- ggplot(MN_mean_CPUE_no_0, aes(x = COMMON_NAME, y = CPUE,
 MN_mean_CPUE_by_gear
 ```
 
+
+```{r}
+MN_mean_CPUE_no_0_TN_GN <- all_mn %>%
+  filter(CPUE > 0)%>%
+  filter(TARGET_SPECIES == 1)%>%
+  filter(GEAR_CATEGORY %in% c("GN", "TN"))
+
+MN_mean_CPUE_by_gear_TN_GN <- ggplot(MN_mean_CPUE_no_0_TN_GN, aes(x = COMMON_NAME, y = CPUE, group = COMMON_NAME, fill = COMMON_NAME))+
+  geom_jitter(aes(color = COMMON_NAME), alpha = .01)+
+  geom_boxplot(color = "black")+
+  theme_bw()+
+  facet_wrap(.~GEAR_CATEGORY)+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  scale_y_log10()+
+  labs(title = "MN CPUE by Gear", y = "non-zero CPUE (log scale)", x = "Species", fill = "Species", color = "Species")+
+  scale_fill_discrete_qualitative(palette = "Set 2")+
+  scale_color_discrete_qualitative(palette = "Set 2")
+  
+MN_mean_CPUE_by_gear_TN_GN
+```
+
+
+
 ```{r}
 MN_CPUE_no_0 <- all_mn %>%
   filter(CPUE > 0)
@@ -224,6 +250,56 @@ MN_mean_CPUE_by_gear <- ggplot(MN_CPUE_no_0, aes(x = COMMON_NAME, y = CPUE, grou
   
 MN_mean_CPUE_by_gear
 ```
+
+ Single species plots
+```{r}
+BLG_Gears <- MN_TOP_6 %>%
+  filter(COMMON_NAME == "bluegill")%>%
+  filter(CPUE > 0)
+
+BLG_CPUE_by_gear <- ggplot(BLG_Gears, aes(x = COMMON_NAME, y = CPUE, group = GEAR_CATEGORY, fill = GEAR_CATEGORY))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = GEAR_CATEGORY), alpha = .05)+
+  theme_classic()+
+  facet_wrap(.~GEAR_CATEGORY)+
+  theme(axis.title.x=element_blank())+
+  scale_y_log10()+
+  labs(title = "Bluegill CPUE by Gear", y = "non-zero CPUE (log scale)", fill = "Gear Type", color= "Gear Type", x = "Bluegill")
+  
+BLG_CPUE_by_gear
+
+BLC_Gears <- MN_TOP_6 %>%
+  filter(COMMON_NAME == "black crappie")%>%
+  filter(CPUE > 0)
+
+BLC_CPUE_by_gear <- ggplot(BLC_Gears, aes(x = COMMON_NAME, y = CPUE, group = GEAR_CATEGORY, fill = GEAR_CATEGORY))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = GEAR_CATEGORY), alpha = .05)+
+  theme_classic()+
+  facet_wrap(.~GEAR_CATEGORY)+
+  theme(axis.title.x=element_blank())+
+  scale_y_log10()+
+  labs(title = "Black Crappie CPUE by Gear", y = "non-zero CPUE (log scale)", fill = "Gear Type", color= "Gear Type", x = "Black Crappie")
+  
+BLC_CPUE_by_gear
+
+LMB_Gears <- MN_TOP_6 %>%
+  filter(COMMON_NAME == "black crappie")%>%
+  filter(CPUE > 0)%>%
+  filter(GEAR_CATEGORY %in% c("GN", "TN"))
+
+LMB_CPUE_by_gear <- ggplot(BLC_Gears, aes(x = COMMON_NAME, y = CPUE, group = GEAR_CATEGORY, fill = GEAR_CATEGORY))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = GEAR_CATEGORY), alpha = .05)+
+  theme_classic()+
+  facet_wrap(.~GEAR_CATEGORY)+
+  theme(axis.title.x=element_blank())+
+  scale_y_log10()+
+  labs(title = "Largemouth Bass CPUE by Gear", y = "non-zero CPUE (log scale)", fill = "Gear Type", color= "Gear Type", x = "Largemouth Bass")
+  
+LMB_CPUE_by_gear
+```
+
 
 
 # Single Species Filtering
@@ -372,6 +448,7 @@ WALLEYE
 ```
 
 End single species filtering
+
 _____________________________________________________________________________________________________________________________________________________
 First draft of MN Filtering workflow
 - Later hope to incorporate Paul's code which pulls the files directly from Google Drive

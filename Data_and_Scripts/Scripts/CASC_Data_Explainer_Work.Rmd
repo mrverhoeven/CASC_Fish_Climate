@@ -1,0 +1,49 @@
+---
+title: "CASC_Data_Explainer_Work"
+author: "Holly Kundel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+2/2/23
+First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed
+
+```{r}
+library(readr)
+library(dplyr)
+library(stringr)
+library(arrow)
+library(data.table)
+```
+
+Read in CASC Data Explainer
+```{r}
+CASC_Data_explainer_02Feb23 <- read_csv_arrow("Data_and_Scripts/Data/Data_Explainer/CASC_Data_Explainer_for_R_Data_Manipulation_02Feb23.csv")
+  
+  #"G:\.shortcut-targets-by-id\1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/CASC_Data_Explainer_for_R_manipulation.gsheet"
+```
+
+Read in MN Data (starting with 2 files)
+```{r}
+all_gn_tn <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GNTN-SURVEYS.csv")
+
+all_gde_gsh <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
+```
+
+Get new column names from data explainer
+```{r}
+CDE_cols <- colnames(CASC_Data_explainer_02Feb23)
+
+gde_gsh_cols <- colnames(all_gde_gsh)
+
+all_gde_gsh_col <- setnames(all_gde_gsh, old = gde )
+```
+
+# Using data.table
+library(data.table)
+
+# rename all columns for old to new
+# Rename columns from list
+setnames(my_dataframe, old = c('c1','c2','c3','c4','c5'), 
+         new = c('id','pages','name','chapters','price'))
+

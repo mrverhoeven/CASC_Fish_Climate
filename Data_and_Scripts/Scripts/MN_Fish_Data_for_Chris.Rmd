@@ -167,3 +167,17 @@ Combine GN, TN, and EF
 # Note survey ID 4421012345764001 is entered wrong, remove it
 ```
 
+
+checking MN DoWs that don't have an NHD ID 1/18/23
+```{r}
+noNHDID <- read_csv("Data_and_Scripts/Data/noNHDID.csv")
+
+no_NHD <- noNHDID %>%
+  mutate(DOW_8 = str_sub(DOW, -8))%>%
+  mutate(DOW_08 = str_replace(DOW_8, "_", "0"))%>%
+  mutate(child_DOW = str_detect(DOW_08, "[:digit:][:digit:][:digit:][:digit:][:digit:][:digit:][:digit:][1-9]"))%>%
+  filter(child_DOW == TRUE)
+
+write_csv(no_NHD, "no_NHD_short.csv")
+```
+

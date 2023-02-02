@@ -26,6 +26,8 @@ SD_Fish <- read_excel("Data_and_Scripts/Data/Data_Summaries/SD/sd_lake_survey_fi
 
 SD_Effort <- read_excel("Data_and_Scripts/Data/Data_Summaries/SD/sd_lake_survey_fish_data_surveys.xlsx")
 
+SD_aged <- read_excel("Data_and_Scripts/Data/Data_Summaries/SD/sd_lake_survey_fish_data_agedfish.xlsx")
+
 SD_NOP_Data <-read_excel("Data_and_Scripts/Data/Data_Summaries/SD/SD_NOP_DATA.xlsx", sheet = "LAKE_SURVEYS") #received separately 11/3/22
 
 SD_Gears <- SD_Effort %>%

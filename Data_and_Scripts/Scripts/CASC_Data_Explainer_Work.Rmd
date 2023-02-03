@@ -37,17 +37,48 @@ gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
   filter(`New File Name`== "mn_gde_gsh_fish_effort_03May2022")%>% #keep only the row relevant to this file
   select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
   select(14:25) #keep only columns of relevance (remove our file tracking and urls)
+```
 
+The attempts below did NOT work :(
+```{r}
 # note for files that have items in the "garbage bin" column, we may have a different process where we remove garbage columns after 'filter' but before dropping na columns
 
-old_cols <- as.vector(gde_gsh_col_id[1,]) #pulls exisitng column names that are in row 1
-new_cols <- as.vector(colnames(gde_gsh_col_id)) #pulls column names that have a match in our file of interest 
+old_cols <- (gde_gsh_col_id[1,]) #pulls exisitng column names that are in row 1
+
+new_cols <- data.frame(colnames(gde_gsh_col_id))#pulls column names that have a match in our file of interest 
 
 all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>%
   rename(new_cols = old_cols)
 
-#all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>% rename(all_of(old_cols))
+renamed_columns <- gde_gsh_col_id %>%
+  add_row()
+
+sapply(all_gde_gsh, rename)
+
+
+#almost works
+colnames(all_gde_gsh) <- new_cols
 ```
+
+#### THIS WORKS
+```{R}
+gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
+  filter(`New File Name`== "mn_gde_gsh_fish_effort_03May2022")%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  select(14:25) #keep only columns of relevance (remove our file tracking and urls)
+
+
+colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
+```
+
+
+this stuff doesn't work, and contains examples from the internet that failed to help
+```{r}
+#gde_gsh_col_id[1,i] <- colnames(gde_gsh_col_id)[i]
+
+
+#all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>% rename(all_of(old_cols))
+
 
 # Rename using a named vector and `all_of()`
 lookup <- c(pl = "Petal.Length", sl = "Sepal.Length")
@@ -61,4 +92,4 @@ library(data.table)
 # Rename columns from list
 setnames(my_dataframe, old = c('c1','c2','c3','c4','c5'), 
          new = c('id','pages','name','chapters','price'))
-
+```

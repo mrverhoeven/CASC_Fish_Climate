@@ -61,6 +61,11 @@ colnames(all_gde_gsh) <- new_cols
 ```
 
 #### THIS WORKS
+
+
+Thanks to this: https://statisticsglobe.com/assign-column-names-based-on-existing-row-in-r
+
+
 ```{R}
 gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
   filter(`New File Name`== "mn_gde_gsh_fish_effort_03May2022")%>% #keep only the row relevant to this file

@@ -21,7 +21,7 @@ Read in CASC Data Explainer
 ```{r}
 CASC_Data_explainer_02Feb23 <- read_csv_arrow("Data_and_Scripts/Data/Data_Explainer/CASC_Data_Explainer_for_R_Data_Manipulation_02Feb23.csv")
   
-## donesn't work :( CASC_Data_explainer <- read_excel("G:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/CASC_Data_Explainer_for_R_manipulation.xlsx")
+CASC_Data_explainer <- read_excel("G:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
 ```
 
 Read in MN Data (starting with 2 files)
@@ -75,6 +75,15 @@ gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
 
 colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
 ```
+
+```{r}
+library(dtplyr)
+```
+
+
+
+
+
 
 
 this stuff doesn't work, and contains examples from the internet that failed to help

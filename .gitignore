@@ -29,4 +29,7 @@ vignettes/*.pdf
 CASC_Fish_Climate.Rproj
 *Data/
 desktop.ini
+*desktop.ini
 *.png
+*.csv
+*.xlsx

@@ -17,21 +17,24 @@ Load in Packages
   library(data.table)
   library(arrow)
   library(dplyr)
-  
-  #drive authorization request
+
+#drive authorization request
 
   # link to google drive & force new token auth (can change to 1 to use existing account)
   drive_auth(email = FALSE)
-  
-  #import a single file
+
+
+#import a single file
   #option 1: load from url (not working)
   # wi_fish_dat <- read_csv_arrow(
   #   drive_read_string(
   #     as_id("https://drive.google.com/file/d/1z9mwiQCVPsN6BBxAM63eRwvyNkuul9f1/view?usp=share_link")))
   # 
+  # WI_Fish_Data <- read.csv("https://drive.google.com/uc?export=download&id=1z9mwiQCVPsN6BBxAM63eRwvyNkuul9f1") #direct download from net
+  
   
   # option 2: load from Google drive for desktop (works great, doesn't use googledrive())
-  wi_fish_dat <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wdnr_inland_fish_data.csv") # add arg as_data_frame = F to load without the collected data.frame
+  wi_fish_dat <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wi_inland_fishobservations_19Mar2021.csv") # add arg as_data_frame = F to load without the collected data.frame
   
   #option 3: download the file and store it locally, then load to memory from disk (works but copies all data to disk)
   # drive_download(as_id("https://docs.google.com/spreadsheets/d/1psVnQ8OMW4Us5vrF7DvGxxnqWGQYmrYt/edit?usp=share_link&ouid=103884323050402170010&rtpof=true&sd=true"), path = paste("Data/input/WI_inland_cpue_dat.csv"), overwrite = T )

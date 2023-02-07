@@ -19,14 +19,16 @@ library(data.table)
 
 Read in CASC Data Explainer
 ```{r}
-CASC_Data_explainer_02Feb23 <- read_csv_arrow("Data_and_Scripts/Data/Data_Explainer/CASC_Data_Explainer_for_R_Data_Manipulation_02Feb23.csv")
+#CASC_Data_explainer_02Feb23 <- read_csv_arrow("Data_and_Scripts/Data/Data_Explainer/CASC_Data_Explainer_for_R_Data_Manipulation_02Feb23.csv")
   
-CASC_Data_explainer <- read_excel("G:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
+CASC_Data_explainer <- read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
 ```
 
 Read in MN Data (starting with 2 files)
 ```{r}
-mn_gde_gsh_fish_effort_03May2022 <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
+mn_gde_gsh_fish_effort_03May2022 <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_gde_gsh_fish_effort_03May2022.csv")
+
+mn_fish_effort_03May2022 <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_fish_effort_03May2022.csv")
 ```
 
 Get new column names from data explainer
@@ -67,7 +69,7 @@ Thanks to this: https://statisticsglobe.com/assign-column-names-based-on-existin
 
 
 ```{R}
-gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
+gde_gsh_col_id <- CASC_Data_explainer %>% # call data explainer file
   filter(`New File Name`== "mn_gde_gsh_fish_effort_03May2022")%>% #keep only the row relevant to this file
   select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
   select(14:25) #keep only columns of relevance (remove our file tracking and urls)
@@ -75,6 +77,25 @@ gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
 
 colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
 ```
+
+
+Repeat above process with a file that has the a column in the "garbage bin" column
+```{r}
+mn_effort_col_id <- CASC_Data_explainer %>% # call data explainer file
+  filter(`New File Name`== "mn_fish_effort_03May2022")%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  
+
+
+#colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
+```
+
+Now rename columns with a loop
+```{r}
+
+```
+
+
 
 ```{r}
 library(dtplyr)

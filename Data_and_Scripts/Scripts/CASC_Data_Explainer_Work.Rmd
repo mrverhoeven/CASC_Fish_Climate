@@ -92,7 +92,24 @@ mn_effort_col_id <- CASC_Data_explainer %>% # call data explainer file
 
 Now rename columns with a loop
 ```{r}
+MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = "mn_")
+n <- length(MN_files_list)
 
+for(i in 1:n) {
+  assign(paste0("MN", i),
+         read.csv2(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+                          MN_files_list[i])))
+  
+  MN_col_id[i] <- CASC_Data_explainer %>%
+    filter('New File Name' == "i")%>%
+    select_if(~ !any(is.na(.)))%>%
+    select(-1:13)
+  
+  colnames(MN[i]) <- colnames(MN_col_id[i])
+}
+
+
+#MN[i] <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/"[i])
 ```
 
 

@@ -38,7 +38,7 @@ WI_wbic_lat_longs <- read_csv("Data_and_Scripts/Data/Data_Summaries/WI/wi_lake_w
 WI_Lakes <- WI_Fish_Dat_lakes %>%
   left_join(WI_wbic_lat_longs, by = c("wbic" = "lake.id"))%>%
   rename(Latitude = lat, Longitude = long)%>%
-  mutate(Lake_ID_Type = "WBIC")%>% #useful when combinging with other states data
+  mutate(Lake_ID_Type = "WBIC")%>% #useful when combining with other states data
   mutate(State = "WI")%>% #will help distinguish other states when we combine
   rename(Lake_ID = wbic)%>% #creating a common column name to use with all states
   rename(Waterbody_Name = waterbody.name)%>% #rename to common column name
@@ -84,12 +84,12 @@ WI_Effort_Data <- read_csv("Data_and_Scripts/Data/Data_Summaries/WI/wdnr_inland_
 WI_Effort_Dat_lakes <- WI_Effort_Data %>%
   select(wbic, waterbody.name, sample.date)
 
-
+# create list of WI Gears for Jenna
 WI_Gears <- WI_Effort_Data %>%
   group_by(gear)%>%
   summarise(Total=n())
 
-write_csv(WI_Gears, "WI_Gears")
+#write_csv(WI_Gears, "WI_Gears")
 
 #read in lat longs for wbics
 WI_wbic_lat_longs <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/WI/wi_lake_wbic_lat_long_PNF.csv")
@@ -156,7 +156,7 @@ WI_inland_cpue_lakes <- WI_inland_cpue_data %>%
   filter(Lotic == 0)%>%
   select(1:11)%>%
   mutate(species = str_replace_all(species, "_", " "))%>%
-  mutate(TARGET_SPECIES = case_when(species == "bluegill" ~ "1",
+  mutate(TARGET_SPECIES = case_when(species == "bluegill" ~ "1",           #target species is to flag our species of interest
                                     species == "black crappie" ~ "1",
                                     species == "largemouth bass" ~ "1",
                                     species == "northern pike" ~ "1",

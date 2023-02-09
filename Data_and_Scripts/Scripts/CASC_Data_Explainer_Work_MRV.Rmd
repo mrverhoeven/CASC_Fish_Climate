@@ -16,72 +16,61 @@ library(stringr)
 library(arrow)
 library(data.table)
   # update_dev_pkg()
+library(googledrive)
 ```
 
 Read in CASC Data Explainer
 ```{r}
 
-CASC_Data_explainer_02Feb23 <- data.table(read_excel("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
+CASC_Data_explainer <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
 
 ```
 
 Read in state Data (starting with 2 files)
 From GDrive, not doing this for now, having issues with direct read from GDrive
 ```{r}  
-  # # store folder url as a file ID
-  # # identify this folder on Drive
-  # # let googledrive know this is a file ID or URL, as opposed to file name
-  #   infolder <- drive_get(as_id("https://drive.google.com/drive/u/1/folders/1mFX3FTsWzEUMu55bQiQ-19Gm5jfB9l-R"))
-  #      
-  #   
-  # # identify the csv files in that folder
-  # input_files <- data.table(drive_ls(infolder, type = "csv"))
-  # 
-  # 
-  # # import them, overwriting your currrent project data folder:
-  # walk(input_files$id, ~ drive_download(as_id(.x), path = paste("data/input", input_files[id==.x, name], sep = "/"), overwrite = T ))
-  
 
-```
-  
+WI_files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+WI_files_list
+
+n <- length(WI_files_list)
+
+for(i in 1:n) {
+  assign(gsub(".csv","", WI_files_list[i]),
+         read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
+                          WI_files_list[i])))
+}  
 
 
-Bring in all of a given state's 
-```{r}
-
-  wi_inland_cpue <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wi_inland_cpue_19Mar2021.csv") # add arg as_data_frame = F to load without the collected data.frame
-
-  wi_inland_effort <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wi_inland_effort_19Mar2021.csv") # add arg as_data_frame = F to load without the collected data.frame
-    
-  wi_inland_fishobs <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wi_inland_fishobservations_19Mar2021.csv") # add arg as_data_frame = F to load without the collected data.frame
-      
-  wi_inland_lenage <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wi_inland_lenage_19Mar2021.csv") # add arg as_data_frame = F to load without the collected data.frame
-        
-  wi_wbgo_cpue <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wi_winnebago_cpue_23Apr2021.csv") # add arg as_data_frame = F to load without the collected data.frame
-          
-  wi_wbgo_fishobs <- read_csv_arrow("E:/.shortcut-targets-by-id/1eHXdJvNMq46tBKURFTeViKWGdSBhWsL_/Data/WI_Data/wi_raw_disaggregated_data/wi_winnebago_fishobservations_23April2021.csv") # add arg as_data_frame = F to load without the collected data.frame
 
 
 ```
+  
 
-Get new column names from data explainer
+
+Get new column names from data explainer for all files
 ```{r}
+
 CDE_cols <-    #all possible column names, including garbage column
 
-gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
-  filter(`New File Name`== "mn_gde_gsh_fish_effort_03May2022")%>% #keep only the row relevant to this file
+gde_gsh_col_id <- CASC_Data_explainer %>% # call data explainer file
+  filter(`New File Name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
   select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
   select(14:25) #keep only columns of relevance (remove our file tracking and urls)
 
 # note for files that have items in the "garbage bin" column, we may have a different process where we remove garbage columns after 'filter' but before dropping na columns
 
-old_cols <- as.vector(gde_gsh_col_id[1,]) #pulls exisitng column names that are in row 1
-new_cols <- as.vector(colnames(gde_gsh_col_id)) #pulls column names that have a match in our file of interest 
 
-all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>%
-  rename(new_cols = old_cols)
+colnames(noquote(sub(".csv","", WI_files_list)[1])) <- CASC_Data_explainer %>% # call data explainer file
+  filter(`New File Name`== sub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  colnames() #keep only columns of relevance (remove our file tracking and urls)
 
-#all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>% rename(all_of(old_cols))
+
+colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
+```
+
+
 ```
 
 # Rename using a named vector and `all_of()`

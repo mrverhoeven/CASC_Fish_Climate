@@ -30,7 +30,7 @@ Load in Packages
   #   drive_read_string(
   #     as_id("https://drive.google.com/file/d/1z9mwiQCVPsN6BBxAM63eRwvyNkuul9f1/view?usp=share_link")))
   # 
-  # WI_Fish_Data <- read.csv("https://drive.google.com/uc?export=download&id=1z9mwiQCVPsN6BBxAM63eRwvyNkuul9f1") #direct download from net
+  # Data_Exp <- read_excel("https://drive.google.com/uc?export=download&id=1avP8o6S3F8t7VbkjZtYPFpZfwM8MutTY") #direct download from net
   
   
   # option 2: load from Google drive for desktop (works great, doesn't use googledrive())

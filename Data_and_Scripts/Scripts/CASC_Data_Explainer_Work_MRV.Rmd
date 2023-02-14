@@ -1,0 +1,88 @@
+---
+title: "CASC_Data_Explainer_Work"
+author: "Mike Verhoeven"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+2/2/23
+First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed. Uses WI data for test case
+
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(arrow)
+library(data.table)
+  # update_dev_pkg()
+library(googledrive)
+```
+
+Read in CASC Data Explainer
+```{r}
+
+CASC_Data_explainer <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
+
+```
+
+Read in state Data (starting with 2 files)
+From GDrive, not doing this for now, having issues with direct read from GDrive
+```{r}  
+
+WI_files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+WI_files_list
+
+n <- length(WI_files_list)
+
+for(i in 1:n) {
+  assign(gsub(".csv","", WI_files_list[i]),
+         read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
+                          WI_files_list[i])))
+}  
+
+
+
+
+```
+  
+
+
+Get new column names from data explainer for all files
+```{r}
+
+CDE_cols <-    #all possible column names, including garbage column
+
+gde_gsh_col_id <- CASC_Data_explainer %>% # call data explainer file
+  filter(`New File Name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  select(14:25) #keep only columns of relevance (remove our file tracking and urls)
+
+# note for files that have items in the "garbage bin" column, we may have a different process where we remove garbage columns after 'filter' but before dropping na columns
+
+
+colnames(noquote(sub(".csv","", WI_files_list)[1])) <- CASC_Data_explainer %>% # call data explainer file
+  filter(`New File Name`== sub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  colnames() #keep only columns of relevance (remove our file tracking and urls)
+
+
+colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
+```
+
+
+```
+
+# Rename using a named vector and `all_of()`
+lookup <- c(pl = "Petal.Length", sl = "Sepal.Length")
+rename(iris, all_of(lookup))
+
+
+# Using data.table
+library(data.table)
+
+# rename all columns for old to new
+# Rename columns from list
+setnames(my_dataframe, old = c('c1','c2','c3','c4','c5'), 
+         new = c('id','pages','name','chapters','price'))
+

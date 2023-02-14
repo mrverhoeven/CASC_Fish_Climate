@@ -1,0 +1,173 @@
+---
+title: "MN_Flat_File_Bad"
+author: "Holly Kundel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(arrow)
+library(data.table)
+library(tidyr)
+library(tibble)
+```
+
+Read in CASC Data Explainer
+```{r}
+CASC_Data_explainer <- read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
+```
+
+
+```{r}
+MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = "mn_")
+n <- length(MN_files_list)
+
+# Code from Mike
+for(i in 1:n) {
+  assign(gsub(".csv","", MN_files_list[i]),
+         read_csv(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+                               MN_files_list[i]))) #don't use 'read.csv2, only get one column
+} 
+```
+
+Manually Pull columns of interest and re-name (10 columns total)
+Date, Lake ID, Survey ID, Sampling Method, SPecies, Total Count, Length, Weight, Age, Total Effort 1
+```{r}
+MN1 <- mn_aged_fish%>%
+  mutate(Total_Count = 1)%>%
+  mutate(Total_Effort_1 = NA)%>%
+  select(6,5,1,8,13,24,15,16,21,25)%>%
+  rename(Date = 1,
+         Lake_ID = 2,
+         Survey_ID = 3,
+         Sampling_Method = 4,
+         Species = 5,
+         Length = 7,
+         Weight = 8,
+         Age = 9)%>%
+  mutate(Length_Units = "mm")%>%
+  mutate(Weight_Units = "g")%>%
+  select(1:7,11,8,12,9,10)%>%
+  mutate(Effort_Units = NA)%>%
+  mutate(Age = as.numeric(case_when(str_detect(MN1$Age,"^[:digit:]+$") ~ Age,
+                         TRUE ~ NA)))
+  
+#MN1_check <- MN1 %>% group_by(Sampling_Method)%>%summarise(Total = n()) #41 different gears
+
+MN2 <- mn_aged_fish_1%>%
+  mutate(Total_Effort_1 = NA,
+         Length_Units = "mm",
+         Weight_Units = "g")%>%
+  select(7,5,6,14,26,50,34,52,37,53,46,51)%>%
+  mutate(Date = as.character(SURVEY_ID_DATE))%>%
+  mutate(Lake_ID = str_replace_all(DOW_NBR_FULL, "-",""))%>%
+  rename(Survey_ID = 3,
+         Sampling_Method = 4,
+         Species = 5,
+         Total_Count = 6,
+         Length = 7,
+         Weight = 9,
+         Age = 11)%>%
+  select(Date, Lake_ID, Survey_ID, Sampling_Method, Species, Total_Count, Length, Length_Units, Weight, Weight_Units, Age, Total_Effort_1)%>%
+  mutate(Weight = if_else(Weight == "NULL", NA, Weight))%>%
+  mutate(Effort_Units = NA)
+
+MN3 <- mn_aged_fish_2%>%
+  mutate(Total_Effort_1 = NA,
+         Length_Units = "mm",
+         Weight_Units = "g")%>%
+  select(7,5,6,14,26,50,34,52,37,53,46,51)%>%
+  mutate(Date = as.character(SURVEY_ID_DATE))%>%
+  mutate(Lake_ID = str_replace_all(DOW_NBR_FULL, "-",""))%>%
+  rename(Survey_ID = 3,
+         Sampling_Method = 4,
+         Species = 5,
+         Total_Count = 6,
+         Length = 7,
+         Weight = 9,
+         Age = 11)%>%
+  select(Date, Lake_ID, Survey_ID, Sampling_Method, Species, Total_Count, Length, Length_Units, Weight, Weight_Units, Age, Total_Effort_1)%>%
+  mutate(Weight = if_else(Weight == "NULL", NA, Weight))%>%
+  mutate(Effort_Units = NA)
+
+MN4 <- mn_ef_lmb_smb_catch_26Aug2022 %>%
+  mutate(Total_Effort_1 = NA,
+         Length_Units = "mm",
+         Weight_Units = "g",
+         Total_Count = 1)%>%
+  rename(Date =7,
+         Lake_ID = 5,
+         Survey_ID = 1,
+         Sampling_Method = 10,
+         Species = 14,
+         Length = 16,
+         Weight = 17,
+         Age = OFF_AGE)%>%
+  mutate(Species = case_when(Species == "LMB" ~ "largemouth bass",
+                             Species == "SMB" ~ "smallmouth bass",
+                             TRUE ~ NA))%>%
+  select(Date, Lake_ID, Survey_ID, Sampling_Method, Species, Total_Count, Length, Length_Units, Weight, Weight_Units, Age, Total_Effort_1)%>%
+  mutate(Effort_Units = NA)%>%
+  mutate(Length = as.numeric(case_when(str_detect(MN4$Length,"^[:digit:]+$") ~ Length,
+                         TRUE ~ NA)))
+
+MN5 <- mn_ef_lmb_smb_effort_26Aug2022%>%
+  mutate(Species = NA,
+         Total_Count = NA,
+         Length = NA,
+         Length_Units = NA,
+         Weight = NA,
+         Weight_Units = NA,
+         Age = NA,
+         Effort_Units = "hours")%>%
+  rename(Date = 8,
+         Lake_ID = 3,
+         Survey_ID = 1,
+         Sampling_Method = 11,
+         Total_Effort_1 = 18)%>%
+  select(Date, Lake_ID, Survey_ID, Sampling_Method, Species, Total_Count, Length, Length_Units, Weight, Weight_Units, Age, Total_Effort_1, Effort_Units)
+
+MN6 <- mn_fish_effort_03May2022 %>%
+  mutate(Length = NA,
+         Length_Units = NA,
+         Weight = NA,
+         Weight_Units = NA,
+         Age = NA,
+         Effort_Units = "net nights")%>%
+  rename(Date = 5,
+         Lake_ID =3,
+         Survey_ID = 1,
+         Sampling_Method = 7,
+         Species = 6,
+         Total_Count = 10,
+         Total_Effort_1 = 9)%>%
+  select(Date, Lake_ID, Survey_ID, Sampling_Method, Species, Total_Count, Length, Length_Units, Weight, Weight_Units, Age, Total_Effort_1, Effort_Units)
+
+MN7 <- mn_gde_gsh_fish_effort_03May2022 %>%
+  mutate(Length = NA,
+         Length_Units = NA,
+         Weight = NA,
+         Weight_Units = NA,
+         Age = NA,
+         Effort_Units = "net nights")%>%
+  rename(Date = 5,
+         Lake_ID =3,
+         Survey_ID = 1,
+         Sampling_Method = 7,
+         Species = 6,
+         Total_Count = 10,
+         Total_Effort_1 = 9)%>%
+  select(Date, Lake_ID, Survey_ID, Sampling_Method, Species, Total_Count, Length, Length_Units, Weight, Weight_Units, Age, Total_Effort_1, Effort_Units)
+```
+
+Combine into one flat file
+```{r}
+MN_Flat_14Feb23 <- bind_rows(MN1, MN2, MN3, MN4, MN5, MN6, MN7)
+
+write_csv(MN_Flat_14Feb23, "MN_Flat_14Feb23.csv")
+```
+

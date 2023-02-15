@@ -17,14 +17,67 @@ library(arrow)
 library(data.table)
   # update_dev_pkg()
 library(googledrive)
+library(janitor)
+library(tidyr)
+ # install.packages("tidyr")
+
 ```
 
 Read in CASC Data Explainer
 ```{r}
 
-CASC_Data_explainer <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
+cde <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
 
 ```
+
+Prep the data explainer
+```{r}
+# even we can't get our data straight! r/r commas with semicolons 
+
+cols = colnames(cde[ , 1:ncol(cde)]) # can choose which cols to do action on here 
+
+cde[, (cols) := #rebuild each column ()
+      lapply(.SD, function(x){str_replace_all(x , pattern = ",", replacement = ";")}), #by looking through each cell and r/r commas with semicolons
+    .SDcols = cols ]  # 
+
+#expand each col to the maxN of cols in any row that column
+maxn <- unlist(cde[, 
+    lapply(.SD,function(x){max(lengths(str_split(x, pattern = ";")))}), # how many units are in here? each unit is sep by a semicolon, count col names, then use the max
+    .SD ][1], use.names = F)
+
+# for i in colnames(cde)[maxn > 1] {
+#   
+#   cde <- 
+#     cde %>% 
+# separate_wider_delim( col = i, delim = ";", names = paste(i, maxn FOR THIS I
+#                                                           
+#                                                           , sep = "_"), too_few = "align_start", too_many = "error")
+#   
+# }
+
+cde %>% 
+separate_wider_delim( col = GarbageBin, delim = ";", names = paste("GarbageBin", c(1:29), sep = "_"), too_few = "align_start", too_many = "error")
+
+#we need to expand to a width specified by the length of the vector of cols within a col
+#expand all cols 50 x any cols filled with things separated by semicolons
+length(str_split("How;many words; are; in; this; sen; tence", pattern = ";")[[1]])
+
+
+
+CASC_Data_explainer %>% 
+separate_wider_delim( col = GarbageBin, delim = ";", names = paste("GarbageBin", c(1:29), sep = "_"), too_few = "align_start", too_many = "error")
+
+#fix the column names so no spaces, no caps
+
+# 
+
+
+
+```
+
+
+
+
 
 Read in state Data (starting with 2 files)
 From GDrive, not doing this for now, having issues with direct read from GDrive
@@ -37,15 +90,16 @@ n <- length(WI_files_list)
 
 for(i in 1:n) {
   assign(gsub(".csv","", WI_files_list[i]),
-         read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
-                          WI_files_list[i])))
+         data.table(read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
+                          WI_files_list[i]))))
 }  
-
-
 
 
 ```
   
+
+
+
 
 
 Get new column names from data explainer for all files
@@ -53,19 +107,31 @@ Get new column names from data explainer for all files
 
 CDE_cols <-    #all possible column names, including garbage column
 
-gde_gsh_col_id <- CASC_Data_explainer %>% # call data explainer file
+  
+#oldnames
+ CASC_Data_explainer %>% # call data explainer file
   filter(`New File Name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  
+  
   select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  make_clean_names()
   select(14:25) #keep only columns of relevance (remove our file tracking and urls)
 
-# note for files that have items in the "garbage bin" column, we may have a different process where we remove garbage columns after 'filter' but before dropping na columns
+# note for files that have items in the "garbage bin" column, we NEED a different process where we remove garbage columns after 'filter' but before dropping na columns
 
+# note we want to review a sorted list of column names to check misspelling etc. 
 
-colnames(noquote(sub(".csv","", WI_files_list)[1])) <- CASC_Data_explainer %>% # call data explainer file
-  filter(`New File Name`== sub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
-  colnames() #keep only columns of relevance (remove our file tracking and urls)
+  
+#newnames
+  CASC_Data_explainer %>% # call data explainer file, I abbreviate it as CDE
+    filter(`New File Name`== sub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+    select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+    clean_names() %>%  # clean up new names from data explainer
+    colnames() #print only CDE column names
+  
 
+    
+    
 
 colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
 ```

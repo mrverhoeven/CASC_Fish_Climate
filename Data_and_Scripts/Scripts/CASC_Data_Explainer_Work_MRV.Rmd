@@ -32,44 +32,34 @@ cde <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish
 
 Prep the data explainer
 ```{r}
+#tidy up those column names
+# colnames(cde)
+  cde <- clean_names(cde) #all lwr case, only _ and letters & numbers
+
+
 # even we can't get our data straight! r/r commas with semicolons 
+  cols = colnames(cde)[colnames(cde) != "source_agency" ] # can choose which cols to do action on here skipping source agency b/c "South Dakota Game, Fish and Parks"
+  
+  #r/r commas to semicolons
+  cde[, (cols) := #rebuild each column ()
+        lapply(.SD, function(x){str_replace_all(x , pattern = ",", replacement = ";")}), #by looking through each cell and r/r commas with semicolons
+      .SDcols = cols ]  # do the rebuild on cols selected in the cols object
 
-cols = colnames(cde[ , 1:ncol(cde)]) # can choose which cols to do action on here 
+#expand each col to the maxN of col names in any row that column
+  #get a vector of how many columns named in each cde column:
+    maxn <- unlist(cde[, 
+        lapply(.SD,function(x){max(lengths(str_split(x, pattern = ";")))}), # how many units are in here? each unit is sep by a semicolon, count col names, then use the max
+        .SD ][1], use.names = F)
+    
+  #split each multi-content column into many:
+    for (i in 1:length(colnames(cde)[maxn > 1])) {
+      # i =3
+      cde[, paste(colnames(cde)[maxn > 1][i],1:maxn[maxn > 1][i], sep = ".") := tstrsplit(get(colnames(cde)[maxn > 1][i]), ";", fixed=TRUE)]
+    }
 
-cde[, (cols) := #rebuild each column ()
-      lapply(.SD, function(x){str_replace_all(x , pattern = ",", replacement = ";")}), #by looking through each cell and r/r commas with semicolons
-    .SDcols = cols ]  # 
-
-#expand each col to the maxN of cols in any row that column
-maxn <- unlist(cde[, 
-    lapply(.SD,function(x){max(lengths(str_split(x, pattern = ";")))}), # how many units are in here? each unit is sep by a semicolon, count col names, then use the max
-    .SD ][1], use.names = F)
-
-# for i in colnames(cde)[maxn > 1] {
-#   
-#   cde <- 
-#     cde %>% 
-# separate_wider_delim( col = i, delim = ";", names = paste(i, maxn FOR THIS I
-#                                                           
-#                                                           , sep = "_"), too_few = "align_start", too_many = "error")
-#   
-# }
-
-cde %>% 
-separate_wider_delim( col = GarbageBin, delim = ";", names = paste("GarbageBin", c(1:29), sep = "_"), too_few = "align_start", too_many = "error")
-
-#we need to expand to a width specified by the length of the vector of cols within a col
-#expand all cols 50 x any cols filled with things separated by semicolons
-length(str_split("How;many words; are; in; this; sen; tence", pattern = ";")[[1]])
+colnames(cde)
 
 
-
-CASC_Data_explainer %>% 
-separate_wider_delim( col = GarbageBin, delim = ";", names = paste("GarbageBin", c(1:29), sep = "_"), too_few = "align_start", too_many = "error")
-
-#fix the column names so no spaces, no caps
-
-# 
 
 
 

@@ -7,7 +7,7 @@ output: html_document
 
 2/2/23
 First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed. Uses WI data for test case
-
+## Load libraries
 ```{r}
 library(readr)
 library(readxl)
@@ -23,14 +23,15 @@ library(tidyr)
 
 ```
 
-Read in CASC Data Explainer
+## CASC Data Explainer
+### Read in
 ```{r}
 
 cde <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
 
 ```
 
-Prep the data explainer
+### Prep 
 ```{r}
 #tidy up those column names
 # colnames(cde)
@@ -57,20 +58,17 @@ Prep the data explainer
       cde[, paste(colnames(cde)[maxn > 1][i],1:maxn[maxn > 1][i], sep = ".") := tstrsplit(get(colnames(cde)[maxn > 1][i]), ";", fixed=TRUE)]
     }
 
-colnames(cde)
-
-
-
+# colnames(cde)
 
 
 ```
 
 
-
-
-
-Read in state Data (starting with 2 files)
-From GDrive, not doing this for now, having issues with direct read from GDrive
+## State data
+### Read in
+From GDrive ?, not doing this for now, having issues with direct read from 
+GDrive. Current startegy requires connect to GDrive for desktop. This code
+is hard to WI data, can we create a more flexible/adaptable approach?
 ```{r}  
 
 WI_files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
@@ -82,24 +80,34 @@ for(i in 1:n) {
   assign(gsub(".csv","", WI_files_list[i]),
          data.table(read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
                           WI_files_list[i]))))
-}  
+
+  #consider moving renaming into here!
+  
+  
+  }  
+
+gsub(".csv","", WI_files_list[i])
 
 
 ```
   
 
 
-
-
-
 Get new column names from data explainer for all files
 ```{r}
+#for a state file, display column names - 
+
+gsub(".csv","", WI_files_list)
+
+# display our nem names for that set - (esp. ID no matches)
+
+
 
 CDE_cols <-    #all possible column names, including garbage column
 
   
 #oldnames
- CASC_Data_explainer %>% # call data explainer file
+ cde %>% # call data explainer file
   filter(`New File Name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
   
   

@@ -1,0 +1,118 @@
+---
+title: "WI_file cleanup"
+author: "Mike Verhoeven"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+## State data
+### Read in
+From GDrive ?, not doing this for now, having issues with direct read from 
+GDrive. Current startegy requires connect to GDrive for desktop. This code
+is hard to WI data, can we create a more flexible/adaptable approach?
+
+  ```{r}  
+# 
+# import_id <- drive_get("https://drive.google.com/file/d/1huPEj93VZ01-q4YGcIVvHBR2YhbGMPUu/view?usp=share_link")
+# 
+# import_id %>% 
+# drive_read_string() %>%
+#   read_csv_arrow()
+# 
+
+
+
+WI_files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+WI_files_list
+
+n <- length(WI_files_list)
+
+for(i in 1:n) {
+  assign(gsub(".csv","", WI_files_list[i]),
+         data.table(read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
+                                          WI_files_list[i]))))
+  
+  #consider moving renaming into here!
+  
+  
+}  
+
+gsub(".csv","", WI_files_list[i])
+
+
+```
+
+
+
+Get new column names from data explainer for all files
+```{r}
+#for a state file, display column names - 
+
+gsub(".csv","", WI_files_list)
+
+#oldnames
+cde %>% # call data explainer file
+  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  make_clean_names() %>% 
+  assign("oldnames", ., envir = .GlobalEnv)
+
+
+# select(14:25) #keep only columns of relevance (remove our file tracking and urls)
+
+# display our new names for that set - (esp. need to ID no matches)
+
+cde %>% # call data explainer file
+  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  colnames() %>% 
+  assign("newnames", ., envir = .GlobalEnv)
+
+cbind(oldnames,newnames)
+
+cde %>% # call data explainer file
+  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.))) %>% 
+  transpose(keep.names = "rn")
+
+colnames(get(gsub(".csv","", WI_files_list)[1]))
+
+
+
+
+# note for files that have items in the "garbage bin" column, we NEED a different process where we remove garbage columns after 'filter' but before dropping na columns
+
+# note we want to review a sorted list of column names to check misspelling etc. 
+
+
+#newnames
+CASC_Data_explainer %>% # call data explainer file, I abbreviate it as CDE
+  filter(`New File Name`== sub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  clean_names() %>%  # clean up new names from data explainer
+  colnames() #print only CDE column names
+
+
+
+
+
+colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
+```
+
+
+```
+
+# Rename using a named vector and `all_of()`
+lookup <- c(pl = "Petal.Length", sl = "Sepal.Length")
+rename(iris, all_of(lookup))
+
+
+# Using data.table
+library(data.table)
+
+# rename all columns for old to new
+# Rename columns from list
+setnames(my_dataframe, old = c('c1','c2','c3','c4','c5'), 
+         new = c('id','pages','name','chapters','price'))
+

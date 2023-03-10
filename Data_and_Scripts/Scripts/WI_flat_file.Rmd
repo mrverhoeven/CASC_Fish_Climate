@@ -12,14 +12,14 @@ From GDrive ?, not doing this for now, having issues with direct read from
 GDrive. Current startegy requires connect to GDrive for desktop. This code
 is hard to WI data, can we create a more flexible/adaptable approach?
 
-  ```{r}  
-# 
+```{r}
+
+# This code is still broken-- it is supposed to draw a file straight form the web to workspace
 # import_id <- drive_get("https://drive.google.com/file/d/1huPEj93VZ01-q4YGcIVvHBR2YhbGMPUu/view?usp=share_link")
-# 
-# import_id %>% 
-# drive_read_string() %>%
-#   read_csv_arrow()
-# 
+#  import_id %>%
+#  drive_read_string() %>%
+#    read_csv_arrow()
+
 
 
 
@@ -38,52 +38,72 @@ for(i in 1:n) {
   
 }  
 
-gsub(".csv","", WI_files_list[i])
-
+# gsub(".csv","", WI_files_list[i])
 
 ```
-
-
 
 Get new column names from data explainer for all files
 ```{r}
 #for a state file, display column names - 
 
-gsub(".csv","", WI_files_list)
+# gsub(".csv","", WI_files_list)
 
-#oldnames
-cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
-  make_clean_names() %>% 
-  assign("oldnames", ., envir = .GlobalEnv)
+# #oldnames
+# cde %>% # call data explainer file
+#   filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+#   select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+#   make_clean_names() %>% 
+#   assign("oldnames", ., envir = .GlobalEnv)
 
 
 # select(14:25) #keep only columns of relevance (remove our file tracking and urls)
 
 # display our new names for that set - (esp. need to ID no matches)
 
-cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
-  colnames() %>% 
-  assign("newnames", ., envir = .GlobalEnv)
+# cde %>% # call data explainer file
+#   filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+#   select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+#   colnames() %>% 
+#   assign("newnames", ., envir = .GlobalEnv)
+# 
+# cbind(oldnames,newnames)
 
-cbind(oldnames,newnames)
-
+#this does those two steps in one package
+# note we want to review a sorted list of column names to check misspelling etc.
 cde %>% # call data explainer file
   filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
   select_if(~ !any(is.na(.))) %>% 
-  transpose(keep.names = "rn")
+  transpose(keep.names = "newname") %>% 
+  rename("oldname" = V1) %>% 
+  assign("names", ., envir = .GlobalEnv)
 
-colnames(get(gsub(".csv","", WI_files_list)[1]))
+#see if nay column names will not have a match! 
+# IF any pop FALSE, force stop and revist of data explainer ()
+# - e.g., named something "total catch" when actual column name was "total_catch"
+
+cbind(colnames(get(gsub(".csv","", WI_files_list)[1])),
+      colnames(get(gsub(".csv","", WI_files_list)[1])) %in% names[ , oldname, ]
+)
+
+names <- names[ match(colnames(get(gsub(".csv","", WI_files_list)[1])),
+       names[!str_detect(newname,"unique_row_key"),oldname]), ] 
+
+get(gsub(".csv","", WI_files_list)[1]) %>% 
+rename_with( ., function(x) {assign(x, value = names[oldname == x, newname])} )
+
+function(x) {names[!str_detect(newname,"unique_row_key") & oldname == x, newname]}
+
+
+colnames(get(gsub(".csv","", WI_files_list)[1])) <- #rename the columns
+ #unique row key was for the data mgr, need to exclude it here
+
 
 
 
 
 # note for files that have items in the "garbage bin" column, we NEED a different process where we remove garbage columns after 'filter' but before dropping na columns
 
-# note we want to review a sorted list of column names to check misspelling etc. 
+ 
 
 
 #newnames

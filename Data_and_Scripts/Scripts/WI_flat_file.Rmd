@@ -29,11 +29,36 @@ WI_files_list
 n <- length(WI_files_list)
 
 for(i in 1:n) {
+  #i = 1
   assign(gsub(".csv","", WI_files_list[i]),
          data.table(read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
                                           WI_files_list[i]))))
   
   #consider moving renaming into here!
+  
+  
+  #this does those two steps in one package
+# note we want to review a sorted list of column names to check misspelling etc.
+cde %>% # call data explainer file
+  filter(`new_file_name`== gsub(".csv","", WI_files_list)[i])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.))) %>% 
+  transpose(keep.names = "newname") %>% 
+  rename("oldname" = V1) %>% 
+  assign("names", ., envir = .GlobalEnv)
+
+#see if nay column names will not have a match! 
+# IF any pop FALSE, force stop and revist of data explainer ()
+# - e.g., named something "total catch" when actual column name was "total_catch"
+print(
+cbind(colnames(get(gsub(".csv","", WI_files_list)[i])),
+      colnames(get(gsub(".csv","", WI_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
+)
+)
+# break the loop if the current file has column names not in the data explainer
+if (all(cbind(colnames(get(gsub(".csv","", WI_files_list)[i])),  colnames(get(gsub(".csv","", WI_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+
+#now rename that file's colnames
+setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI_files_list)[1])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
   
   
 }  
@@ -85,42 +110,14 @@ cbind(colnames(get(gsub(".csv","", WI_files_list)[1])),
       colnames(get(gsub(".csv","", WI_files_list)[1])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
 )
 
-names <- names[!str_detect(newname,"unique_row_key")][ match(colnames(get(gsub(".csv","", WI_files_list)[1])),
-       names[!str_detect(newname,"unique_row_key"),oldname]), ] 
-
-get(gsub(".csv","", WI_files_list)[1]) %>% 
-rename_with( ., function(x) {assign(x, value = names[oldname == x, newname])} )
-
-function(x) {names[!str_detect(newname,"unique_row_key") & oldname == x, newname]}
-
-
-match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname])
-  
-  
-#rename the columns
-#unique row key was for the data mgr, need to exclude it here
-
-
+#now rename that file's colnames
+setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI_files_list)[1])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
 
 
 
 # note for files that have items in the "garbage bin" column, we NEED a different process where we remove garbage columns after 'filter' but before dropping na columns
 
- 
 
-
-#newnames
-CASC_Data_explainer %>% # call data explainer file, I abbreviate it as CDE
-  filter(`New File Name`== sub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
-  clean_names() %>%  # clean up new names from data explainer
-  colnames() #print only CDE column names
-
-
-
-
-
-colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
 ```
 
 

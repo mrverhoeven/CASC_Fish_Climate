@@ -82,10 +82,10 @@ cde %>% # call data explainer file
 # - e.g., named something "total catch" when actual column name was "total_catch"
 
 cbind(colnames(get(gsub(".csv","", WI_files_list)[1])),
-      colnames(get(gsub(".csv","", WI_files_list)[1])) %in% names[ , oldname, ]
+      colnames(get(gsub(".csv","", WI_files_list)[1])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
 )
 
-names <- names[ match(colnames(get(gsub(".csv","", WI_files_list)[1])),
+names <- names[!str_detect(newname,"unique_row_key")][ match(colnames(get(gsub(".csv","", WI_files_list)[1])),
        names[!str_detect(newname,"unique_row_key"),oldname]), ] 
 
 get(gsub(".csv","", WI_files_list)[1]) %>% 
@@ -94,8 +94,11 @@ rename_with( ., function(x) {assign(x, value = names[oldname == x, newname])} )
 function(x) {names[!str_detect(newname,"unique_row_key") & oldname == x, newname]}
 
 
-colnames(get(gsub(".csv","", WI_files_list)[1])) <- #rename the columns
- #unique row key was for the data mgr, need to exclude it here
+match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname])
+  
+  
+#rename the columns
+#unique row key was for the data mgr, need to exclude it here
 
 
 

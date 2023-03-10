@@ -155,16 +155,16 @@ cbind(colnames(get(MN_file_names[1])),
 # Once all columns are "TRUE" you can move on
 
 names <- names[ match(colnames(get(MN_file_names[1])),
-       names[!str_detect(newname,"unique_row_key"),oldname]), ] #why do I have NAs
+       names[!str_detect(newname,"unique_row_key"),oldname]), ] #check that there are no NAs
 
-get(MN_file_names[1]) %>% 
+get(gsub(".csv","", WI_files_list)[1]) %>% 
 rename_with( ., function(x) {assign(x, value = names[oldname == x, newname])} )
 
 function(x) {names[!str_detect(newname,"unique_row_key") & oldname == x, newname]}
 
 
-colnames(get(MN_file_names[1])) <- #rename the columns
- #unique row key was for the data mgr, need to exclude it here
+match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname])
+  
   
 ```
 

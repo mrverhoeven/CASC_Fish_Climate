@@ -63,9 +63,21 @@ cde <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish
             tstrsplit(get(colnames(cde)[maxn > 1][i]),
                       ";",
                       fixed=TRUE
-            )
+              )
       ]
+      
+      cde[ ,
+           paste(colnames(cde)[maxn > 1][i], 1:c(maxn[maxn > 1][i]), sep = ".") := 
+             lapply( .SD, trimws) ,
+           .SDcols = paste(colnames(cde)[maxn > 1][i], 1:c(maxn[maxn > 1][i]), sep = ".") ]
+      
+      
+      
     }
+  
+# now clean up all of the leading and trailing whitespace we created in that split
+  
+ 
     
     # colnames(cde)
     # 

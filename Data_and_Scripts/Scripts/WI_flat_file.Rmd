@@ -46,7 +46,7 @@ cde %>% # call data explainer file
   rename("oldname" = V1) %>% 
   assign("names", ., envir = .GlobalEnv)
 
-#see if nay column names will not have a match! 
+#see if any column names will not have a match! 
 # IF any pop FALSE, force stop and revist of data explainer ()
 # - e.g., named something "total catch" when actual column name was "total_catch"
 print(
@@ -54,13 +54,16 @@ cbind(colnames(get(gsub(".csv","", WI_files_list)[i])),
       colnames(get(gsub(".csv","", WI_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
 )
 )
+
 # break the loop if the current file has column names not in the data explainer
 if (all(cbind(colnames(get(gsub(".csv","", WI_files_list)[i])),  colnames(get(gsub(".csv","", WI_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
 
 #now rename that file's colnames
-setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI_files_list)[1])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
-  
-  
+setnames(get(gsub(".csv","", WI_files_list)[i]), colnames(get(gsub(".csv","", WI_files_list)[i])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[i])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
+
+#confirm import of files:  
+print(paste(gsub(".csv","", WI_files_list)[i] ,"added to workspace" ))  
+
 }  
 
 # gsub(".csv","", WI_files_list[i])

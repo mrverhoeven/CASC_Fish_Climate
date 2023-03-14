@@ -24,6 +24,64 @@ library(tidyr)
 
 ```
 
+#Testing Mike's WI code on MN data
+```{r}
+# find files on Google Drive Desktop
+MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+
+MN_files_list #check that file names look correct
+
+n <- length(MN_files_list)
+
+for(i in 1:n) {
+  #i = 1
+  assign(gsub(".csv","", MN_files_list[i]),
+         data.table(read_csv_arrow(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+                                          MN_files_list[i]))))
+  
+  #consider moving renaming into here!
+  
+  
+  #this does those two steps in one package
+# note we want to review a sorted list of column names to check misspelling etc.
+cde %>% # call data explainer file
+  filter(`new_file_name`== gsub(".csv","", MN_files_list)[i])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.))) %>% 
+  transpose(keep.names = "newname") %>% 
+  rename("oldname" = V1) %>% 
+  assign("names", ., envir = .GlobalEnv)
+
+#see if any column names will not have a match! 
+# IF any pop FALSE, force stop and revist of data explainer ()
+# - e.g., named something "total catch" when actual column name was "total_catch"
+print(
+cbind(colnames(get(gsub(".csv","", MN_files_list)[i])),
+      colnames(get(gsub(".csv","", MN_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
+)
+)
+
+# break the loop if the current file has column names not in the data explainer
+if (all(cbind(colnames(get(gsub(".csv","", MN_files_list)[i])),  colnames(get(gsub(".csv","", MN_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+
+#now rename that file's colnames
+setnames(get(gsub(".csv","", MN_files_list)[i]), colnames(get(gsub(".csv","", MN_files_list)[i])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", MN_files_list)[i])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
+
+#confirm import of files:  
+print(paste(gsub(".csv","", MN_files_list)[i] ,"added to workspace" ))  
+
+}  
+
+# gsub(".csv","", MN_files_list[i])
+
+```
+```
+
+
+
+
+#_________________________________________________________________________________________________________________________________________________
+Work below this line was pre 3/14/2023
+
 ## CASC Data Explainer
 ### Read in
 ```{r}
@@ -157,15 +215,7 @@ cbind(colnames(get(MN_file_names[1])),
 names <- names[ match(colnames(get(MN_file_names[1])),
        names[!str_detect(newname,"unique_row_key"),oldname]), ] #check that there are no NAs
 
-get(gsub(".csv","", WI_files_list)[1]) %>% 
-rename_with( ., function(x) {assign(x, value = names[oldname == x, newname])} )
-
-function(x) {names[!str_detect(newname,"unique_row_key") & oldname == x, newname]}
-
-
-match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname])
-  
-  
+### pull in new code from Mike WI work file
 ```
 
 

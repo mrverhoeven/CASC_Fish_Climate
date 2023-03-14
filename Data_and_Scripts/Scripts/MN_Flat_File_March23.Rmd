@@ -1,0 +1,171 @@
+---
+title: "MN_Flat_File_March23"
+author: "Holly Kundel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Code from
+2/2/23
+First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed. Uses MN data for test case
+## Load libraries
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(arrow)
+library(data.table)
+library(googledrive)
+library(janitor)
+library(tidyr)
+library(data.table)
+library(tidyr)
+
+```
+
+## CASC Data Explainer
+### Read in
+```{r}
+# change E (Mike's drive) to G (Holly's drive)
+cde_raw <- data.table(read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
+
+```
+
+### Prep 
+
+* Data Explainer prep is now done in 'CASC_Data_Explainer_HLK.Rmd'
+
+## State data
+### Read in
+
+We eventually want to be able to read this in from google drive directly, right now uses google drive desktops
+
+```{r, warning = FALSE, message = FALSE}  
+MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = ".+\\.csv") #only grab csv files
+
+n <- length(MN_files_list) #may want to make it more than just n so it is different for each state??? e.g. "n_mn" ?
+
+# Code from Mike
+for(i in 1:n) {
+  assign(gsub(".csv","", MN_files_list[i]),
+         read_csv(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+                               MN_files_list[i]))) #don't use 'read.csv2, only get one column
+} 
+
+# get the list of data sets as data frames in R so they can be looped later
+
+# plus by adding this, you won't have to remove the ".csv" every time you reference the list
+MN_file_names <- str_replace(MN_files_list, ".csv", "")   #str_replace and gsub both work the same :) 
+
+```
+
+Process to fix file read in error, no need to run code in this chunk
+```{r, echo=FALSE}
+
+#This doesn't work because 'escape_double = TRUE'
+
+for(i in 1:n) {
+  assign(gsub(".csv","", MN_files_list[i]),
+         data.table(read_csv_arrow(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+                               MN_files_list[i])))) #don't use 'read.csv2, only get one column
+} 
+
+
+#This doesn't work, only loads mn-gde_gsh_fish_effort okay, others don't work
+
+for(i in 1:n) {
+  assign(gsub(".csv","", MN_files_list[i]),
+         data.table(read_csv_arrow(escape_double = FALSE,(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+                               MN_files_list[i]))))) #don't use 'read.csv2, only get one column
+} 
+
+# problem file is 'mn_gde_gsh...'
+
+### fix mn_gde_gsh, was in an improper csv format
+#fixed by reading into r with 'read_csv' from 'readr' pkg, and then using 'write_csv'
+
+mn_gde_gsh <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_gde_gsh_fish_effort_03May2022.csv")
+
+#write_csv(mn_gde_gsh, "mn_gde_gs_fish_effort_03May2022_2.csv")
+```
+
+
+Get new column names from data explainer for all files (OUT of Date, see below)
+```{r, echo=FALSE}
+# THIS METHOD IS OUT OF DATE, SEE BELOW
+
+#for a state file, display column names - 
+
+MN_file_names <- gsub(".csv","", MN_files_list)
+
+#oldnames
+old_names <- cde %>% # call data explainer file
+  filter(`new_file_name`== MN_file_names[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  make_clean_names() %>% 
+  assign("oldnames", ., envir = .GlobalEnv)
+
+
+# select(14:25) #keep only columns of relevance (remove our file tracking and urls)
+
+# display our new names for that set - (esp. need to ID no matches)
+
+cde %>% # call data explainer file
+  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  colnames() %>% 
+  assign("newnames", ., envir = .GlobalEnv)
+
+cbind(oldnames,newnames)
+
+cde %>% # call data explainer file
+  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.))) %>% 
+  transpose(keep.names = "rn")
+
+colnames(get(gsub(".csv","", WI_files_list)[1]))cde %>% # call data explainer file
+  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  colnames() %>% 
+  assign("newnames", ., envir = .GlobalEnv)
+
+cbind(oldnames,newnames)
+```
+
+New Version of getting new column names from data explainer
+```{r}
+#code from Mike's WI flat-file work
+# note we want to review a sorted list of column names to check misspelling etc.
+column_names <- cde %>% # call data explainer file
+  filter(`new_file_name`== MN_file_names[1])%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.))) %>% 
+  transpose(keep.names = "newname") %>% 
+  rename("oldname" = V1) %>% 
+  assign("names", ., envir = .GlobalEnv) # left with two columns of the original file names 'oldname' and the new data explainer names 'newname'
+
+
+#see if any column names will not have a match! 
+# IF any pop FALSE, force stop and revist the data explainer 
+# - e.g., named something "total catch" when actual column name was "total_catch"
+
+cbind(colnames(get(MN_file_names[1])),
+      colnames(get(MN_file_names[1])) %in% names[ , oldname, ]) #"FALSE" means that our typed name is not a correct column name
+
+# Once all columns are "TRUE" you can move on
+
+names <- names[ match(colnames(get(MN_file_names[1])),
+       names[!str_detect(newname,"unique_row_key"),oldname]), ] #check that there are no NAs
+
+get(gsub(".csv","", WI_files_list)[1]) %>% 
+rename_with( ., function(x) {assign(x, value = names[oldname == x, newname])} )
+
+function(x) {names[!str_detect(newname,"unique_row_key") & oldname == x, newname]}
+
+
+match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname])
+  
+  
+```
+
+

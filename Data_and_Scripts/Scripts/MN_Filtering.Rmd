@@ -31,6 +31,7 @@ all_gde_gsh <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/A
 
 Combine the two sheets from Corey into one, and create Effort data
 ```{r}
+
 all_gn_tn_gde_gsh <- bind_rows(all_gn_tn, all_gde_gsh)
 
 perch_target_gn_check <- all_gn_tn_gde_gsh %>%
@@ -52,6 +53,10 @@ GN_GDE_GSH_Effort <- All_Effort %>%
   filter(GEAR %in% c("GN", "GDE", "GSH"))
 
 cols(all_gn_tn)
+
+species_total <- all_gn_tn_gde_gsh %>%
+  group_by(COMMON_NAME)%>%
+  summarise(Total = n())
 ```
 
 Load in Electrofishing Data
@@ -80,6 +85,8 @@ EF_LMB_SMB <- EF_Effort_LMB_SMB %>%
   rename(LKNAME = WATER_BODY_NAME, DOW = DOW_KITTLE, SURVEYTYPE =SURVEY_TYPE_NAME, SURVEYDATE = SURVEY_ID_DATE, YEAR = SURVEY_YEAR)%>%
   mutate(CPUE = TOTAL_CATCH/EFFORT)%>%
   select(SURVEY_ID, LKNAME, DOW, SURVEYTYPE, SURVEYDATE, COMMON_NAME, GEAR, CPUE, EFFORT, TOTAL_CATCH, YEAR )
+
+write_csv(EF_LMB_SMB, "EF_LMB_SMB_14Feb23.csv")
 ```
 
 

@@ -21,8 +21,6 @@ Load in Raw Data from my Computer
 ```{r, warning =FALSE}
 IL_Effort <- read_excel("Data_and_Scripts/Data/Data_Summaries/IL/ildnr_effort_and_bio_data.xlsx", sheet = "Effort")
 
-write_csv(IL_Effort, "il_")
-
 IL_Catch <- read_excel("Data_and_Scripts/Data/Data_Summaries/IL/ildnr_effort_and_bio_data.xlsx", sheet = "Bio Data")%>% select(1:26)
 
 IL_Lake_Info <- read_excel("Data_and_Scripts/Data//Data_Summaries/IL/ildnr_effort_and_bio_data.xlsx", sheet = "Lake info")

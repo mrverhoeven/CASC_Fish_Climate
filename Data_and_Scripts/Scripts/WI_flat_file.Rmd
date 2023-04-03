@@ -98,25 +98,25 @@ Get new column names from data explainer for all files
 
 #this does those two steps in one package
 # note we want to review a sorted list of column names to check misspelling etc.
-cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.))) %>% 
-  transpose(keep.names = "newname") %>% 
-  rename("oldname" = V1) %>% 
-  assign("names", ., envir = .GlobalEnv)
+# cde %>% # call data explainer file
+#   filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+#   select_if(~ !any(is.na(.))) %>% 
+#   transpose(keep.names = "newname") %>% 
+#   rename("oldname" = V1) %>% 
+#   assign("names", ., envir = .GlobalEnv)
 
 #see if nay column names will not have a match! 
 # IF any pop FALSE, force stop and revist of data explainer ()
 # - e.g., named something "total catch" when actual column name was "total_catch"
-
-cbind(colnames(get(gsub(".csv","", WI_files_list)[1])),
-      colnames(get(gsub(".csv","", WI_files_list)[1])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
-)
+# 
+# cbind(colnames(get(gsub(".csv","", WI_files_list)[1])),
+#       colnames(get(gsub(".csv","", WI_files_list)[1])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
+# )
 
 #now rename that file's colnames
-setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI_files_list)[1])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
-
-
+# setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI_files_list)[1])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
+# 
+# 
 
 # note for files that have items in the "garbage bin" column, we NEED a different process where we remove garbage columns after 'filter' but before dropping na columns
 
@@ -124,18 +124,20 @@ setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI
 ```
 
 
+
+Make a "flat file"
+```{r}
+
+names(wi_inland_fishobservations_19Mar2021)
+  names(wi_inland_lenage_19Mar2021)
+
+
+
+
+
+
+
+
 ```
 
-# Rename using a named vector and `all_of()`
-lookup <- c(pl = "Petal.Length", sl = "Sepal.Length")
-rename(iris, all_of(lookup))
-
-
-# Using data.table
-library(data.table)
-
-# rename all columns for old to new
-# Rename columns from list
-setnames(my_dataframe, old = c('c1','c2','c3','c4','c5'), 
-         new = c('id','pages','name','chapters','price'))
 

@@ -30,7 +30,7 @@ library(tidyr)
 #Testing Mike's WI code on MN data
 ```{r}
 # find files on Google Drive Desktop
-MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 
 MN_files_list #check that file names look correct
 
@@ -39,7 +39,7 @@ n <- length(MN_files_list)
 for(i in 1:n) {
   #i = 1
   assign(gsub(".csv","", MN_files_list[i]),
-         data.table(read_csv_arrow(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+         data.table(read_csv_arrow(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
                                           MN_files_list[i]))))
   
   #consider moving renaming into here!
@@ -47,7 +47,7 @@ for(i in 1:n) {
   
   #this does those two steps in one package
 # note we want to review a sorted list of column names to check misspelling etc.
-mn_check <- cde %>% # call data explainer file
+cde %>% # call data explainer file
   filter(`new_file_name`== gsub(".csv","", MN_files_list)[i])%>% #keep only the row relevant to this file
   select_if(~ !any(is.na(.))) %>% 
   transpose(keep.names = "newname") %>% 

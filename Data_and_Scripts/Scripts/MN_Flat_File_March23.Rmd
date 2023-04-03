@@ -8,8 +8,11 @@ output: html_document
 # Code from
 2/2/23
 First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed. Uses MN data for test case
+
+### MN is working as of 4/3/23
+
 ## Load libraries
-```{r}
+```{r, warning = FALSE}
 library(readr)
 library(readxl)
 library(dplyr)
@@ -44,7 +47,7 @@ for(i in 1:n) {
   
   #this does those two steps in one package
 # note we want to review a sorted list of column names to check misspelling etc.
-cde %>% # call data explainer file
+mn_check <- cde %>% # call data explainer file
   filter(`new_file_name`== gsub(".csv","", MN_files_list)[i])%>% #keep only the row relevant to this file
   select_if(~ !any(is.na(.))) %>% 
   transpose(keep.names = "newname") %>% 
@@ -70,12 +73,15 @@ setnames(get(gsub(".csv","", MN_files_list)[i]), colnames(get(gsub(".csv","", MN
 print(paste(gsub(".csv","", MN_files_list)[i] ,"added to workspace" ))  
 
 }  
+```
 
+File Troubleshooting
+```{r}
 # gsub(".csv","", MN_files_list[i])
+ef_effort <- read_csv(file = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_ef_lmb_smb_effort_26Aug2022.csv") #note 'fread' had same error as rea_csv_arrow
 
+write_csv(ef_effort, "mn_ef_lmb_smb_effort_26Aug2022.csv")
 ```
-```
-
 
 
 

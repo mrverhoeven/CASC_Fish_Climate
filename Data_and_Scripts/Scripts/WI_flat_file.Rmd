@@ -23,47 +23,67 @@ is hard to WI data, can we create a more flexible/adaptable approach?
 
 
 
-WI_files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
-WI_files_list
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list
 
-n <- length(WI_files_list)
+n <- length(files_list)
 
 for(i in 1:n) {
   #i = 1
-  assign(gsub(".csv","", WI_files_list[i]),
-         data.table(read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
-                                          WI_files_list[i]))))
-  
-  #consider moving renaming into here!
-  
-  
+  filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
-# note we want to review a sorted list of column names to check misspelling etc.
-cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", WI_files_list)[i])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.))) %>% 
-  transpose(keep.names = "newname") %>% 
-  rename("oldname" = V1) %>% 
-  assign("names", ., envir = .GlobalEnv)
+  assign(filei ,
+          data.table(read_csv_arrow(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_raw_disaggregated_data/",
+                                          files_list[i]))))
+  
+  # note we want to review a sorted list of column names to check misspelling etc.
+  # we still need to use the columns with names like col_name_length_in, or known_units
+  
+  
+  cde %>% # call data explainer file
+    filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
+    select_if(~ !any(is.na(.))) %>% 
+    transpose(keep.names = "newname") %>% 
+    rename("oldname" = V1) %>% 
+    assign("names", ., envir = .GlobalEnv)
+  
+  #see if any column names will not have a match! 
+  # IF any pop FALSE, force stop and revist of data explainer ()
+  # - e.g., named something "total catch" when actual column name was "total_catch"
+  print(
+    cbind(colnames(get(filei)),
+          colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
+    )
+  )
+  
+  # break the loop if the current file has column names not in the data explainer
+  if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+  
+  # append old col names into new "notes" columns:
+  get(filei)[ , (names[ str_detect(newname, "notes") , oldname   ,  ]) := Map(paste, colnames(.SD), .SD, sep = ':') , .SDcols =  names[ str_detect(newname, "notes") , oldname   ,  ] ]
+  
+  #now rename that file's colnames
+  setnames(get(filei), colnames(get(filei)), names[!str_detect(newname,"unique_row_key")] [match(names(get(filei)),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
+  
+  #append all other data from data explainer
+  unusedbits <- 
+    data.table(
+      matrix(
+        rep(names[ !newname %in% colnames(get(filei)) , oldname , ],
+            each = nrow(get(filei))
+        ),
+        nrow = nrow(get(filei)),
+        dimnames = list(rep(NA,nrow(get(filei))),
+                        names[ !newname %in% colnames(get(filei)) , newname , ])
+        )
+      )
+  
+  #add all not yet used columns from data explainer:
+  get(filei)[ , (names[ !newname %in% colnames(get(filei)) , newname , ]) := unusedbits[] ]
 
-#see if any column names will not have a match! 
-# IF any pop FALSE, force stop and revist of data explainer ()
-# - e.g., named something "total catch" when actual column name was "total_catch"
-print(
-cbind(colnames(get(gsub(".csv","", WI_files_list)[i])),
-      colnames(get(gsub(".csv","", WI_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
-)
-)
-
-# break the loop if the current file has column names not in the data explainer
-if (all(cbind(colnames(get(gsub(".csv","", WI_files_list)[i])),  colnames(get(gsub(".csv","", WI_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
-
-#now rename that file's colnames
-setnames(get(gsub(".csv","", WI_files_list)[i]), colnames(get(gsub(".csv","", WI_files_list)[i])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[i])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
-
-#confirm import of files:  
-print(paste(gsub(".csv","", WI_files_list)[i] ,"added to workspace" ))  
-
+  #confirm import of files:  
+  print(paste(filei ,"added to workspace" ))  
+  
 }  
 
 # gsub(".csv","", WI_files_list[i])
@@ -98,25 +118,25 @@ Get new column names from data explainer for all files
 
 #this does those two steps in one package
 # note we want to review a sorted list of column names to check misspelling etc.
-cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.))) %>% 
-  transpose(keep.names = "newname") %>% 
-  rename("oldname" = V1) %>% 
-  assign("names", ., envir = .GlobalEnv)
+# cde %>% # call data explainer file
+#   filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
+#   select_if(~ !any(is.na(.))) %>% 
+#   transpose(keep.names = "newname") %>% 
+#   rename("oldname" = V1) %>% 
+#   assign("names", ., envir = .GlobalEnv)
 
 #see if nay column names will not have a match! 
 # IF any pop FALSE, force stop and revist of data explainer ()
 # - e.g., named something "total catch" when actual column name was "total_catch"
-
-cbind(colnames(get(gsub(".csv","", WI_files_list)[1])),
-      colnames(get(gsub(".csv","", WI_files_list)[1])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
-)
+# 
+# cbind(colnames(get(gsub(".csv","", WI_files_list)[1])),
+#       colnames(get(gsub(".csv","", WI_files_list)[1])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
+# )
 
 #now rename that file's colnames
-setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI_files_list)[1])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
-
-
+# setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI_files_list)[1])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", WI_files_list)[1])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
+# 
+# 
 
 # note for files that have items in the "garbage bin" column, we NEED a different process where we remove garbage columns after 'filter' but before dropping na columns
 
@@ -124,18 +144,20 @@ setnames(get(gsub(".csv","", WI_files_list)[1]), colnames(get(gsub(".csv","", WI
 ```
 
 
+
+Make a "flat file"
+```{r}
+
+names(wi_inland_fishobservations_19Mar2021)
+  names(wi_inland_lenage_19Mar2021)
+
+
+
+
+
+
+
+
 ```
 
-# Rename using a named vector and `all_of()`
-lookup <- c(pl = "Petal.Length", sl = "Sepal.Length")
-rename(iris, all_of(lookup))
-
-
-# Using data.table
-library(data.table)
-
-# rename all columns for old to new
-# Rename columns from list
-setnames(my_dataframe, old = c('c1','c2','c3','c4','c5'), 
-         new = c('id','pages','name','chapters','price'))
 

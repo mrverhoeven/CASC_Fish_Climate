@@ -4,7 +4,156 @@ author: "Holly Kundel"
 date: "`r Sys.Date()`"
 output: html_document
 ---
+libraries
+```{r}
+library(arrow)
+library(readr)
+library(dplyr)
+library(stringr)
+library(data.table)
+library(janitor)
+library(tidyr)
+```
 
+
+# Update 4/4/2023
+- Now retains units and notes columns along with inventory information
+
+* Holly's note to self: use dtplyr to convert my dplyr code to data.table (faster and less memory intensive)
+```{r}
+
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list
+
+n <- length(files_list)
+
+for(i in 1:n) {
+  #i = 1
+  filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
+  #this does those two steps in one package
+  assign(filei ,
+          data.table(read_csv_arrow(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
+                                          files_list[i]))))
+  
+  # note we want to review a sorted list of column names to check misspelling etc.
+  # we still need to use the columns with names like col_name_length_in, or known_units
+  
+  
+  cde %>% # call data explainer file
+    filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
+    select_if(~ !any(is.na(.))) %>% 
+    transpose(keep.names = "newname") %>% 
+    rename("oldname" = V1) %>% 
+    assign("names", ., envir = .GlobalEnv)
+  
+  #see if any column names will not have a match! 
+  # IF any pop FALSE, force stop and revist of data explainer ()
+  # - e.g., named something "total catch" when actual column name was "total_catch"
+  print(
+    cbind(colnames(get(filei)),
+          colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
+    )
+  )
+  
+  # break the loop if the current file has column names not in the data explainer
+  if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+  
+  # append old col names into new "notes" columns:
+  get(filei)[ , (names[ str_detect(newname, "notes") , oldname   ,  ]) := Map(paste, colnames(.SD), .SD, sep = ':') , .SDcols =  names[ str_detect(newname, "notes") , oldname   ,  ] ]
+  
+  #now rename that file's colnames
+  setnames(get(filei), colnames(get(filei)), names[!str_detect(newname,"unique_row_key")] [match(names(get(filei)),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
+  
+  #append all other data from data explainer
+  unusedbits <- 
+    data.table(
+      matrix(
+        rep(names[ !newname %in% colnames(get(filei)) , oldname , ],
+            each = nrow(get(filei))
+        ),
+        nrow = nrow(get(filei)),
+        dimnames = list(rep(NA,nrow(get(filei))),
+                        names[ !newname %in% colnames(get(filei)) , newname , ])
+        )
+      )
+  
+  #add all not yet used columns from data explainer:
+  get(filei)[ , (names[ !newname %in% colnames(get(filei)) , newname , ]) := unusedbits[] ]
+
+  #confirm import of files:  
+  print(paste(filei ,"added to workspace" ))  
+  
+}  
+
+```
+
+Code to combine the MN files that were read in above
+```{r}
+
+#mn_aged_fish_2_29Sep2021[ , garbage_bin.22 := as.character(garbage_bin.22) , ]
+
+# mn <- merge.data.table(mn_aged_fish_1_29Sep2021, mn_aged_fish_2_29Sep2021) # use rbindlist so data types can be different
+
+# Combine mn_aged_fish_1 and _2 because they are the same file that was split in two by the data provider
+mn_age_join_1 <- rbindlist(list(mn_aged_fish_1_29Sep2021, mn_aged_fish_2_29Sep2021), use.names = T, fill = T) #fill will add NAs if things don't match
+
+# combine aged_fish_1 and _2 to the other aged fish file from MN
+mn_age_join_2 <- rbindlist(list(mn_age_join_1, mn_aged_fish_29Sep2021), use.names = T, fill = T)%>%
+  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0")) # all MN age files together with properly formatted lake IDs
+
+# check for any duplicates (concerned about mn_aged_1 and_2 and mn_aged)
+    # okay this may be bad because the same species can be caught multiple times in each gear for each survey... ditching this for now, will work on removing duplicates after everything is merged
+# MN_age_check_dupes <- mn_age_join_1 %>%semi_join(mn_aged_fish_29Sep2021, by = c("survey_id", "species.1", "sampling_method_abbrev" )) #986,203 duplicates out of 2,050,425
+
+#LOTS of duplicates, trying other functions to find a better way to do this
+# mn_age_distinct <- mn_age_join_2 %>% distinct(survey_id, species.1, sampling_method_abbrev, .keep_all = T) #21,323
+
+```
+
+3.) Isolate files with “catch” information
+4.) pivot_wider catch data so that there is only one fish per line (retain effort info if it is in the same file) then pivor_longer
+
+I know that mn_fish_effot... and mn_gde_gsh_fish_effort... are the same format, so I will combine those first to reduce the number of files we are working with
+```{r}
+#change lake ID to integer
+MN_GDE_GSH <- mn_gde_gsh_fish_effort_03May2022 %>%
+  mutate(lake_id = as.character(lake_id))%>%
+  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))
+
+#check if other file has the leading zero on the DOW (lake id)
+eight_dow <- mn_age_join_2 %>%
+  mutate(leading_zero = str_detect(lake_id, "01\\d\\d\\d\\d\\d\\d"))%>%
+  select(lake_id, leading_zero)%>%
+  filter(leading_zero == "TRUE") #it doesn't
+
+#format all lake IDs to be characters with 8 digits (retains leading zero), this will be important for merging purposes (added this to the aged fish too)
+
+# properly format lake id (DOW) then will expand so there is one fish per line
+MN_GN_TN_eff_catch <- bind_rows(mn_fish_effort_03May2022, MN_GDE_GSH)%>%
+  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>%
+  pivot_wider(names_from = species.1, values_from = total_count, values_fill = 0) %>% #creates 0s
+  select(!contains("frog"))%>% #attempt to drop non-fish species
+  select(!contains("crayfish"))%>%
+  select(!contains("toad"))%>% #syntax means keep all columns that don't contain "toad"
+  select(!contains("turtle"))%>%
+  select(!contains("mudpuppy"))%>%
+  select(!contains("snake"))%>%
+  select(!contains("salamander"))%>%
+  select(!contains("muskrat"))%>% #why are muskrats in the dataset?? tf??
+  select(!contains("snail"))%>%
+  pivot_longer(!1:26, names_to = "species.1", values_to = "total_count") #recreates species and total count columns
+  
+# Now expand instances of catch >1 to the number of rows stated -> one fish per row
+MN_GN_TN_eff_catch_LONG <- uncount(MN_GN_TN_eff_catch, total_count)
+```
+
+
+
+
+
+
+
+# ______________________________________________________________________________________________________________________________
 # Code from
 2/2/23
 First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed. Uses MN data for test case
@@ -83,6 +232,10 @@ ef_effort <- read_csv(file = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish
 write_csv(ef_effort, "mn_ef_lmb_smb_effort_26Aug2022.csv")
 ```
 
+List of Errors and How to Fix them
+- Error in setattr(ans, "names", c(keep.names, paste0("V", seq_len(length(ans) -  : 
+  'names' attribute [2] must be the same length as the vector [1] 
+    - file name is likely different from name in data explainer
 
 
 #_________________________________________________________________________________________________________________________________________________

@@ -5,6 +5,7 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 # Michigan Flat File Work
+- able to read in all files and rename columns 4/3/23
 
 ## Load libraries
 ```{r, warning = FALSE}
@@ -25,7 +26,7 @@ library(tidyr)
 #Testing Mike's WI code on MI data
 ```{r}
 # find files on Google Drive Desktop
-MI_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+MI_files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 
 MI_files_list #check that file names look correct
 
@@ -34,7 +35,7 @@ n <- length(MI_files_list)
 for(i in 1:n) {
   #i = 1
   assign(gsub(".csv","", MI_files_list[i]),
-         data.table(read_csv_arrow(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
+         data.table(read_csv_arrow(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
                                           MI_files_list[i]))))
   
   #consider moving renaming into here!

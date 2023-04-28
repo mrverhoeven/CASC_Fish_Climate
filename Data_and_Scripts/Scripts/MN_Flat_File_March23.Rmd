@@ -13,10 +13,16 @@ library(stringr)
 library(data.table)
 library(janitor)
 library(tidyr)
+library(lubridate)
+
+options(scipen = 999)
 ```
 
 
-# Update 4/4/2023
+# Update 4/27/2023 
+- Using new MN fish age data, and not using previous files
+
+Update 4/4/2023
 - Now retains units and notes columns along with inventory information
 
 * Holly's note to self: use dtplyr to convert my dplyr code to data.table (faster and less memory intensive)
@@ -87,48 +93,24 @@ for(i in 1:n) {
 
 ```
 
-Code to combine the MN files that were read in above
-```{r}
-
-#mn_aged_fish_2_29Sep2021[ , garbage_bin.22 := as.character(garbage_bin.22) , ]
-
-# mn <- merge.data.table(mn_aged_fish_1_29Sep2021, mn_aged_fish_2_29Sep2021) # use rbindlist so data types can be different
-
-# Combine mn_aged_fish_1 and _2 because they are the same file that was split in two by the data provider
-mn_age_join_1 <- rbindlist(list(mn_aged_fish_1_29Sep2021, mn_aged_fish_2_29Sep2021), use.names = T, fill = T) #fill will add NAs if things don't match
-
-# combine aged_fish_1 and _2 to the other aged fish file from MN
-mn_age_join_2 <- rbindlist(list(mn_age_join_1, mn_aged_fish_29Sep2021), use.names = T, fill = T)%>%
-  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0")) # all MN age files together with properly formatted lake IDs
-
-# check for any duplicates (concerned about mn_aged_1 and_2 and mn_aged)
-    # okay this may be bad because the same species can be caught multiple times in each gear for each survey... ditching this for now, will work on removing duplicates after everything is merged
-# MN_age_check_dupes <- mn_age_join_1 %>%semi_join(mn_aged_fish_29Sep2021, by = c("survey_id", "species.1", "sampling_method_abbrev" )) #986,203 duplicates out of 2,050,425
-
-#LOTS of duplicates, trying other functions to find a better way to do this
-# mn_age_distinct <- mn_age_join_2 %>% distinct(survey_id, species.1, sampling_method_abbrev, .keep_all = T) #21,323
-
-```
 
 3.) Isolate files with “catch” information
 4.) pivot_wider catch data so that there is only one fish per line (retain effort info if it is in the same file) then pivor_longer
 
 I know that mn_fish_effot... and mn_gde_gsh_fish_effort... are the same format, so I will combine those first to reduce the number of files we are working with
 ```{r}
-#change lake ID to integer
+#change lake ID to character string with leading zero
 MN_GDE_GSH <- mn_gde_gsh_fish_effort_03May2022 %>%
   mutate(lake_id = as.character(lake_id))%>%
   mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))
 
 #check if other file has the leading zero on the DOW (lake id)
-eight_dow <- mn_age_join_2 %>%
+eight_dow <- mn_aged_fish_v2_20apr2023 %>%
   mutate(leading_zero = str_detect(lake_id, "01\\d\\d\\d\\d\\d\\d"))%>%
   select(lake_id, leading_zero)%>%
-  filter(leading_zero == "TRUE") #it doesn't
+  filter(leading_zero == "TRUE") #it does! No need to re-format age data
 
-#format all lake IDs to be characters with 8 digits (retains leading zero), this will be important for merging purposes (added this to the aged fish too)
-
-# properly format lake id (DOW) then will expand so there is one fish per line
+# properly format lake id (DOW) then will expand so instances of zero catch are added
 MN_GN_TN_eff_catch <- bind_rows(mn_fish_effort_03May2022, MN_GDE_GSH)%>%
   mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>%
   pivot_wider(names_from = species.1, values_from = total_count, values_fill = 0) %>% #creates 0s
@@ -141,19 +123,175 @@ MN_GN_TN_eff_catch <- bind_rows(mn_fish_effort_03May2022, MN_GDE_GSH)%>%
   select(!contains("salamander"))%>%
   select(!contains("muskrat"))%>% #why are muskrats in the dataset?? tf??
   select(!contains("snail"))%>%
-  pivot_longer(!1:26, names_to = "species.1", values_to = "total_count") #recreates species and total count columns
+  pivot_longer(!1:26, names_to = "species.1", values_to = "total_count")%>% #recreates species and total count columns
+  mutate(cpue = (total_count/total_effort_1.1))%>% #updates CPUE column
+  mutate(cpue = round(cpue, digits = 2)) #rounds to two digits
   
 # Now expand instances of catch >1 to the number of rows stated -> one fish per row
 MN_GN_TN_eff_catch_LONG <- uncount(MN_GN_TN_eff_catch, total_count)
+
+#reformat for easier viewing and fix 'cpue' column which doesn't make sense after adding zeros
+MN_GN_TN_eff_CPUE <- MN_GN_TN_eff_catch_LONG %>%
+  mutate(total_count = 1)%>%
+  relocate(any_of(c("survey_id", 
+                    "lake_id", 
+                    "lake_name", 
+                    "date.1", 
+                    "year", 
+                    "sampling_method_abbrev", 
+                    "species.1", 
+                    "total_count", 
+                    "total_effort_1.1", 
+                    "effort_units.1"))) # relocate is the dplyr version of data.table's setcolorder
+```
+
+skip code from lines 150 - 200
+#______________________________________________________________________________________________________________________
+Now add catch files where there is already one fish per row
+ - since mn_ef_lmb_smb_catch... are surveys that are targeting bass, I'm not going to add zeros to these surveys because if other species were seen, the would not have been netted
+```{r}
+#reformat lake IDs to match format and make them all characters
+MN_EF_LMB_SMB_Catch <- mn_ef_lmb_smb_catch_26Aug2022 %>%
+  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>%
+  select(-cpue) #removing cpue column because it just contains "Y" which isn't useful
+
+All_MN_catch <- MN_GN_TN_eff_catch_LONG %>%
+  bind_rows(MN_EF_LMB_SMB_Catch)
+```
+
+Add effort and survey information to the catch data that doesn't already have this
+- just the electrofishing effort, lake IDs are already formatted properly
+```{r}
+# first let's identify which columns match 
+  # oof may need to add effort to catch and then bind rows?? yep.
+
+#pull column names from the catch data
+catch_cols <- as.data.frame(colnames(All_MN_catch))%>%
+  rename(Catch = 1)%>%
+  mutate(col_check = Catch)
+
+#pull column names from the effort data
+ef_effort_cols <- as.data.frame(colnames(mn_ef_lmb_smb_effort_26Aug2022))%>%
+  rename(Effort = 1)%>%
+  mutate(col_check = Effort)
+
+# join the column name data frames together, and identify overlapping columns
+col_comparison <- catch_cols %>%
+  full_join(ef_effort_cols, by = "col_check")%>%
+  mutate(Join_col = ifelse(!is.na(Catch)&!is.na(Effort), paste(Catch), NA))%>%
+  drop_na(Join_col)#identify common columns to use in join by dropping non matches (i.e. NAs)
+
+list(col_comparison$Join_col)
+
+MN_catch_effort <- All_MN_catch %>%
+  full_join(mn_ef_lmb_smb_effort_26Aug2022, by = (col_comparison$Join_col))
+
+
+#check that the effort data was joined appropriately
+join_check <- MN_catch_effort %>%
+  filter(sampling_method_abbrev == "EF")%>%
+  filter(is.na(species.1))
+
+# Okay so I think that I am going to need to join the electrofishing effort to catch before adding that data to the gn and tn data that already had both catch and effort. Because joining this way left us with 4966 NAs for species, meaning that the effort data didn't track well to the catch data. (the original effort df had 6197 obs.) I would maybe expect a few NAs (which would be zeros to add), but not over two thirds of them... 
+```
+
+#_______________________________________________________________________________________________________________________
+
+Re-doing above code order of operations
+1.) join electrofishing catch and effort data
+2.) add electrofishing catch and effort df to MN_GN_TN_eff_catch_LONG
+(instead of adding the catch to the above and then pulling in effort)
+
+```{r}
+#reformat lake IDs to match format and make them all characters
+MN_EF_LMB_SMB_Catch <- mn_ef_lmb_smb_catch_26Aug2022 %>%
+  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>%
+  select(-cpue)%>% #removing cpue column because it just contains "Y" which isn't useful
+  mutate(date.1 = mdy(date.1))%>%
+  mutate(year = year(date.1))
+
+# filter EF effort data for only surveys that list bass as a target species or where target species is NA
+MN_EF_Effort_bass <- mn_ef_lmb_smb_effort_26Aug2022 %>%
+  mutate(Check = case_when(str_detect(target_species, "LMB") ~ 1,
+                           str_detect(target_species, "SMB") ~ 1,
+                           is.na(target_species) ~ 1,
+                           TRUE ~ 0))%>% #making a column to check which rows to keep based on target species, 1 is keep 0 is remove
+  filter(Check == 1)%>%
+  select(-Check) #remove 691 effort surveys not targeting bass
+#even if other species were targeted (besides bass) we don't have catch data for them and should remove those surveys
+
+#pull column names from the catch data
+EF_catch_cols <- as.data.frame(colnames(MN_EF_LMB_SMB_Catch))%>%
+  rename(EF_Catch = 1)%>% #names the column something meaningful
+  mutate(col_check = EF_Catch) #duplicates column so after the join we can still see the original column lists
+
+#pull column names from the effort data
+EF_effort_cols <- as.data.frame(colnames(mn_ef_lmb_smb_effort_26Aug2022))%>%
+  rename(EF_Effort = 1)%>%
+  mutate(col_check = EF_Effort)
+
+# join the column name data frames together, and identify overlapping columns
+col_comparison <- EF_catch_cols %>%
+  full_join(EF_effort_cols, by = "col_check")%>%
+  mutate(Join_col = ifelse(!is.na(EF_Catch)&!is.na(EF_Effort), paste(EF_Catch), NA))%>%
+  drop_na(Join_col)#identify common columns to use in join by dropping non matches (i.e. NAs)
+# so a problem with this is that our data explainer tracking columns and notes columns may not match between the two and should NOT be used as a key in the join, will manually identify which columns should be key in the join. For other columns they will need to be consolidated back into one column after the join (unless it does this automatically..?)
+
+
+# join the electrofishing data based on columns that they share that should be the same (i.e. lake_name should be used, but not "original_file_name)
+MN_electofishing <- MN_EF_LMB_SMB_Catch %>%
+  full_join(MN_EF_Effort_bass, by = c("survey_id",
+                                      "county",
+                                      "lake_id",
+                                      "lake_name",
+                                      "sampling_method_abbrev",
+                                      "year",
+                                      "state"), suffix = c("_catch", "_effort"))%>% 
+  relocate(any_of(c("survey_id", 
+                    "lake_id", 
+                    "lake_name", 
+                    "year", 
+                    "sampling_method_abbrev", 
+                    "species.1", 
+                    "total_count", 
+                    "total_effort_1.1", 
+                    "effort_units.1",
+                    "length.1",
+                    "length_unit.1",
+                    "age",
+                    "target_species",
+                    "water_temp",
+                    "water_temp_units")))
+```
+# revist code below to continue troubleshooting the 11,000+ fish obs from EF that don't have a match to effort
+%>%
+  mutate(Check2 = case_when(is.na(species.1) ~ "no catch",
+                           !is.na(species.1) & is.na(total_effort_1.1) ~ "no effort",
+                           TRUE ~ "Good"))%>%
+  filter(Check2 == "no effort")
+  
+  # final check
+  # group_by(Check2)%>% summarise(Total = n()) no catch is okay. no effort is bad
+
+#check that the join above worked. #check year??
+# date is not always matching between the electrofishing catch and effort because there is a start date and end date. I am adding 'year' to the catch and will use that in the join instead
+
+
+Okay so there is effort data for survey 880626539624000
+on Bassett lake in St. Louis county in 2006 but it won't match up to catch
+** also should use the date in the catch file NOT the effort file
+
+# Combine all catch and effort data
+```{r}
+MN_CPUE <- rbindlist(list(MN_GN_TN_eff_CPUE, MN_electofishing), use.names = T, fill = T)
+  
+  #mn_age_join_1 <- rbindlist(list(mn_aged_fish_1_29Sep2021, mn_aged_fish_2_29Sep2021), use.names = T, fill = T)
 ```
 
 
 
 
 
-
-
-# ______________________________________________________________________________________________________________________________
 # Code from
 2/2/23
 First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed. Uses MN data for test case

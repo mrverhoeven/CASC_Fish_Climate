@@ -1,0 +1,98 @@
+---
+title: "MN_WAE"
+author: "Holly Kundel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+libraries
+```{r}
+library(arrow)
+library(readr)
+library(dplyr)
+library(stringr)
+library(data.table)
+library(janitor)
+library(tidyr)
+library(lubridate)
+
+options(scipen = 999)
+```
+
+Still need to figure out 2022 parsing, okay this is a Corey issue that he will need to fix (ignore until we get new data from Corey)
+```{r}
+#ignore until we get a new file from Corey
+
+new_gn_tn <- read_delim("Data_and_Scripts/Data/Data_Summaries/MN/GH_data_extracts/2022_age_file_gh.txt", delim = ",", na = c("", "NA"))
+
+new_gn_tn_export <- new_gn_tn %>%
+  mutate(LOC_DESC = ifelse(LOC_DESC == "null", NA, LOC_DESC))%>%
+  mutate(CREW_NOTES = ifelse(CREW_NOTES == "null", NA, CREW_NOTES))%>%
+  mutate(SERIAL = ifelse(SERIAL == "null", NA, SERIAL))%>%
+  mutate(WT_G = ifelse(WT_G == "null", NA, WT_G))%>%
+  mutate(MESH = ifelse(MESH == "null", NA, MESH))%>%
+  mutate(OFF_AGE = ifelse(OFF_AGE == "null", NA, OFF_AGE))%>%
+  mutate(LEN_MM = ifelse(LEN_MM == "null", NA, LEN_MM))
+```
+
+MN CPUE data (draft May 23)
+- all species, all gears, catch and effort
+```{r}
+MN_CPUE <- read_csv("draft_MN_catch_effort_23May2023.csv")
+```
+
+Add "id number" to each fish to match up ages
+```{r}
+# filtering to only keep walleye to speed up run time
+
+MN_WAE_CPUE <- MN_CPUE %>%
+  filter(species.1 == "walleye")%>%
+  filter(sampling_method_abbrev == "GN")%>%
+  mutate(Survey_gear_sp_ID = paste(survey_id, sampling_method_abbrev, species.1, sep = "_")) %>%
+  mutate(age_id = row_number())%>%
+  group_by(Survey_gear_sp_ID)%>%
+  mutate(age_id = 1:n())%>% 
+  group_by(Survey_gear_sp_ID) %>%
+  mutate(age_id = seq_len(n()))%>%
+  mutate(Age_ID = seq_along(Survey_gear_sp_ID))%>%
+  mutate(survey_id = as.character(survey_id))%>%
+  relocate(Age_ID, Survey_gear_sp_ID)%>%
+  select(1:11, 18:20)
+
+# Now add age IDs to the aged fish data, also filtering for just walleye
+MN_aged_walleye <- mn_aged_fish_v2_20apr2023 %>%
+  mutate(Survey_gear_sp_ID = paste(survey_id, sampling_method_abbrev, species.1, sep = "_")) %>%
+  filter(species.1 == "walleye")%>%
+  mutate(age_id = row_number())%>%
+  group_by(Survey_gear_sp_ID)%>%
+  mutate(age_id = 1:n())%>% 
+  group_by(Survey_gear_sp_ID) %>%
+  mutate(age_id = seq_len(n()))%>%
+  mutate(Age_ID = seq_along(Survey_gear_sp_ID))%>%
+  mutate(survey_id = as.character(survey_id))%>%
+  relocate(Age_ID, Survey_gear_sp_ID)%>%
+  select(1:15, 23, 17:20, 22)
+
+# join the age data to the CPUE data, note when doing this with more than one species, "species" also needs to be included
+
+MN_WAE_CPUE_age <- MN_WAE_CPUE %>%
+  left_join(MN_aged_walleye, by = c("survey_id", "Age_ID"), suffix = c("_CPUE", "_age"))%>% #join worked, cleaning up for usability below
+  mutate(lake_id = ifelse(!is.na(lake_id_CPUE), paste(lake_id_CPUE), paste(lake_id_age)))%>%
+  mutate(lake_name = ifelse(!is.na(lake_name_CPUE), paste(lake_name_CPUE), paste(lake_name_age)))%>%
+  mutate(sampling_method_abbrev = ifelse(!is.na(sampling_method_abbrev_CPUE), paste(sampling_method_abbrev_CPUE), paste(sampling_method_abbrev_age)))%>%
+  mutate(species = ifelse(!is.na(species.1_CPUE), paste(species.1_CPUE), paste(species.1_age)))%>%
+  mutate(date = ifelse(!is.na(date.1_age), paste(date.1_age), paste(date.1_CPUE)))%>%
+  rename(effort = total_effort_1.1,
+         catch = total_count,
+         effort_units = effort_units.1,
+         DNR_calculated_CPUE = cpue_CPUE,
+         length = length.1,
+         weight = weight.1,
+         survey_type = survey_type.1_CPUE)%>%
+  relocate(survey_id, species, lake_id, lake_name, date, year, sampling_method_abbrev, survey_type, catch, effort, effort_units, age, length, weight, DNR_calculated_CPUE)%>%
+  select(1:15, 36:38)
+
+
+write_csv(MN_WAE_CPUE_age, "MN_WAE_CPUE_age_clean.csv")
+```
+

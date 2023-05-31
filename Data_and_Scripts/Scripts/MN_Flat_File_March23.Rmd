@@ -18,6 +18,22 @@ library(lubridate)
 options(scipen = 999)
 ```
 
+# get new GN TN data from Corey into a csv
+```{r}
+new_gn_tn <- read_delim("Data_and_Scripts/Data/Data_Summaries/MN/GH_data_extracts/2022_age_file_gh.txt", delim = ",", na = c("", "NA"))
+
+new_gn_tn_export <- new_gn_tn %>%
+  mutate(LOC_DESC = ifelse(LOC_DESC == "null", NA, LOC_DESC))%>%
+  mutate(CREW_NOTES = ifelse(CREW_NOTES == "null", NA, CREW_NOTES))%>%
+  mutate(SERIAL = ifelse(SERIAL == "null", NA, SERIAL))%>%
+  mutate(WT_G = ifelse(WT_G == "null", NA, WT_G))%>%
+  mutate(MESH = ifelse(MESH == "null", NA, MESH))%>%
+  mutate(OFF_AGE = ifelse(OFF_AGE == "null", NA, OFF_AGE))%>%
+  mutate(LEN_MM = ifelse(LEN_MM == "null", NA, LEN_MM))
+
+write_csv(new_gn_tn_export, "mn_cpue_25May2023.csv", na = "NA")
+```
+
 
 # Update 4/27/2023 
 - Using new MN fish age data, and not using previous files
@@ -211,14 +227,10 @@ MN_EF_LMB_SMB_Catch <- mn_ef_lmb_smb_catch_26Aug2022 %>%
   mutate(year = year(date.1))
 
 # filter EF effort data for only surveys that list bass as a target species or where target species is NA
-MN_EF_Effort_bass <- mn_ef_lmb_smb_effort_26Aug2022 %>%
-  mutate(Check = case_when(str_detect(target_species, "LMB") ~ 1,
-                           str_detect(target_species, "SMB") ~ 1,
-                           is.na(target_species) ~ 1,
-                           TRUE ~ 0))%>% #making a column to check which rows to keep based on target species, 1 is keep 0 is remove
-  filter(Check == 1)%>%
-  select(-Check) #remove 691 effort surveys not targeting bass
+#MN_EF_Effort_bass <- mn_ef_lmb_smb_effort_26Aug2022 %>%mutate(Check = case_when(str_detect(target_species, "LMB") ~ 1, str_detect(target_species, "SMB") ~ 1,is.na(target_species) ~ 1,TRUE ~ 0))%>% #making a column to check which rows to keep based on target species, 1 is keep 0 is remo  filter(Check == 1)%>% select(-Check) #remove 691 effort surveys not targeting bass
 #even if other species were targeted (besides bass) we don't have catch data for them and should remove those surveys
+
+#### DONT USE ABOVE 
 
 #pull column names from the catch data
 EF_catch_cols <- as.data.frame(colnames(MN_EF_LMB_SMB_Catch))%>%
@@ -240,13 +252,8 @@ col_comparison <- EF_catch_cols %>%
 
 # join the electrofishing data based on columns that they share that should be the same (i.e. lake_name should be used, but not "original_file_name)
 MN_electofishing <- MN_EF_LMB_SMB_Catch %>%
-  full_join(MN_EF_Effort_bass, by = c("survey_id",
-                                      "county",
-                                      "lake_id",
-                                      "lake_name",
-                                      "sampling_method_abbrev",
-                                      "year",
-                                      "state"), suffix = c("_catch", "_effort"))%>% 
+  full_join(mn_ef_lmb_smb_effort_26Aug2022, by = c("survey_id",
+                                      "sampling_method_abbrev"), suffix = c("_catch", "_effort"))%>% 
   relocate(any_of(c("survey_id", 
                     "lake_id", 
                     "lake_name", 
@@ -262,6 +269,24 @@ MN_electofishing <- MN_EF_LMB_SMB_Catch %>%
                     "target_species",
                     "water_temp",
                     "water_temp_units")))
+
+### below checks demonstrating the instances where the survey ids don't exist or don't match in effort
+MN_electrofishing_effort_NA <- MN_electofishing %>%
+  filter(is.na(total_effort_1.1)) #11,101 fish that don't have survey effort (was 11,614 when lake id, year, county, state, etc. also included.)
+
+
+catch_survey_id <- MN_EF_LMB_SMB_Catch %>% 
+  select(survey_id, lake_id, year, date.1)%>%
+  mutate(file = "CATCH")%>%
+  distinct(survey_id, lake_id, year, file, date.1)
+
+effort_survey_id <- mn_ef_lmb_smb_effort_26Aug2022 %>% select(survey_id, lake_id, year) %>% mutate(file = "EFFORT")
+
+Survey_ID_Check <- full_join(catch_survey_id, effort_survey_id, by = "survey_id")%>%
+  filter(is.na(file.y))%>%
+  rename(lake_id = lake_id.x, year = year.x)%>%
+  left_join(mn_ef_lmb_smb_effort_26Aug2022, by = c("lake_id", "year"))%>%
+  select(1:10, 19, 23, 26)
 ```
 # revist code below to continue troubleshooting the 11,000+ fish obs from EF that don't have a match to effort
 %>%
@@ -284,235 +309,89 @@ on Bassett lake in St. Louis county in 2006 but it won't match up to catch
 # Combine all catch and effort data
 ```{r}
 MN_CPUE <- rbindlist(list(MN_GN_TN_eff_CPUE, MN_electofishing), use.names = T, fill = T)
+
+draft_MN_CPUE_23May2023 <- MN_CPUE %>%
+  relocate(any_of(c("survey_id", 
+                    "lake_id", 
+                    "lake_name", 
+                    "year", 
+                    "sampling_method_abbrev", 
+                    "species.1", 
+                    "total_count", 
+                    "total_effort_1.1", 
+                    "effort_units.1",
+                    "length.1",
+                    "length_unit.1",
+                    "age",
+                    "target_species",
+                    "water_temp",
+                    "water_temp_units")))%>%
+  select(1:50)
+
+write_csv(draft_MN_CPUE_23May2023, "draft_MN_catch_effort_23May2023.csv")
   
-  #mn_age_join_1 <- rbindlist(list(mn_aged_fish_1_29Sep2021, mn_aged_fish_2_29Sep2021), use.names = T, fill = T)
 ```
 
-
-
-
-
-# Code from
-2/2/23
-First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed. Uses MN data for test case
-
-### MN is working as of 4/3/23
-
-## Load libraries
-```{r, warning = FALSE}
-library(readr)
-library(readxl)
-library(dplyr)
-library(stringr)
-library(arrow)
-library(data.table)
-library(googledrive)
-library(janitor)
-library(tidyr)
-library(data.table)
-library(tidyr)
-
-```
-
-#Testing Mike's WI code on MN data
+MN figures 5/23/23 REVISIT for SFS
 ```{r}
-# find files on Google Drive Desktop
-MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
-
-MN_files_list #check that file names look correct
-
-n <- length(MN_files_list)
-
-for(i in 1:n) {
-  #i = 1
-  assign(gsub(".csv","", MN_files_list[i]),
-         data.table(read_csv_arrow(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
-                                          MN_files_list[i]))))
-  
-  #consider moving renaming into here!
-  
-  
-  #this does those two steps in one package
-# note we want to review a sorted list of column names to check misspelling etc.
-cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", MN_files_list)[i])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.))) %>% 
-  transpose(keep.names = "newname") %>% 
-  rename("oldname" = V1) %>% 
-  assign("names", ., envir = .GlobalEnv)
-
-#see if any column names will not have a match! 
-# IF any pop FALSE, force stop and revist of data explainer ()
-# - e.g., named something "total catch" when actual column name was "total_catch"
-print(
-cbind(colnames(get(gsub(".csv","", MN_files_list)[i])),
-      colnames(get(gsub(".csv","", MN_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
-)
-)
-
-# break the loop if the current file has column names not in the data explainer
-if (all(cbind(colnames(get(gsub(".csv","", MN_files_list)[i])),  colnames(get(gsub(".csv","", MN_files_list)[i])) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
-
-#now rename that file's colnames
-setnames(get(gsub(".csv","", MN_files_list)[i]), colnames(get(gsub(".csv","", MN_files_list)[i])), names[!str_detect(newname,"unique_row_key")] [match(names(get(gsub(".csv","", MN_files_list)[i])),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
-
-#confirm import of files:  
-print(paste(gsub(".csv","", MN_files_list)[i] ,"added to workspace" ))  
-
-}  
+MN_species <- draft_MN_CPUE_23May2023
 ```
 
-File Troubleshooting
+
+
+
+
+# add MN aged fish data to the catch and effort
+
+Get Age ID added to CPUE data
+
+I'm not sure if I need to repeat the `group_by` argument so many times but it works this way
+
+- first step: make a "unique key" with `survey_id`, `sampling_method_abbrev` (gear), and `species.1` (species), this is what we will group by for the purposes of making our sequence of age ID numbers
 ```{r}
-# gsub(".csv","", MN_files_list[i])
-ef_effort <- read_csv(file = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_ef_lmb_smb_effort_26Aug2022.csv") #note 'fread' had same error as rea_csv_arrow
-
-write_csv(ef_effort, "mn_ef_lmb_smb_effort_26Aug2022.csv")
+MN_CPUE_w_age_id <- MN_CPUE %>%
+   mutate(Survey_gear_sp_ID = 
+            paste(survey_id, sampling_method_abbrev, species.1, sep = "_")) %>%
+  mutate(age_id = row_number())%>%
+  group_by(Survey_gear_sp_ID)%>%
+  mutate(age_id = 1:n())%>% 
+  group_by(Survey_gear_sp_ID) %>%
+  mutate(age_id = seq_len(n()))%>%
+  mutate(Age_ID = seq_along(Survey_gear_sp_ID))%>%
+  mutate(survey_id = as.character(survey_id))%>%
+  relocate(Age_ID, Survey_gear_sp_ID)
 ```
+
+Now add age IDs to the aged fish
+```{r}
+MN_aged_fish <- mn_aged_fish_v2_20apr2023 %>%
+  mutate(Survey_gear_sp_ID = 
+           paste(survey_id, sampling_method_abbrev, species.1, sep = "_")) %>%
+  mutate(age_id = row_number())%>%
+  group_by(Survey_gear_sp_ID)%>%
+  mutate(age_id = 1:n())%>% 
+  group_by(Survey_gear_sp_ID) %>%
+  mutate(age_id = seq_len(n()))%>%
+  mutate(Age_ID = seq_along(Survey_gear_sp_ID))%>%
+  mutate(survey_id = as.character(survey_id))%>%
+  relocate(Age_ID, Survey_gear_sp_ID)
+```
+
+
+Finally, join the age data to the CPUE data
+- still getting the warning message "Each row in 'x' is expected to match at most 1 row in 'y'
+```{r}
+MN_CPUE_w_AGES <- MN_CPUE_w_age_id %>%
+  full_join(MN_aged_fish, by = c("survey_id", "species.1", "Age_ID"), suffix = c("_CPUE", "_age"))
+```
+
+
+
+
+
 
 List of Errors and How to Fix them
 - Error in setattr(ans, "names", c(keep.names, paste0("V", seq_len(length(ans) -  : 
   'names' attribute [2] must be the same length as the vector [1] 
     - file name is likely different from name in data explainer
-
-
-#_________________________________________________________________________________________________________________________________________________
-Work below this line was pre 3/14/2023
-
-## CASC Data Explainer
-### Read in
-```{r}
-# change E (Mike's drive) to G (Holly's drive)
-cde_raw <- data.table(read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
-
-```
-
-### Prep 
-
-* Data Explainer prep is now done in 'CASC_Data_Explainer_HLK.Rmd'
-
-## State data
-### Read in
-
-We eventually want to be able to read this in from google drive directly, right now uses google drive desktops
-
-```{r, warning = FALSE, message = FALSE}  
-MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = ".+\\.csv") #only grab csv files
-
-n <- length(MN_files_list) #may want to make it more than just n so it is different for each state??? e.g. "n_mn" ?
-
-# Code from Mike
-for(i in 1:n) {
-  assign(gsub(".csv","", MN_files_list[i]),
-         read_csv(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
-                               MN_files_list[i]))) #don't use 'read.csv2, only get one column
-} 
-
-# get the list of data sets as data frames in R so they can be looped later
-
-# plus by adding this, you won't have to remove the ".csv" every time you reference the list
-MN_file_names <- str_replace(MN_files_list, ".csv", "")   #str_replace and gsub both work the same :) 
-
-```
-
-Process to fix file read in error, no need to run code in this chunk
-```{r, echo=FALSE}
-
-#This doesn't work because 'escape_double = TRUE'
-
-for(i in 1:n) {
-  assign(gsub(".csv","", MN_files_list[i]),
-         data.table(read_csv_arrow(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
-                               MN_files_list[i])))) #don't use 'read.csv2, only get one column
-} 
-
-
-#This doesn't work, only loads mn-gde_gsh_fish_effort okay, others don't work
-
-for(i in 1:n) {
-  assign(gsub(".csv","", MN_files_list[i]),
-         data.table(read_csv_arrow(escape_double = FALSE,(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
-                               MN_files_list[i]))))) #don't use 'read.csv2, only get one column
-} 
-
-# problem file is 'mn_gde_gsh...'
-
-### fix mn_gde_gsh, was in an improper csv format
-#fixed by reading into r with 'read_csv' from 'readr' pkg, and then using 'write_csv'
-
-mn_gde_gsh <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_gde_gsh_fish_effort_03May2022.csv")
-
-#write_csv(mn_gde_gsh, "mn_gde_gs_fish_effort_03May2022_2.csv")
-```
-
-
-Get new column names from data explainer for all files (OUT of Date, see below)
-```{r, echo=FALSE}
-# THIS METHOD IS OUT OF DATE, SEE BELOW
-
-#for a state file, display column names - 
-
-MN_file_names <- gsub(".csv","", MN_files_list)
-
-#oldnames
-old_names <- cde %>% # call data explainer file
-  filter(`new_file_name`== MN_file_names[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
-  make_clean_names() %>% 
-  assign("oldnames", ., envir = .GlobalEnv)
-
-
-# select(14:25) #keep only columns of relevance (remove our file tracking and urls)
-
-# display our new names for that set - (esp. need to ID no matches)
-
-cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
-  colnames() %>% 
-  assign("newnames", ., envir = .GlobalEnv)
-
-cbind(oldnames,newnames)
-
-cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.))) %>% 
-  transpose(keep.names = "rn")
-
-colnames(get(gsub(".csv","", WI_files_list)[1]))cde %>% # call data explainer file
-  filter(`new_file_name`== gsub(".csv","", WI_files_list)[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
-  colnames() %>% 
-  assign("newnames", ., envir = .GlobalEnv)
-
-cbind(oldnames,newnames)
-```
-
-New Version of getting new column names from data explainer
-```{r}
-#code from Mike's WI flat-file work
-# note we want to review a sorted list of column names to check misspelling etc.
-column_names <- cde %>% # call data explainer file
-  filter(`new_file_name`== MN_file_names[1])%>% #keep only the row relevant to this file
-  select_if(~ !any(is.na(.))) %>% 
-  transpose(keep.names = "newname") %>% 
-  rename("oldname" = V1) %>% 
-  assign("names", ., envir = .GlobalEnv) # left with two columns of the original file names 'oldname' and the new data explainer names 'newname'
-
-
-#see if any column names will not have a match! 
-# IF any pop FALSE, force stop and revist the data explainer 
-# - e.g., named something "total catch" when actual column name was "total_catch"
-
-cbind(colnames(get(MN_file_names[1])),
-      colnames(get(MN_file_names[1])) %in% names[ , oldname, ]) #"FALSE" means that our typed name is not a correct column name
-
-# Once all columns are "TRUE" you can move on
-
-names <- names[ match(colnames(get(MN_file_names[1])),
-       names[!str_detect(newname,"unique_row_key"),oldname]), ] #check that there are no NAs
-
-### pull in new code from Mike WI work file
-```
-
 

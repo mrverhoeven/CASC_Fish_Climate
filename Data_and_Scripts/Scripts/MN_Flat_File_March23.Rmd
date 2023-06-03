@@ -159,6 +159,8 @@ MN_GN_TN_eff_CPUE <- MN_GN_TN_eff_catch_LONG %>%
                     "total_count", 
                     "total_effort_1.1", 
                     "effort_units.1"))) # relocate is the dplyr version of data.table's setcolorder
+
+
 ```
 
 skip code from lines 150 - 200
@@ -255,7 +257,7 @@ MN_electofishing <- MN_EF_LMB_SMB_Catch %>%
   full_join(mn_ef_lmb_smb_effort_26Aug2022, by = c("survey_id",
                                       "sampling_method_abbrev"), suffix = c("_catch", "_effort"))%>% 
   relocate(any_of(c("survey_id", 
-                    "lake_id", 
+                    "lake_id_catch", 
                     "lake_name", 
                     "year", 
                     "sampling_method_abbrev", 
@@ -268,7 +270,10 @@ MN_electofishing <- MN_EF_LMB_SMB_Catch %>%
                     "age",
                     "target_species",
                     "water_temp",
-                    "water_temp_units")))
+                    "water_temp_units")))%>%
+  rename(lake_id = lake_id_catch,
+         lake_name = lake_name_catch,
+         year = year_catch)
 
 ### below checks demonstrating the instances where the survey ids don't exist or don't match in effort
 MN_electrofishing_effort_NA <- MN_electofishing %>%
@@ -310,7 +315,7 @@ on Bassett lake in St. Louis county in 2006 but it won't match up to catch
 ```{r}
 MN_CPUE <- rbindlist(list(MN_GN_TN_eff_CPUE, MN_electofishing), use.names = T, fill = T)
 
-draft_MN_CPUE_23May2023 <- MN_CPUE %>%
+draft_MN_CPUE_02June2023 <- MN_CPUE %>%
   relocate(any_of(c("survey_id", 
                     "lake_id", 
                     "lake_name", 
@@ -328,7 +333,7 @@ draft_MN_CPUE_23May2023 <- MN_CPUE %>%
                     "water_temp_units")))%>%
   select(1:50)
 
-write_csv(draft_MN_CPUE_23May2023, "draft_MN_catch_effort_23May2023.csv")
+write_csv(draft_MN_CPUE_02June2023, "draft_MN_catch_effort_02June2023.csv")
   
 ```
 
@@ -385,7 +390,9 @@ MN_CPUE_w_AGES <- MN_CPUE_w_age_id %>%
   full_join(MN_aged_fish, by = c("survey_id", "species.1", "Age_ID"), suffix = c("_CPUE", "_age"))
 ```
 
-
+UGHHHH ERRORS
+- SMB and LMB from electrofishing (I think just EF) have three letter abbreviations for 'species.1' and not the common name
+- also appears lake_id, lake_name, and year didn't transfer over from the EF data, likely have to change the 'if_else' into a 'case_when' so that we can tell it to pull that lake info from the ef data
 
 
 

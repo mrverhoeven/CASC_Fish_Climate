@@ -4,6 +4,8 @@ author: "Holly Kundel & Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
 ---
+# Preamble
+
 libraries
 ```{r}
 library(arrow)
@@ -18,33 +20,14 @@ library(lubridate)
 options(scipen = 999)
 ```
 
-# get new GN TN data from Corey into a csv
-```{r}
-# new_gn_tn <- read_delim("Data_and_Scripts/Data/Data_Summaries/MN/GH_data_extracts/2022_age_file_gh.txt", delim = ",", na = c("", "NA"))
-# 
-# new_gn_tn_export <- new_gn_tn %>%
-#   mutate(LOC_DESC = ifelse(LOC_DESC == "null", NA, LOC_DESC))%>%
-#   mutate(CREW_NOTES = ifelse(CREW_NOTES == "null", NA, CREW_NOTES))%>%
-#   mutate(SERIAL = ifelse(SERIAL == "null", NA, SERIAL))%>%
-#   mutate(WT_G = ifelse(WT_G == "null", NA, WT_G))%>%
-#   mutate(MESH = ifelse(MESH == "null", NA, MESH))%>%
-#   mutate(OFF_AGE = ifelse(OFF_AGE == "null", NA, OFF_AGE))%>%
-#   mutate(LEN_MM = ifelse(LEN_MM == "null", NA, LEN_MM))
-# 
-# write_csv(new_gn_tn_export, "mn_cpue_25May2023.csv", na = "NA")
-```
-
-
-# Update 4/27/2023 
-- Using new MN fish age data, and not using previous files
-
-Update 4/4/2023
-- Now retains units and notes columns along with inventory information
-
-* Holly's note to self: use dtplyr to convert my dplyr code to data.table (faster and less memory intensive)
 
 Update 6/7/2023 Mike: 
-- uses fread() b/c arrow_read_csv() seems to be choking on the mn_fish_2022only_31May2023.csv file. 
+- uses fread() b/c arrow_read_csv() seems to be choking on the mn_fish_2022only_31May2023.csv file.
+- I perused Holly's work and I think I might need to start fresh here. 
+
+# Load Data
+
+
 
 ```{r}
 
@@ -114,296 +97,649 @@ for(i in 1:n) {
 ```
 
 
-3.) Isolate files with “catch” information
-4.) pivot_wider catch data so that there is only one fish per line (retain effort info if it is in the same file) then pivor_longer
+# Catch Merge
 
-I know that mn_fish_effort... and mn_gde_gsh_fish_effort... are the same format, so I will combine those first to reduce the number of files we are working with
+
+
 ```{r}
-#change lake ID to character string with leading zero
-mn_gde_gsh_fish_effort_03May2022 <- mn_gde_gsh_fish_effort_03May2022 %>%
-  mutate(lake_id = as.character(lake_id))%>%
-  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))
 
-#check if other file has the leading zero on the DOW (lake id)
-eight_dow <- mn_aged_fish_v2_20apr2023 %>%
-  mutate(leading_zero = str_detect(lake_id, "01\\d\\d\\d\\d\\d\\d"))%>%
-  select(lake_id, leading_zero)%>%
-  filter(leading_zero == "TRUE") #it does! No need to re-format age data
-rm(eight_dow)
 
-# properly format lake id (DOW) then will expand so instances of zero catch are added
-MN_GN_TN_eff_catch <- bind_rows(mn_fish_effort_03May2022, MN_GDE_GSH)%>%
-  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>%
-  pivot_wider(names_from = species.1, values_from = total_count, values_fill = 0) %>% #creates 0s
-  select(!contains("frog"))%>% #attempt to drop non-fish species
-  select(!contains("crayfish"))%>%
-  select(!contains("toad"))%>% #syntax means keep all columns that don't contain "toad"
-  select(!contains("turtle"))%>%
-  select(!contains("mudpuppy"))%>%
-  select(!contains("snake"))%>%
-  select(!contains("salamander"))%>%
-  select(!contains("muskrat"))%>% #why are muskrats in the dataset?? tf??
-  select(!contains("snail"))%>%
-  pivot_longer(!1:26, names_to = "species.1", values_to = "total_count")%>% #recreates species and total count columns
-  mutate(cpue = (total_count/total_effort_1.1))%>% #updates CPUE column
-  mutate(cpue = round(cpue, digits = 2)) #rounds to two digits
-  
-# Now expand instances of catch >1 to the number of rows stated -> one fish per row
-MN_GN_TN_eff_catch_LONG <- uncount(MN_GN_TN_eff_catch, total_count)
+catch <- rbindlist(list(rbindlist(list(mn_gde_gsh_fish_effort_03May2022,
+                                    mn_fish_effort_03May2022),
+                               fill = TRUE,
+                               use.names = TRUE),
+                     mn_cpue_2022only_31May2023),
+                fill = TRUE,
+                use.names = TRUE)
 
-#reformat for easier viewing and fix 'cpue' column which doesn't make sense after adding zeros
-MN_GN_TN_eff_CPUE <- MN_GN_TN_eff_catch_LONG %>%
-  mutate(total_count = 1)%>%
-  relocate(any_of(c("survey_id", 
-                    "lake_id", 
-                    "lake_name", 
-                    "date.1", 
-                    "year", 
-                    "sampling_method_abbrev", 
-                    "species.1", 
-                    "total_count", 
-                    "total_effort_1.1", 
-                    "effort_units.1"))) # relocate is the dplyr version of data.table's setcolorder
+
+
+########## NEED to integrate the ef_lmb_smb_effortdata here ^^. That file contains no catch info (but we can calc that from the catch file)
+
+## This highlights the idea that catch and effort are coming to our doorstep two ways: 
+#1: effort data contains NO corresponding catch info (the MN EF data look like this)
+#2: effort data contain some or all of the catch data (most mn efforts contain catch summaries, eg., number of individuals per species)
+
+## As such, we need some way to steer our workflow through the parsing of those data. We need different streams for each type (in all likelihood--unless we can have a workflow that works on all types)
+
+#fix up dates
+# catch[ , as.IDate(unique(word(date.1, 1, sep = fixed(" "))), format = "%m/%d/%Y") , ]
+catch[ , date_clean :=  as.IDate(word(date.1, 1, sep = fixed(" ")), format = "%m/%d/%Y"),]
+catch[ is.na(date_clean), ]
+
+catch[ , hist(yday(date_clean)) ,]
+catch[ , hist(year(date_clean)) ,]
+
+#check other fields
+names(catch)
+
+#tidy sampling methods
+catch[ , unique(sampling_method), ]
+#do we have abbreviated gears where missing in ^?
+catch[is.na(sampling_method), unique(sampling_method_abbrev)]
+#backfill the sampling_method column from codes:
+catch[is.na(sampling_method) &
+        sampling_method_abbrev == "GSH",
+      sampling_method := "Shallow gill nets"]
+catch[is.na(sampling_method) &
+        sampling_method_abbrev == "GDE",
+      sampling_method := "Deep gill nets"]
+catch[is.na(sampling_method) &
+        sampling_method_abbrev == "TN",
+      sampling_method := "Standard trap nets"]
+catch[is.na(sampling_method) &
+        sampling_method_abbrev == "GN",
+      sampling_method := "Standard gill nets"]
+#ditch the abbreviation/code column
+catch[ , sampling_method_abbrev := NULL, ]
+
+#tidy up the FWB ID and verify that it is same resolution as DOW_ID
+catch[ , unique(word(garbage_bin_notes.1, sep = ":")) ,]
+catch[ , garbage_bin_notes.1 := paste("FISHERIES_WATERBODY_ID", word(garbage_bin_notes.1, 2, sep = ":"), sep = "_") ]
+catch[ , length(unique(lake_id)) , garbage_bin_notes.1 ][V1 > 1]
+
+names(catch)[names(catch)== "garbage_bin_notes.1"] <- "lake_id.2"
+
+#multiple names in here for walleye?
+catch[ , sort(unique(species.1)) , ] #nope. Looks ltidy enough
+
+names(catch)
+
+#how many walleye expected in our results?
+sum(catch[ species.1 == "walleye", total_count  ,]) #529,259 individuals caught
+sum(catch[ species.1 == "walleye" & 
+             sampling_method != "Standard trap nets", total_count  ,]) #459,954 individuals caught in gillnets
+sum(catch[ species.1 == "walleye" & 
+             sampling_method != "Standard trap nets" &
+             original_file_name.1 != "2023_GH_cpue.txt" , total_count  ,]) #447,056 individuals caught in gillnets w/o the 2022 data
+
+#clean up lake_names cols
+catch[ , sort(unique(lake_name.1)) ,]
+catch[ , sort(unique(lake_name.2)) ,]
+catch[ lake_name.2 %in% c("null", "N/A"), lake_name.2 := NA]
+
+
+#ditch some garbage columns?
+trash <- names(catch)[str_detect(names(catch), "garbage")]
+catch[ , unique(.SD) , .SDcols = trash]
+# what are those weights?
+catch[str_detect(garbage_bin_notes.3, "WEIGHT")]
+# these weights are associated with multiple fish, so maybe a mean or median--we're going to drop them (we can't assess anything from aggregated weights)
+catch[ , `:=` (garbage_bin_notes.2 = NULL,
+               garbage_bin_notes.3 = NULL,
+               garbage_bin_notes.4 = NULL)]
+#year
+catch[ , unique(year) , ]
+catch[ is.na(year), year := year(date_clean)]
+
+#effortunits
+catch[ , unique(effort_units.1) ,]
+catch[effort_units.1 == "knownunit_number_of_net_nights" , , ]
+catch[effort_units.1 == "knownunit_number_of_nets" , effort_units.1 := "knownunit_number_of_net_nights" , ]
+
+
+#unique row key fields can be dropped
+# these weights are associated with multiple fish, so maybe a mean or median--we're going to drop them (we can't assess anything from aggregated weights)
+catch[ , `:=` (unique_row_key.1 = NULL,
+               unique_row_key.2 = NULL,
+               unique_row_key.3 = NULL,
+               unique_row_key.4 = NULL)]
+#drop cpue
+catch[ , cpue := NULL ,]
+
+
+# build into wide matrix style:
+
+  names(catch)
+setcolorder(catch, c("lake_id", "lake_id.2", "lake_name.1", "lake_name.2", "sampling_method", "date_clean", "date.1", "year", "effort_units.1", "survey_type.1", "total_effort_1.1"))
+#check for unique data within a survey:
+#corey geving says a survey is a combination of lake, method, date
+catch[ , .N , .(lake_id, lake_id.2, sampling_method, date_clean)] #21807 surveys
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, sampling_method, date_clean)] #21807 surveys
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean)] #21807 surveys
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1)] #21807 surveys
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year)] #21807 surveys
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1)] #21807 surveys
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1)] #21807 surveys
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1, survey_type.1)] #21827 surveys when we allow survey_type to vary within a survey
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1, survey_type.1, total_effort_1.1)]#21828 surveys when we allow unequal effort within gears (this could occur where different nets were left out for different pds of time)
+catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1, survey_type.1, total_effort_1.1, survey_id)] #21830 surveys when we allow survey_type to vary within a survey
+
+surveykeycols <- names(catch)[!(names(catch) %in% c("species.1", "cpue", "total_count"))]
+catch[ , .N , surveykeycols] # 21830 surveys if all but^ included
+
+catch[ , species.1 := paste("taxa", species.1, sep = "_")]
+
+catch_w <- dcast(catch[] , ... ~ species.1 , value.var = "total_count", fill = 0)
+
+catch_w[, sum(taxa_walleye)  , ]
+
+#any surveys with nothing caught?
+names(catch_w)[str_detect(names(catch_w), "taxa_")]
+any(rowSums(catch_w[ , .SD , .SDcols = names(catch_w)[str_detect(names(catch_w), "taxa_")] ])==0)
+
+catch_w[ , nothing_caught := rowSums(catch_w[ , .SD , .SDcols = names(catch_w)[str_detect(names(catch_w), "taxa_")] ])==0  ,]
+
+catch_w[nothing_caught==T] #2 surveys really did catch NADA
+
+
+
+#now expand to long data:
+
+catch_expanded <- melt(catch_w, measure.vars = patterns("^taxa"), variable.name = "species", value.name = "count"  )[order(survey_id), ,]
+
+catch_expanded[species == "taxa_walleye", sum(count)] #529259
+
+catch_expanded_presences_only <- uncount(catch_expanded, count, .remove = F, .id = "id") # this will drop all zeros
+
+catch_expanded[count==0, id := NA]
+
+nrow(rbind(catch_expanded[count==0],catch_expanded_presences_only))
+
+catch_expanded <- rbind(catch_expanded[count==0],catch_expanded_presences_only)
+
+rm(catch_expanded_presences_only)
+
+wae_catch <- catch_expanded[species == "taxa_walleye"]
+
+wae_catch[ str_detect(sampling_method, "gill nets"),  ,  ]
+
+
+
+
+
+#now tie the aged fish data to these catch records
+
+age <- rbindlist(list(mn_aged_fish_v2_20apr2023,
+                                    mn_fish_2022only_31May2023),
+                               fill = TRUE,
+                               use.names = TRUE)
+
+age[ , unique(species.1) ,]
+age[, .N , .(species.1, species.2)][ order(-species.1)]
+#move species codes to species.2
+age[is.na(species.2) , `:=` (species.2 = species.1, species.1 = NA) ]
+
+age[!is.na(species.1) , .N , .(species.1, species.2)][ order(-species.1)]
+MN_sp_key <- age[!is.na(species.1) , .N , .(species.1, species.2)][ order(-species.1)][, .(species.1, species.2), ]
+
+#something odd happening in here:
+age[is.na(species.1)]$species.1 <- MN_sp_key[match(age[is.na(species.1) , species.2],MN_sp_key[ , species.2]), species.1]
+
+age[species.1 == "walleye"]
+
+names(catch_expanded)
+names(age)
+
+#fix up dates
+age[ , .N , .(date.1, date.2) ]
+age[ , unique(date.1) ,]
+age[ , date.1 := as.IDate(date.1, format = "%m/%d/%Y") ,]
+age[ , date.2 := as.IDate(date.2, format = "%m/%d/%Y") ,]
+#date 1 was called sample_date, and date two was called SRVY_DT. 
+age[ !(date.1 == date.2), summary(date.1 - date.2) ]
+age[ !(date.1 == date.2), hist(date.1 - date.2) ]
+# we will use "survey date"
+age[, date_clean :=  as.IDate(date.1)]
+age[ , hist(yday(date_clean))]
+
+# make other dates character strings
+# datecols <- colnames(age)[str_detect(colnames(age), "date\\.")]
+# age[    , (datecols) := lapply(.SD, as.character)    ,   .SDcols = datecols]
+
+#fix up methods
+age[ , unique(sampling_method_abbrev) , ]
+age[ , .N , sampling_method_abbrev]
+age[sampling_method_abbrev == "GDE" , sampling_method := "Deep gill nets"]  
+age[sampling_method_abbrev == "GSH", sampling_method := "Shallow gill nets"] 
+age[sampling_method_abbrev == "GN", sampling_method := "Standard gill nets" ]
+age[sampling_method_abbrev == "TN", sampling_method :=  "Standard trap nets"]
+
+age[ , .N ,species.1]
+names(age)[names(age)=="species.1"] <- "species"
+
+#id to the aged fish
+age[ , id := seq_len(.N) , .(lake_id, date_clean, sampling_method, species) ]
+age[ , summary(id) ,]
+
+
+
+catch_expanded[ , species:= gsub("taxa_", "", species) ,]
+
+# age data cleaning
+cols <- c("lake_id", "date_clean", "sampling_method", "id", "species",
+          "state", "county", "lake_name.1",  "survey_id", "site_id.1" ,  #loc dat
+          "date.1", "date.2", #date dat
+          "age", "length.1", "length_unit.1", "species.2", #core fish dat
+          "aging_structure", "sex", "weight.1", "weight_unit.1",  "young_of_year"  #extra useful bits
+)
+setcolorder(age,c(cols))
+
+colnames(age)
+colnames(catch_expanded)
+
+
+
+#scope the merge:
+#87% of the wb in the aged fish are in the catch data
+sum(age[ , .N , lake_id][,lake_id] %in% catch_expanded[ , unique(lake_id)])/age[, length(unique(lake_id)) ,] 
+
+#20% coverage on the survey id column--this checks. Corey Geving said to stay away from these
+sum(age[ , .N , survey_id][,survey_id] %in% catch_expanded[ , unique(survey_id)])/age[, length(unique(survey_id)) ,] 
+
+#49% coverage on the survey id column--this checks. Corey Geving said to stay away from these
+sum(age[ , .N , date_clean][,date_clean] %in% catch_expanded[ , unique(date_clean)])/age[, length(unique(date_clean)) ,] 
+
+#we know that dates are a problem, can we schmooze that join?
+# flatfish <- merge(catch_expanded,age, by = c("lake_id", "date_clean" , "sampling_method", "id", "species"), suffixes = c("_catch", "_age"))
+
+flatfish <- merge(catch_expanded,age, by = c("lake_id", "date_clean" , "sampling_method", "id", "species"), suffixes = c("_catch", "_age"), all = T)
+
+flatfish[ , .N , is.na(state_age)]
+
+
+
+#clearing memory to free up space:
+
+rm(catch, catch_w, wae_catch, unusedbits, names, mn_gde_gsh_fish_effort_03May2022, mn_fish_effort_03May2022, mn_cpue_2022only_31May2023, mn_ef_lmb_smb_catch_26Aug2022, mn_ef_lmb_smb_effort_26Aug2022, cde)
+
+flatfish[ species == "walleye" , .N ,]
+
+wae_gn_records <- flatfish[ species == "walleye" & 
+                              str_detect(sampling_method, "gill nets"),,]
+
+wae_gn_records[ , .N , .(effort_dat= !is.na(count), age_dat = !is.na(age), length_dat = !is.na(length.1))]
+
+
+age[species == "walleye" , .N  , ]
+
+
+rm(a)
+
+age[lake_id == 38055200 & date_clean == "2010-6-21" & species == "walleye"]
+
+
+#save to disk:
+
+saveRDS(wae_gn_records, file = "Data_and_Scripts\\Data\\output\\wae_gn_mn.rds")
+
+saveRDS(flatfish, file = "Data_and_Scripts\\Data\\output\\mn_flat_catch_age_merge.rds")
+
+
+
+
+
+
+
+
+
 
 
 ```
 
-skip code from lines 150 - 200
-#______________________________________________________________________________________________________________________
-Now add catch files where there is already one fish per row
- - since mn_ef_lmb_smb_catch... are surveys that are targeting bass, I'm not going to add zeros to these surveys because if other species were seen, the would not have been netted
-```{r}
-#reformat lake IDs to match format and make them all characters
-MN_EF_LMB_SMB_Catch <- mn_ef_lmb_smb_catch_26Aug2022 %>%
-  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>%
-  select(-cpue) #removing cpue column because it just contains "Y" which isn't useful
-
-All_MN_catch <- MN_GN_TN_eff_catch_LONG %>%
-  bind_rows(MN_EF_LMB_SMB_Catch)
-```
-
-Add effort and survey information to the catch data that doesn't already have this
-- just the electrofishing effort, lake IDs are already formatted properly
-```{r}
-# first let's identify which columns match 
-  # oof may need to add effort to catch and then bind rows?? yep.
-
-#pull column names from the catch data
-catch_cols <- as.data.frame(colnames(All_MN_catch))%>%
-  rename(Catch = 1)%>%
-  mutate(col_check = Catch)
-
-#pull column names from the effort data
-ef_effort_cols <- as.data.frame(colnames(mn_ef_lmb_smb_effort_26Aug2022))%>%
-  rename(Effort = 1)%>%
-  mutate(col_check = Effort)
-
-# join the column name data frames together, and identify overlapping columns
-col_comparison <- catch_cols %>%
-  full_join(ef_effort_cols, by = "col_check")%>%
-  mutate(Join_col = ifelse(!is.na(Catch)&!is.na(Effort), paste(Catch), NA))%>%
-  drop_na(Join_col)#identify common columns to use in join by dropping non matches (i.e. NAs)
-
-list(col_comparison$Join_col)
-
-MN_catch_effort <- All_MN_catch %>%
-  full_join(mn_ef_lmb_smb_effort_26Aug2022, by = (col_comparison$Join_col))
-
-
-#check that the effort data was joined appropriately
-join_check <- MN_catch_effort %>%
-  filter(sampling_method_abbrev == "EF")%>%
-  filter(is.na(species.1))
-
-# Okay so I think that I am going to need to join the electrofishing effort to catch before adding that data to the gn and tn data that already had both catch and effort. Because joining this way left us with 4966 NAs for species, meaning that the effort data didn't track well to the catch data. (the original effort df had 6197 obs.) I would maybe expect a few NAs (which would be zeros to add), but not over two thirds of them... 
-```
-
-#_______________________________________________________________________________________________________________________
-
-Re-doing above code order of operations
-1.) join electrofishing catch and effort data
-2.) add electrofishing catch and effort df to MN_GN_TN_eff_catch_LONG
-(instead of adding the catch to the above and then pulling in effort)
-
-```{r}
-#reformat lake IDs to match format and make them all characters
-MN_EF_LMB_SMB_Catch <- mn_ef_lmb_smb_catch_26Aug2022 %>%
-  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>%
-  select(-cpue)%>% #removing cpue column because it just contains "Y" which isn't useful
-  mutate(date.1 = mdy(date.1))%>%
-  mutate(year = year(date.1))
-
-# filter EF effort data for only surveys that list bass as a target species or where target species is NA
-#MN_EF_Effort_bass <- mn_ef_lmb_smb_effort_26Aug2022 %>%mutate(Check = case_when(str_detect(target_species, "LMB") ~ 1, str_detect(target_species, "SMB") ~ 1,is.na(target_species) ~ 1,TRUE ~ 0))%>% #making a column to check which rows to keep based on target species, 1 is keep 0 is remo  filter(Check == 1)%>% select(-Check) #remove 691 effort surveys not targeting bass
-#even if other species were targeted (besides bass) we don't have catch data for them and should remove those surveys
-
-#### DONT USE ABOVE 
-
-#pull column names from the catch data
-EF_catch_cols <- as.data.frame(colnames(MN_EF_LMB_SMB_Catch))%>%
-  rename(EF_Catch = 1)%>% #names the column something meaningful
-  mutate(col_check = EF_Catch) #duplicates column so after the join we can still see the original column lists
-
-#pull column names from the effort data
-EF_effort_cols <- as.data.frame(colnames(mn_ef_lmb_smb_effort_26Aug2022))%>%
-  rename(EF_Effort = 1)%>%
-  mutate(col_check = EF_Effort)
-
-# join the column name data frames together, and identify overlapping columns
-col_comparison <- EF_catch_cols %>%
-  full_join(EF_effort_cols, by = "col_check")%>%
-  mutate(Join_col = ifelse(!is.na(EF_Catch)&!is.na(EF_Effort), paste(EF_Catch), NA))%>%
-  drop_na(Join_col)#identify common columns to use in join by dropping non matches (i.e. NAs)
-# so a problem with this is that our data explainer tracking columns and notes columns may not match between the two and should NOT be used as a key in the join, will manually identify which columns should be key in the join. For other columns they will need to be consolidated back into one column after the join (unless it does this automatically..?)
-
-
-# join the electrofishing data based on columns that they share that should be the same (i.e. lake_name should be used, but not "original_file_name)
-MN_electofishing <- MN_EF_LMB_SMB_Catch %>%
-  full_join(mn_ef_lmb_smb_effort_26Aug2022, by = c("survey_id",
-                                      "sampling_method_abbrev"), suffix = c("_catch", "_effort"))%>% 
-  relocate(any_of(c("survey_id", 
-                    "lake_id_catch", 
-                    "lake_name", 
-                    "year", 
-                    "sampling_method_abbrev", 
-                    "species.1", 
-                    "total_count", 
-                    "total_effort_1.1", 
-                    "effort_units.1",
-                    "length.1",
-                    "length_unit.1",
-                    "age",
-                    "target_species",
-                    "water_temp",
-                    "water_temp_units")))%>%
-  rename(lake_id = lake_id_catch,
-         lake_name = lake_name_catch,
-         year = year_catch)
-
-### below checks demonstrating the instances where the survey ids don't exist or don't match in effort
-MN_electrofishing_effort_NA <- MN_electofishing %>%
-  filter(is.na(total_effort_1.1)) #11,101 fish that don't have survey effort (was 11,614 when lake id, year, county, state, etc. also included.)
-
-
-catch_survey_id <- MN_EF_LMB_SMB_Catch %>% 
-  select(survey_id, lake_id, year, date.1)%>%
-  mutate(file = "CATCH")%>%
-  distinct(survey_id, lake_id, year, file, date.1)
-
-effort_survey_id <- mn_ef_lmb_smb_effort_26Aug2022 %>% select(survey_id, lake_id, year) %>% mutate(file = "EFFORT")
-
-Survey_ID_Check <- full_join(catch_survey_id, effort_survey_id, by = "survey_id")%>%
-  filter(is.na(file.y))%>%
-  rename(lake_id = lake_id.x, year = year.x)%>%
-  left_join(mn_ef_lmb_smb_effort_26Aug2022, by = c("lake_id", "year"))%>%
-  select(1:10, 19, 23, 26)
-```
-# revist code below to continue troubleshooting the 11,000+ fish obs from EF that don't have a match to effort
-%>%
-  mutate(Check2 = case_when(is.na(species.1) ~ "no catch",
-                           !is.na(species.1) & is.na(total_effort_1.1) ~ "no effort",
-                           TRUE ~ "Good"))%>%
-  filter(Check2 == "no effort")
-  
-  # final check
-  # group_by(Check2)%>% summarise(Total = n()) no catch is okay. no effort is bad
-
-#check that the join above worked. #check year??
-# date is not always matching between the electrofishing catch and effort because there is a start date and end date. I am adding 'year' to the catch and will use that in the join instead
-
-
-Okay so there is effort data for survey 880626539624000
-on Bassett lake in St. Louis county in 2006 but it won't match up to catch
-** also should use the date in the catch file NOT the effort file
-
-# Combine all catch and effort data
-```{r}
-MN_CPUE <- rbindlist(list(MN_GN_TN_eff_CPUE, MN_electofishing), use.names = T, fill = T)
-
-draft_MN_CPUE_02June2023 <- MN_CPUE %>%
-  relocate(any_of(c("survey_id", 
-                    "lake_id", 
-                    "lake_name", 
-                    "year", 
-                    "sampling_method_abbrev", 
-                    "species.1", 
-                    "total_count", 
-                    "total_effort_1.1", 
-                    "effort_units.1",
-                    "length.1",
-                    "length_unit.1",
-                    "age",
-                    "target_species",
-                    "water_temp",
-                    "water_temp_units")))%>%
-  select(1:50)
-
-write_csv(draft_MN_CPUE_02June2023, "draft_MN_catch_effort_02June2023.csv")
-  
-```
-
-MN figures 5/23/23 REVISIT for SFS
-```{r}
-MN_species <- draft_MN_CPUE_23May2023
-```
 
 
 
 
 
-# add MN aged fish data to the catch and effort
-
-Get Age ID added to CPUE data
-
-I'm not sure if I need to repeat the `group_by` argument so many times but it works this way
-
-- first step: make a "unique key" with `survey_id`, `sampling_method_abbrev` (gear), and `species.1` (species), this is what we will group by for the purposes of making our sequence of age ID numbers
-```{r}
-MN_CPUE_w_age_id <- MN_CPUE %>%
-   mutate(Survey_gear_sp_ID = 
-            paste(survey_id, sampling_method_abbrev, species.1, sep = "_")) %>%
-  mutate(age_id = row_number())%>%
-  group_by(Survey_gear_sp_ID)%>%
-  mutate(age_id = 1:n())%>% 
-  group_by(Survey_gear_sp_ID) %>%
-  mutate(age_id = seq_len(n()))%>%
-  mutate(Age_ID = seq_along(Survey_gear_sp_ID))%>%
-  mutate(survey_id = as.character(survey_id))%>%
-  relocate(Age_ID, Survey_gear_sp_ID)
-```
-
-Now add age IDs to the aged fish
-```{r}
-MN_aged_fish <- mn_aged_fish_v2_20apr2023 %>%
-  mutate(Survey_gear_sp_ID = 
-           paste(survey_id, sampling_method_abbrev, species.1, sep = "_")) %>%
-  mutate(age_id = row_number())%>%
-  group_by(Survey_gear_sp_ID)%>%
-  mutate(age_id = 1:n())%>% 
-  group_by(Survey_gear_sp_ID) %>%
-  mutate(age_id = seq_len(n()))%>%
-  mutate(Age_ID = seq_along(Survey_gear_sp_ID))%>%
-  mutate(survey_id = as.character(survey_id))%>%
-  relocate(Age_ID, Survey_gear_sp_ID)
-```
-
-
-Finally, join the age data to the CPUE data
-- still getting the warning message "Each row in 'x' is expected to match at most 1 row in 'y'
-```{r}
-MN_CPUE_w_AGES <- MN_CPUE_w_age_id %>%
-  full_join(MN_aged_fish, by = c("survey_id", "species.1", "Age_ID"), suffix = c("_CPUE", "_age"))
-```
-
-UGHHHH ERRORS
-- SMB and LMB from electrofishing (I think just EF) have three letter abbreviations for 'species.1' and not the common name
-- also appears lake_id, lake_name, and year didn't transfer over from the EF data, likely have to change the 'if_else' into a 'case_when' so that we can tell it to pull that lake info from the ef data
 
 
 
 
-List of Errors and How to Fix them
-- Error in setattr(ans, "names", c(keep.names, paste0("V", seq_len(length(ans) -  : 
-  'names' attribute [2] must be the same length as the vector [1] 
-    - file name is likely different from name in data explainer
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- # get new GN TN data from Corey into a csv (delete this. a precondition of our workflow is data in .csv format) -->
+<!-- ```{r} -->
+<!-- # new_gn_tn <- read_delim("Data_and_Scripts/Data/Data_Summaries/MN/GH_data_extracts/2022_age_file_gh.txt", delim = ",", na = c("", "NA")) -->
+<!-- #  -->
+<!-- # new_gn_tn_export <- new_gn_tn %>% -->
+<!-- #   mutate(LOC_DESC = ifelse(LOC_DESC == "null", NA, LOC_DESC))%>% -->
+<!-- #   mutate(CREW_NOTES = ifelse(CREW_NOTES == "null", NA, CREW_NOTES))%>% -->
+<!-- #   mutate(SERIAL = ifelse(SERIAL == "null", NA, SERIAL))%>% -->
+<!-- #   mutate(WT_G = ifelse(WT_G == "null", NA, WT_G))%>% -->
+<!-- #   mutate(MESH = ifelse(MESH == "null", NA, MESH))%>% -->
+<!-- #   mutate(OFF_AGE = ifelse(OFF_AGE == "null", NA, OFF_AGE))%>% -->
+<!-- #   mutate(LEN_MM = ifelse(LEN_MM == "null", NA, LEN_MM)) -->
+<!-- #  -->
+<!-- # write_csv(new_gn_tn_export, "mn_cpue_25May2023.csv", na = "NA") -->
+<!-- ``` -->
+
+
+<!-- # Update 4/27/2023  -->
+<!-- - Using new MN fish age data, and not using previous files -->
+
+<!-- Update 4/4/2023 -->
+<!-- - Now retains units and notes columns along with inventory information -->
+
+<!-- * Holly's note to self: use dtplyr to convert my dplyr code to data.table (faster and less memory intensive) -->
+
+<!-- 3.) Isolate files with “catch” information -->
+<!-- 4.) pivot_wider catch data so that there is only one fish per line (retain effort info if it is in the same file) then pivot_longer -->
+
+<!-- I know that mn_fish_effort... and mn_gde_gsh_fish_effort... are the same format, so I will combine those first to reduce the number of files we are working with.  -->
+
+<!-- ```{r} -->
+<!-- #change lake ID to character string with leading zero -->
+<!-- mn_gde_gsh_fish_effort_03May2022 <- mn_gde_gsh_fish_effort_03May2022 %>% -->
+<!--   mutate(lake_id = as.character(lake_id))%>% -->
+<!--   mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0")) -->
+
+<!-- #check if other file has the leading zero on the DOW (lake id) -->
+<!-- eight_dow <- mn_aged_fish_v2_20apr2023 %>% -->
+<!--   mutate(leading_zero = str_detect(lake_id, "01\\d\\d\\d\\d\\d\\d"))%>% -->
+<!--   select(lake_id, leading_zero)%>% -->
+<!--   filter(leading_zero == "TRUE") #it does! No need to re-format age data -->
+<!-- rm(eight_dow) -->
+
+
+<!-- ###########################this block of code is not going to work. pivot wider is going to default to using ALL unspecified columns in the expansion of this dataset. if any lines have something that's unaccounted for, it'll expand that into it's own survey. We need to set this up such that the effort unit is a row. (e.g., lakeX, dateT, gearG, effortE, species 1, species2... -->
+
+<!-- # properly format lake id (DOW) then will expand so instances of zero catch are added -->
+<!-- MN_GN_TN_eff_catch <- bind_rows(mn_fish_effort_03May2022, mn_gde_gsh_fish_effort_03May2022)%>% -->
+<!--   # mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>% #is ths necessary? done in lines 122:132 -->
+<!--   pivot_wider(names_from = species.1, values_from = total_count, values_fill = 0) %>% #creates 0s -->
+<!--   select(!contains(c("frog","crayfish","toad","turtle", "mudpuppy", "snake", "salamander", "muskrat", "snail")))%>% #attempt to drop non-fish species -->
+<!--   pivot_longer(!1:26, names_to = "species.1", values_to = "total_count")%>% #recreates species and total count columns -->
+<!--   mutate(cpue = (total_count/total_effort_1.1))%>% #updates CPUE column -->
+<!--   mutate(cpue = round(cpue, digits = 2)) #rounds to two digits -->
+
+<!-- # Now expand instances of catch >1 to the number of rows stated -> one fish per row -->
+<!-- MN_GN_TN_eff_catch_LONG <- uncount(MN_GN_TN_eff_catch, total_count) -->
+
+<!-- #reformat for easier viewing and fix 'cpue' column which doesn't make sense after adding zeros -->
+<!-- MN_GN_TN_eff_CPUE <- MN_GN_TN_eff_catch_LONG %>% -->
+<!--   mutate(total_count = 1)%>% -->
+<!--   relocate(any_of(c("survey_id",  -->
+<!--                     "lake_id",  -->
+<!--                     "lake_name",  -->
+<!--                     "date.1",  -->
+<!--                     "year",  -->
+<!--                     "sampling_method_abbrev",  -->
+<!--                     "species.1",  -->
+<!--                     "total_count",  -->
+<!--                     "total_effort_1.1",  -->
+<!--                     "effort_units.1"))) # relocate is the dplyr version of data.table's setcolorder -->
+
+
+<!-- ``` -->
+
+<!-- skip code from lines 150 - 200 -->
+<!-- #______________________________________________________________________________________________________________________ -->
+<!-- Now add catch files where there is already one fish per row -->
+<!--  - since mn_ef_lmb_smb_catch... are surveys that are targeting bass, I'm not going to add zeros to these surveys because if other species were seen, the would not have been netted -->
+<!-- ```{r} -->
+<!-- #reformat lake IDs to match format and make them all characters -->
+<!-- MN_EF_LMB_SMB_Catch <- mn_ef_lmb_smb_catch_26Aug2022 %>% -->
+<!--   mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>% -->
+<!--   select(-cpue) #removing cpue column because it just contains "Y" which isn't useful -->
+
+<!-- All_MN_catch <- MN_GN_TN_eff_catch_LONG %>% -->
+<!--   bind_rows(MN_EF_LMB_SMB_Catch) -->
+<!-- ``` -->
+
+<!-- Add effort and survey information to the catch data that doesn't already have this -->
+<!-- - just the electrofishing effort, lake IDs are already formatted properly -->
+<!-- ```{r} -->
+<!-- # first let's identify which columns match  -->
+<!--   # oof may need to add effort to catch and then bind rows?? yep. -->
+
+<!-- #pull column names from the catch data -->
+<!-- catch_cols <- as.data.frame(colnames(All_MN_catch))%>% -->
+<!--   rename(Catch = 1)%>% -->
+<!--   mutate(col_check = Catch) -->
+
+<!-- #pull column names from the effort data -->
+<!-- ef_effort_cols <- as.data.frame(colnames(mn_ef_lmb_smb_effort_26Aug2022))%>% -->
+<!--   rename(Effort = 1)%>% -->
+<!--   mutate(col_check = Effort) -->
+
+<!-- # join the column name data frames together, and identify overlapping columns -->
+<!-- col_comparison <- catch_cols %>% -->
+<!--   full_join(ef_effort_cols, by = "col_check")%>% -->
+<!--   mutate(Join_col = ifelse(!is.na(Catch)&!is.na(Effort), paste(Catch), NA))%>% -->
+<!--   drop_na(Join_col)#identify common columns to use in join by dropping non matches (i.e. NAs) -->
+
+<!-- list(col_comparison$Join_col) -->
+
+<!-- MN_catch_effort <- All_MN_catch %>% -->
+<!--   full_join(mn_ef_lmb_smb_effort_26Aug2022, by = (col_comparison$Join_col)) -->
+
+
+<!-- #check that the effort data was joined appropriately -->
+<!-- join_check <- MN_catch_effort %>% -->
+<!--   filter(sampling_method_abbrev == "EF")%>% -->
+<!--   filter(is.na(species.1)) -->
+
+<!-- # Okay so I think that I am going to need to join the electrofishing effort to catch before adding that data to the gn and tn data that already had both catch and effort. Because joining this way left us with 4966 NAs for species, meaning that the effort data didn't track well to the catch data. (the original effort df had 6197 obs.) I would maybe expect a few NAs (which would be zeros to add), but not over two thirds of them...  -->
+<!-- ``` -->
+
+<!-- #_______________________________________________________________________________________________________________________ -->
+
+<!-- Re-doing above code order of operations -->
+<!-- 1.) join electrofishing catch and effort data -->
+<!-- 2.) add electrofishing catch and effort df to MN_GN_TN_eff_catch_LONG -->
+<!-- (instead of adding the catch to the above and then pulling in effort) -->
+
+<!-- ```{r} -->
+<!-- #reformat lake IDs to match format and make them all characters -->
+<!-- MN_EF_LMB_SMB_Catch <- mn_ef_lmb_smb_catch_26Aug2022 %>% -->
+<!--   mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0"))%>% -->
+<!--   select(-cpue)%>% #removing cpue column because it just contains "Y" which isn't useful -->
+<!--   mutate(date.1 = mdy(date.1))%>% -->
+<!--   mutate(year = year(date.1)) -->
+
+<!-- # filter EF effort data for only surveys that list bass as a target species or where target species is NA -->
+<!-- #MN_EF_Effort_bass <- mn_ef_lmb_smb_effort_26Aug2022 %>%mutate(Check = case_when(str_detect(target_species, "LMB") ~ 1, str_detect(target_species, "SMB") ~ 1,is.na(target_species) ~ 1,TRUE ~ 0))%>% #making a column to check which rows to keep based on target species, 1 is keep 0 is remo  filter(Check == 1)%>% select(-Check) #remove 691 effort surveys not targeting bass -->
+<!-- #even if other species were targeted (besides bass) we don't have catch data for them and should remove those surveys -->
+
+<!-- #### DONT USE ABOVE  -->
+
+<!-- #pull column names from the catch data -->
+<!-- EF_catch_cols <- as.data.frame(colnames(MN_EF_LMB_SMB_Catch))%>% -->
+<!--   rename(EF_Catch = 1)%>% #names the column something meaningful -->
+<!--   mutate(col_check = EF_Catch) #duplicates column so after the join we can still see the original column lists -->
+
+<!-- #pull column names from the effort data -->
+<!-- EF_effort_cols <- as.data.frame(colnames(mn_ef_lmb_smb_effort_26Aug2022))%>% -->
+<!--   rename(EF_Effort = 1)%>% -->
+<!--   mutate(col_check = EF_Effort) -->
+
+<!-- # join the column name data frames together, and identify overlapping columns -->
+<!-- col_comparison <- EF_catch_cols %>% -->
+<!--   full_join(EF_effort_cols, by = "col_check")%>% -->
+<!--   mutate(Join_col = ifelse(!is.na(EF_Catch)&!is.na(EF_Effort), paste(EF_Catch), NA))%>% -->
+<!--   drop_na(Join_col)#identify common columns to use in join by dropping non matches (i.e. NAs) -->
+<!-- # so a problem with this is that our data explainer tracking columns and notes columns may not match between the two and should NOT be used as a key in the join, will manually identify which columns should be key in the join. For other columns they will need to be consolidated back into one column after the join (unless it does this automatically..?) -->
+
+
+<!-- # join the electrofishing data based on columns that they share that should be the same (i.e. lake_name should be used, but not "original_file_name) -->
+<!-- MN_electofishing <- MN_EF_LMB_SMB_Catch %>% -->
+<!--   full_join(mn_ef_lmb_smb_effort_26Aug2022, by = c("survey_id", -->
+<!--                                       "sampling_method_abbrev"), suffix = c("_catch", "_effort"))%>%  -->
+<!--   relocate(any_of(c("survey_id",  -->
+<!--                     "lake_id_catch",  -->
+<!--                     "lake_name",  -->
+<!--                     "year",  -->
+<!--                     "sampling_method_abbrev",  -->
+<!--                     "species.1",  -->
+<!--                     "total_count",  -->
+<!--                     "total_effort_1.1",  -->
+<!--                     "effort_units.1", -->
+<!--                     "length.1", -->
+<!--                     "length_unit.1", -->
+<!--                     "age", -->
+<!--                     "target_species", -->
+<!--                     "water_temp", -->
+<!--                     "water_temp_units")))%>% -->
+<!--   rename(lake_id = lake_id_catch, -->
+<!--          lake_name = lake_name_catch, -->
+<!--          year = year_catch) -->
+
+<!-- ### below checks demonstrating the instances where the survey ids don't exist or don't match in effort -->
+<!-- MN_electrofishing_effort_NA <- MN_electofishing %>% -->
+<!--   filter(is.na(total_effort_1.1)) #11,101 fish that don't have survey effort (was 11,614 when lake id, year, county, state, etc. also included.) -->
+
+
+<!-- catch_survey_id <- MN_EF_LMB_SMB_Catch %>%  -->
+<!--   select(survey_id, lake_id, year, date.1)%>% -->
+<!--   mutate(file = "CATCH")%>% -->
+<!--   distinct(survey_id, lake_id, year, file, date.1) -->
+
+<!-- effort_survey_id <- mn_ef_lmb_smb_effort_26Aug2022 %>% select(survey_id, lake_id, year) %>% mutate(file = "EFFORT") -->
+
+<!-- Survey_ID_Check <- full_join(catch_survey_id, effort_survey_id, by = "survey_id")%>% -->
+<!--   filter(is.na(file.y))%>% -->
+<!--   rename(lake_id = lake_id.x, year = year.x)%>% -->
+<!--   left_join(mn_ef_lmb_smb_effort_26Aug2022, by = c("lake_id", "year"))%>% -->
+<!--   select(1:10, 19, 23, 26) -->
+<!-- ``` -->
+<!-- # revist code below to continue troubleshooting the 11,000+ fish obs from EF that don't have a match to effort -->
+<!-- %>% -->
+<!--   mutate(Check2 = case_when(is.na(species.1) ~ "no catch", -->
+<!--                            !is.na(species.1) & is.na(total_effort_1.1) ~ "no effort", -->
+<!--                            TRUE ~ "Good"))%>% -->
+<!--   filter(Check2 == "no effort") -->
+
+<!--   # final check -->
+<!--   # group_by(Check2)%>% summarise(Total = n()) no catch is okay. no effort is bad -->
+
+<!-- #check that the join above worked. #check year?? -->
+<!-- # date is not always matching between the electrofishing catch and effort because there is a start date and end date. I am adding 'year' to the catch and will use that in the join instead -->
+
+
+<!-- Okay so there is effort data for survey 880626539624000 -->
+<!-- on Bassett lake in St. Louis county in 2006 but it won't match up to catch -->
+<!-- ** also should use the date in the catch file NOT the effort file -->
+
+<!-- # Combine all catch and effort data -->
+<!-- ```{r} -->
+<!-- MN_CPUE <- rbindlist(list(MN_GN_TN_eff_CPUE, MN_electofishing), use.names = T, fill = T) -->
+
+<!-- draft_MN_CPUE_02June2023 <- MN_CPUE %>% -->
+<!--   relocate(any_of(c("survey_id",  -->
+<!--                     "lake_id",  -->
+<!--                     "lake_name",  -->
+<!--                     "year",  -->
+<!--                     "sampling_method_abbrev",  -->
+<!--                     "species.1",  -->
+<!--                     "total_count",  -->
+<!--                     "total_effort_1.1",  -->
+<!--                     "effort_units.1", -->
+<!--                     "length.1", -->
+<!--                     "length_unit.1", -->
+<!--                     "age", -->
+<!--                     "target_species", -->
+<!--                     "water_temp", -->
+<!--                     "water_temp_units")))%>% -->
+<!--   select(1:50) -->
+
+<!-- write_csv(draft_MN_CPUE_02June2023, "draft_MN_catch_effort_02June2023.csv") -->
+
+<!-- ``` -->
+
+<!-- MN figures 5/23/23 REVISIT for SFS -->
+<!-- ```{r} -->
+<!-- MN_species <- draft_MN_CPUE_23May2023 -->
+<!-- ``` -->
+
+
+
+
+
+<!-- # add MN aged fish data to the catch and effort -->
+
+<!-- Get Age ID added to CPUE data -->
+
+<!-- I'm not sure if I need to repeat the `group_by` argument so many times but it works this way -->
+
+<!-- - first step: make a "unique key" with `survey_id`, `sampling_method_abbrev` (gear), and `species.1` (species), this is what we will group by for the purposes of making our sequence of age ID numbers -->
+<!-- ```{r} -->
+<!-- MN_CPUE_w_age_id <- MN_CPUE %>% -->
+<!--    mutate(Survey_gear_sp_ID =  -->
+<!--             paste(survey_id, sampling_method_abbrev, species.1, sep = "_")) %>% -->
+<!--   mutate(age_id = row_number())%>% -->
+<!--   group_by(Survey_gear_sp_ID)%>% -->
+<!--   mutate(age_id = 1:n())%>%  -->
+<!--   group_by(Survey_gear_sp_ID) %>% -->
+<!--   mutate(age_id = seq_len(n()))%>% -->
+<!--   mutate(Age_ID = seq_along(Survey_gear_sp_ID))%>% -->
+<!--   mutate(survey_id = as.character(survey_id))%>% -->
+<!--   relocate(Age_ID, Survey_gear_sp_ID) -->
+<!-- ``` -->
+
+<!-- Now add age IDs to the aged fish -->
+<!-- ```{r} -->
+<!-- MN_aged_fish <- mn_aged_fish_v2_20apr2023 %>% -->
+<!--   mutate(Survey_gear_sp_ID =  -->
+<!--            paste(survey_id, sampling_method_abbrev, species.1, sep = "_")) %>% -->
+<!--   mutate(age_id = row_number())%>% -->
+<!--   group_by(Survey_gear_sp_ID)%>% -->
+<!--   mutate(age_id = 1:n())%>%  -->
+<!--   group_by(Survey_gear_sp_ID) %>% -->
+<!--   mutate(age_id = seq_len(n()))%>% -->
+<!--   mutate(Age_ID = seq_along(Survey_gear_sp_ID))%>% -->
+<!--   mutate(survey_id = as.character(survey_id))%>% -->
+<!--   relocate(Age_ID, Survey_gear_sp_ID) -->
+<!-- ``` -->
+
+
+<!-- Finally, join the age data to the CPUE data -->
+<!-- - still getting the warning message "Each row in 'x' is expected to match at most 1 row in 'y' -->
+<!-- ```{r} -->
+<!-- MN_CPUE_w_AGES <- MN_CPUE_w_age_id %>% -->
+<!--   full_join(MN_aged_fish, by = c("survey_id", "species.1", "Age_ID"), suffix = c("_CPUE", "_age")) -->
+<!-- ``` -->
+
+<!-- UGHHHH ERRORS -->
+<!-- - SMB and LMB from electrofishing (I think just EF) have three letter abbreviations for 'species.1' and not the common name -->
+<!-- - also appears lake_id, lake_name, and year didn't transfer over from the EF data, likely have to change the 'if_else' into a 'case_when' so that we can tell it to pull that lake info from the ef data -->
+
+
+
+
+<!-- List of Errors and How to Fix them -->
+<!-- - Error in setattr(ans, "names", c(keep.names, paste0("V", seq_len(length(ans) -  :  -->
+<!--   'names' attribute [2] must be the same length as the vector [1]  -->
+<!--     - file name is likely different from name in data explainer -->
 

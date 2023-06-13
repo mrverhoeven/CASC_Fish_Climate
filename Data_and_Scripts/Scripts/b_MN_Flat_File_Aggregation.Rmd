@@ -268,11 +268,13 @@ setnafill(effort, fill = 0, cols = colnames(effort)[str_detect(names(effort), "t
 effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")]]
 
 #ef data now have zero catches in the taxa_cols
+
 effort[new_file_name == "mn_ef_lmb_smb_effort_26Aug2022", names(effort)[str_detect(names(effort), "taxa_")] := NA , ]
 effort[new_file_name == "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ]
 
 
 effort[ , nothing_caught := rowSums(catch_w[ , .SD , .SDcols = names(catch_w)[str_detect(names(catch_w), "taxa_")] ])==0  ,]
+
 
 
 

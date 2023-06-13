@@ -114,8 +114,6 @@ for(i in 1:n) {
 
 # Catch Merge
 
-
-
 ```{r}
 
 # this rbind puts together 3 files that are not equivalent (ef data is true effort data (each row is gear in a survey) and the other 2 are catch files (each row is a species in a a gear in a survey))
@@ -224,10 +222,6 @@ effort[word(garbage_bin_notes.1, sep = ":")=="FISHERIES_WATERBODY_ID", garbage_b
 
 sort(names(effort))
 
-#how many walleye expected in our results?
-sum(effort[ , taxa_walleye , ], na.rm = T)
-
-
 #year
 effort[ , unique(year) , ]
 effort[ is.na(year),]
@@ -248,66 +242,62 @@ effort[ , `:=` (unique_row_key.1 = NULL,
 
 
 
+#rbindlist of the species matrix resulted in an imperfect fill of zeros in non EF data (should only be 0 or n_taxa(129) ):
+unique(rowSums(is.na(effort[ , .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ])))
+
+#for all non EF data, fill NAs with zeros
+setnafill(effort, fill = 0, cols = colnames(effort)[str_detect(names(effort), "taxa_")] ) #fill all of species matrix w/ zeros
+#ef data now have zero catches in the taxa_cols, lets overwrite those w/ NAs
+effort[new_file_name == "mn_ef_lmb_smb_effort_26Aug2022", names(effort)[str_detect(names(effort), "taxa_")] := NA , ]
+
+#check work
+unique(rowSums(is.na(effort[ , .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ])))
+
+
+#how many walleye expected in our results from GN? This number matches that generated on 8 June 
+sum(effort[ str_detect(sampling_method, "gill net")  , taxa_walleye , ])
+
+
 #any surveys with nothing caught?
 names(effort)[str_detect(names(effort), "taxa_")]
 any(rowSums(effort[ , .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ], na.rm =T)==0)
-
-effort[ , .N , new_file_name]
-
 nrow(effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022"][rowSums(effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ], na.rm = T)==0])
 
-#in order to calc a nothign caught column, lets fill NAs with zeros in the non-EF data
-
-effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")]]
-
-effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", setnafill(.SD, fill = 0) , .SDcols = names(effort)[str_detect(names(effort), "taxa_")]]
-
-effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = colnames(effort)[str_detect(names(effort), "taxa_")]]
-
-setnafill(effort, fill = 0, cols = colnames(effort)[str_detect(names(effort), "taxa_")] )
-effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")]]
-
-#ef data now have zero catches in the taxa_cols
-
-effort[new_file_name == "mn_ef_lmb_smb_effort_26Aug2022", names(effort)[str_detect(names(effort), "taxa_")] := NA , ]
-effort[new_file_name == "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ]
+# add a nothing caught and a no_aggd_catch_data column
+effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022" , nothing_caught := rowSums(effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022" , .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ])==0  ,]
+effort[new_file_name == "mn_ef_lmb_smb_effort_26Aug2022", no_aggd_catch_provided := TRUE , ]
+effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", no_aggd_catch_provided := FALSE]
 
 
-effort[ , nothing_caught := rowSums(catch_w[ , .SD , .SDcols = names(catch_w)[str_detect(names(catch_w), "taxa_")] ])==0  ,]
+effort[nothing_caught==T] #2 surveys really did catch NADA
 
 
+#now expand to long data:(this code generates HUGE files) We should skip this step. Instead, lets set aside that species catch matrix, and use it later in the cross
+
+# effort_expanded <- melt(effort, measure.vars = patterns("^taxa"), variable.name = "species", value.name = "count"  )[order(lake_id, date_clean, sampling_method, survey_type.1), ,]
+# effort_expanded[species == "taxa_walleye", sum(count, na.rm = T)] #529259
+# effort_expanded_presences_only <- uncount(effort_expanded[no_aggd_catch_provided==F], count, .remove = F, .id = "id") # this will drop all zeros, must include a subset excluding the data for which counts were not provided--this will otherwise snag the weights arg (can't weight by NA)
+# effort_expanded[count==0, id := NA]
+# nrow(rbind(catch_expanded[count==0],catch_expanded_presences_only))
+# catch_expanded <- rbind(catch_expanded[count==0],catch_expanded_presences_only)
+# rm(catch_expanded_presences_only)
+
+keycols_and_catch_mat <- c("lake_id", "date_clean", "sampling_method", "survey_type.1", names(effort)[str_detect(names(effort), "taxa_")])
+DNR_calcd_catch <- effort[  , .SD , .SDcols = keycols_and_catch_mat  ]
+rm(keycols_and_catch_mat)
+
+#drop catch mat from effort data
+effort[ , c( names(effort)[str_detect(names(effort), "taxa_")]) := NULL , ]
 
 
-catch_w[nothing_caught==T] #2 surveys really did catch NADA
-
-
-
-#now expand to long data:
-
-catch_expanded <- melt(catch_w, measure.vars = patterns("^taxa"), variable.name = "species", value.name = "count"  )[order(survey_id), ,]
-
-catch_expanded[species == "taxa_walleye", sum(count)] #529259
-
-catch_expanded_presences_only <- uncount(catch_expanded, count, .remove = F, .id = "id") # this will drop all zeros
-
-catch_expanded[count==0, id := NA]
-
-nrow(rbind(catch_expanded[count==0],catch_expanded_presences_only))
-
-catch_expanded <- rbind(catch_expanded[count==0],catch_expanded_presences_only)
-
-rm(catch_expanded_presences_only)
-
-wae_catch <- catch_expanded[species == "taxa_walleye"]
-
-wae_catch[ str_detect(sampling_method, "gill nets"),  ,  ]
+#clean some crumbs out of ws:
+rm(mn_ef_lmb_smb_effort_26Aug2022, mn_fish_effort_03May2022, mn_gde_gsh_fish_effort_03May2022)
 
 
 
+#now tie the indiv fish data to these effort records
 
-
-#now tie the aged fish data to these catch records
-
+#first, merge the indiv fish data
 age <- rbindlist(list(mn_aged_fish_v2_20apr2023,
                                     mn_fish_2022only_31May2023),
                                fill = TRUE,

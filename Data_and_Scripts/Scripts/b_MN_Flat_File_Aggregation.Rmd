@@ -20,10 +20,17 @@ library(lubridate)
 options(scipen = 999)
 ```
 
+Update 13 June 2023 Mike: 
+- We've got new indiv fish data, so we'll connect to that in building our "flat file"
+- mn_fish_2022only_31May2023.csv file has issues (e.g., doesn't include any un-aged fish)
+- mn_cpue_2022only_31May2023.csv file has issues (e.g., doesn't include any un-aged fish)
+- our goal today is a functional mn flat file
 
-Update 6/7/2023 Mike: 
+Update 7 June 2023 Mike: 
 - uses fread() b/c arrow_read_csv() seems to be choking on the mn_fish_2022only_31May2023.csv file.
 - I perused Holly's work and I think I might need to start fresh here. 
+
+
 
 # Load Data
 
@@ -33,6 +40,11 @@ Update 6/7/2023 Mike:
 
 files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
+
+#manually drop that 2022 fish
+files_list <- files_list[!(files_list %in% c("mn_cpue_2022only_31May2023.csv", "mn_fish_2022only_31May2023.csv"))]
+
+
 
 n <- length(files_list)
 
@@ -92,7 +104,10 @@ for(i in 1:n) {
   #confirm import of files:  
   print(paste(filei ,"added to workspace" ))  
   
-}  
+} 
+
+# check warnings and see if we can make it go away
+#print some kind of completion confirmation?
 
 ```
 
@@ -103,140 +118,173 @@ for(i in 1:n) {
 
 ```{r}
 
-
-catch <- rbindlist(list(rbindlist(list(mn_gde_gsh_fish_effort_03May2022,
-                                    mn_fish_effort_03May2022),
-                               fill = TRUE,
-                               use.names = TRUE),
-                     mn_cpue_2022only_31May2023),
-                fill = TRUE,
-                use.names = TRUE)
-
-
-
-########## NEED to integrate the ef_lmb_smb_effortdata here ^^. That file contains no catch info (but we can calc that from the catch file)
-
+# this rbind puts together 3 files that are not equivalent (ef data is true effort data (each row is gear in a survey) and the other 2 are catch files (each row is a species in a a gear in a survey))
+#create an issue for this idea
 ## This highlights the idea that catch and effort are coming to our doorstep two ways: 
 #1: effort data contains NO corresponding catch info (the MN EF data look like this)
 #2: effort data contain some or all of the catch data (most mn efforts contain catch summaries, eg., number of individuals per species)
 
 ## As such, we need some way to steer our workflow through the parsing of those data. We need different streams for each type (in all likelihood--unless we can have a workflow that works on all types)
+effort <- rbindlist(list(rbindlist(list(mn_gde_gsh_fish_effort_03May2022,
+                                    mn_fish_effort_03May2022),
+                               fill = TRUE,
+                               use.names = TRUE),
+                     mn_ef_lmb_smb_effort_26Aug2022),
+                fill = TRUE,
+                use.names = TRUE)
+
+#make all into effort files
+# we want to match the same data per row format as the EF effort data. We can see (after some sleuthing) that that dataset has a unique key in the combo of (lake_id, date.2(survey date), gear, survey type)
+mn_ef_lmb_smb_effort_26Aug2022[ ,  .N , .(lake_id, date.2, sampling_method_abbrev, survey_type.1)] #here date.2 is the survey date
+mn_gde_gsh_fish_effort_03May2022[ , .N , .(lake_id, date.1, sampling_method_abbrev, survey_type.1) ] #here date.1 is the survey date
+mn_fish_effort_03May2022[          , .N , .(lake_id, date.1, sampling_method_abbrev, survey_type.1) ]
+
+#drop cpue
+## create an issue for this idea
+  #general gears
+  mn_fish_effort_03May2022[ , cpue , ]
+  mn_fish_effort_03May2022[ , round(total_count/total_effort_1.1,2) , ]
+  sum(!mn_fish_effort_03May2022[ , cpue == round(total_count/total_effort_1.1,2) , ])# the number of cases where DNR calcd CPUE does not == catch/effort
+  
+  #this is odd, suggests something wonky w/ dnr measured cpues
+  mn_fish_effort_03May2022[ , cpue := NULL ,]
+  
+  #deep and shallow Gns
+  sum(!mn_gde_gsh_fish_effort_03May2022[ , cpue == round(total_count/total_effort_1.1,2) , ])# the number of cases where DNR calcd CPUE does not == catch/effort
+  ## create an issue for this idea
+  #this is odd, suggests something wonky w/ dnr measured cpues
+  mn_gde_gsh_fish_effort_03May2022[ , cpue := NULL ,]
+
+  #tag the species for easy col selection:
+  mn_gde_gsh_fish_effort_03May2022[ , species.1 := paste("taxa", species.1, sep = "_")]
+  mn_fish_effort_03May2022[ , species.1 := paste("taxa", species.1, sep = "_")]
+
+# species, total count and cpue are only species specific components (cpue has been dropped)
+mn_fish_effort_03May2022 <- dcast(mn_fish_effort_03May2022 , ... ~ species.1 , value.var = "total_count", fill = 0)
+mn_gde_gsh_fish_effort_03May2022 <- dcast(mn_gde_gsh_fish_effort_03May2022 , ... ~ species.1 , value.var = "total_count", fill = 0)
+
+
+# this rbind puts together 3 files that should now be equivalent (each row is gear in a survey)
+effort <- rbindlist(list(rbindlist(list(mn_gde_gsh_fish_effort_03May2022,
+                                    mn_fish_effort_03May2022),
+                               fill = TRUE,
+                               use.names = TRUE),
+                     mn_ef_lmb_smb_effort_26Aug2022),
+                fill = TRUE,
+                use.names = TRUE)
+
+
 
 #fix up dates
 # catch[ , as.IDate(unique(word(date.1, 1, sep = fixed(" "))), format = "%m/%d/%Y") , ]
-catch[ , date_clean :=  as.IDate(word(date.1, 1, sep = fixed(" ")), format = "%m/%d/%Y"),]
-catch[ is.na(date_clean), ]
+effort[ , date_clean :=  as.IDate(word(date.1, 1, sep = fixed(" ")), format = "%m/%d/%Y"),]
+effort[ is.na(date_clean), ]
 
-catch[ , hist(yday(date_clean)) ,]
-catch[ , hist(year(date_clean)) ,]
+effort[ , hist(yday(date_clean)) ,]
+effort[ , hist(year(date_clean)) ,]
 
 #check other fields
-names(catch)
+names(effort)
+
+#move no-taxa to the left
+colnames(effort)[!str_detect(colnames(effort), "taxa_")]
+setcolorder(effort, colnames(effort)[!str_detect(colnames(effort), "taxa_")])
 
 #tidy sampling methods
-catch[ , unique(sampling_method), ]
+effort[ , .N , sampling_method ]
+effort[ , .N , .(sampling_method_abbrev)]
 #do we have abbreviated gears where missing in ^?
-catch[is.na(sampling_method), unique(sampling_method_abbrev)]
+effort[is.na(sampling_method), unique(sampling_method_abbrev)]
+
 #backfill the sampling_method column from codes:
-catch[is.na(sampling_method) &
+effort[is.na(sampling_method) &
         sampling_method_abbrev == "GSH",
       sampling_method := "Shallow gill nets"]
-catch[is.na(sampling_method) &
+effort[is.na(sampling_method) &
         sampling_method_abbrev == "GDE",
       sampling_method := "Deep gill nets"]
-catch[is.na(sampling_method) &
+effort[is.na(sampling_method) &
         sampling_method_abbrev == "TN",
       sampling_method := "Standard trap nets"]
-catch[is.na(sampling_method) &
+effort[is.na(sampling_method) &
         sampling_method_abbrev == "GN",
       sampling_method := "Standard gill nets"]
+
 #ditch the abbreviation/code column
-catch[ , sampling_method_abbrev := NULL, ]
+effort[ , sampling_method_abbrev := NULL, ]
 
 #tidy up the FWB ID and verify that it is same resolution as DOW_ID
-catch[ , unique(word(garbage_bin_notes.1, sep = ":")) ,]
-catch[ , garbage_bin_notes.1 := paste("FISHERIES_WATERBODY_ID", word(garbage_bin_notes.1, 2, sep = ":"), sep = "_") ]
-catch[ , length(unique(lake_id)) , garbage_bin_notes.1 ][V1 > 1]
+effort[ , unique(word(garbage_bin_notes.1, sep = ":")) ,]
+effort[word(garbage_bin_notes.1, sep = ":")=="FISHERIES_WATERBODY_ID" , .N ]
+effort[ word(garbage_bin_notes.1, sep = ":")=="FISHERIES_WATERBODY_ID"  , length(unique(lake_id)) , garbage_bin_notes.1 ][V1 > 1]
+effort[word(garbage_bin_notes.1, sep = ":")=="FISHERIES_WATERBODY_ID", "lake_id.2" := garbage_bin_notes.1 , ]
+effort[word(garbage_bin_notes.1, sep = ":")=="FISHERIES_WATERBODY_ID", garbage_bin_notes.1 := NA , ]
 
-names(catch)[names(catch)== "garbage_bin_notes.1"] <- "lake_id.2"
 
-#multiple names in here for walleye?
-catch[ , sort(unique(species.1)) , ] #nope. Looks ltidy enough
 
-names(catch)
+sort(names(effort))
 
 #how many walleye expected in our results?
-sum(catch[ species.1 == "walleye", total_count  ,]) #529,259 individuals caught
-sum(catch[ species.1 == "walleye" & 
-             sampling_method != "Standard trap nets", total_count  ,]) #459,954 individuals caught in gillnets
-sum(catch[ species.1 == "walleye" & 
-             sampling_method != "Standard trap nets" &
-             original_file_name.1 != "2023_GH_cpue.txt" , total_count  ,]) #447,056 individuals caught in gillnets w/o the 2022 data
-
-#clean up lake_names cols
-catch[ , sort(unique(lake_name.1)) ,]
-catch[ , sort(unique(lake_name.2)) ,]
-catch[ lake_name.2 %in% c("null", "N/A"), lake_name.2 := NA]
+sum(effort[ , taxa_walleye , ], na.rm = T)
 
 
-#ditch some garbage columns?
-trash <- names(catch)[str_detect(names(catch), "garbage")]
-catch[ , unique(.SD) , .SDcols = trash]
-# what are those weights?
-catch[str_detect(garbage_bin_notes.3, "WEIGHT")]
-# these weights are associated with multiple fish, so maybe a mean or median--we're going to drop them (we can't assess anything from aggregated weights)
-catch[ , `:=` (garbage_bin_notes.2 = NULL,
-               garbage_bin_notes.3 = NULL,
-               garbage_bin_notes.4 = NULL)]
 #year
-catch[ , unique(year) , ]
-catch[ is.na(year), year := year(date_clean)]
+effort[ , unique(year) , ]
+effort[ is.na(year),]
+ sum(effort[ ,year != year(date_clean)])
+##consider adding this as an issue, could sleuth around the dates and see if other date cols match better, try DT[ , hist(year-year(date.1))]
 
 #effortunits
-catch[ , unique(effort_units.1) ,]
-catch[effort_units.1 == "knownunit_number_of_net_nights" , , ]
-catch[effort_units.1 == "knownunit_number_of_nets" , effort_units.1 := "knownunit_number_of_net_nights" , ]
+effort[ , unique(effort_units.1) ,]
+effort[effort_units.1 == "knownunit_number_of_nets" , effort_units.1 := "knownunit_number_of_net_nights" , ]
 
 
 #unique row key fields can be dropped
 # these weights are associated with multiple fish, so maybe a mean or median--we're going to drop them (we can't assess anything from aggregated weights)
-catch[ , `:=` (unique_row_key.1 = NULL,
+effort[ , `:=` (unique_row_key.1 = NULL,
                unique_row_key.2 = NULL,
                unique_row_key.3 = NULL,
                unique_row_key.4 = NULL)]
-#drop cpue
-catch[ , cpue := NULL ,]
 
 
-# build into wide matrix style:
-
-  names(catch)
-setcolorder(catch, c("lake_id", "lake_id.2", "lake_name.1", "lake_name.2", "sampling_method", "date_clean", "date.1", "year", "effort_units.1", "survey_type.1", "total_effort_1.1"))
-#check for unique data within a survey:
-#corey geving says a survey is a combination of lake, method, date
-catch[ , .N , .(lake_id, lake_id.2, sampling_method, date_clean)] #21807 surveys
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, sampling_method, date_clean)] #21807 surveys
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean)] #21807 surveys
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1)] #21807 surveys
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year)] #21807 surveys
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1)] #21807 surveys
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1)] #21807 surveys
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1, survey_type.1)] #21827 surveys when we allow survey_type to vary within a survey
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1, survey_type.1, total_effort_1.1)]#21828 surveys when we allow unequal effort within gears (this could occur where different nets were left out for different pds of time)
-catch[ , .N , .(lake_id, lake_id.2, lake_name.1, lake_name.2, sampling_method, date_clean, date.1, year, effort_units.1, survey_type.1, total_effort_1.1, survey_id)] #21830 surveys when we allow survey_type to vary within a survey
-
-surveykeycols <- names(catch)[!(names(catch) %in% c("species.1", "cpue", "total_count"))]
-catch[ , .N , surveykeycols] # 21830 surveys if all but^ included
-
-catch[ , species.1 := paste("taxa", species.1, sep = "_")]
-
-catch_w <- dcast(catch[] , ... ~ species.1 , value.var = "total_count", fill = 0)
-
-catch_w[, sum(taxa_walleye)  , ]
 
 #any surveys with nothing caught?
-names(catch_w)[str_detect(names(catch_w), "taxa_")]
-any(rowSums(catch_w[ , .SD , .SDcols = names(catch_w)[str_detect(names(catch_w), "taxa_")] ])==0)
+names(effort)[str_detect(names(effort), "taxa_")]
+any(rowSums(effort[ , .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ], na.rm =T)==0)
+
+effort[ , .N , new_file_name]
+
+nrow(effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022"][rowSums(effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ], na.rm = T)==0])
+
+#in order to calc a nothign caught column, lets fill NAs with zeros in the non-EF data
+
+effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")]]
+
+effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", setnafill(.SD, fill = 0) , .SDcols = names(effort)[str_detect(names(effort), "taxa_")]]
+
+effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = colnames(effort)[str_detect(names(effort), "taxa_")]]
+
+setnafill(effort, fill = 0, cols = colnames(effort)[str_detect(names(effort), "taxa_")] )
+effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")]]
+
+#ef data now have zero catches in the taxa_cols
+effort[new_file_name != "mn_ef_lmb_smb_effort_26Aug2022", names(effort)[str_detect(names(effort), "taxa_")] := NA , ]
+effort[new_file_name == "mn_ef_lmb_smb_effort_26Aug2022", .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 catch_w[ , nothing_caught := rowSums(catch_w[ , .SD , .SDcols = names(catch_w)[str_detect(names(catch_w), "taxa_")] ])==0  ,]
 

@@ -444,6 +444,7 @@ indiv_fish[ , .N , .(age=!is.na(age))]
 mn_aged_fish_v2_20apr2023[year(as.IDate(date.1, format = "%m/%d/%Y"))<2020 &
                             sampling_method_abbrev %in% c("GN", "GSH", "GDE", "TN", "EF", "SEF", "EFB") &
                             lake_id %in% indiv_fish[ ,unique(lake_id)], .N ,]
+#same, now by year:
 mn_aged_fish_v2_20apr2023[year(as.IDate(date.1, format = "%m/%d/%Y"))<2020 &
                             sampling_method_abbrev %in% c("GN", "GSH", "GDE", "TN", "EF", "SEF", "EFB") &
                             lake_id %in% indiv_fish[ ,unique(lake_id)], .N , year(as.IDate(date.1, format = "%m/%d/%Y"))]
@@ -455,7 +456,7 @@ mn_aged_fish_v2_20apr2023[year(as.IDate(date.1, format = "%m/%d/%Y"))<2020 &
 
 
 #scope the merge:
-#90% of the wb in the effort data are represneted in indiv fish data
+#99% of the wb in the effort data are represneted in indiv fish data
 sum(indiv_fish[ , unique(lake_id) , ] %in% effort[ , unique(lake_id)])/effort[, length(unique(lake_id)) ,] 
 
 #99% of the wb in the indiv fish data are represneted in  effort data
@@ -478,124 +479,73 @@ flatfish[ , .N , sampling_method]
 flatfish[ (species.1 == "WAE" & sampling_method %in% c("Standard gill nets", "Shallow gill nets", "Deep gill nets")), .N, .(year = year(date_clean), age = !is.na(age), length = !is.na(length.1))][order(year, -N)]
 
 
+#this chunk is what Mike thinks GH wants for today
+names(flatfish)
 
+#how many unique surveys exist for each category of has effort and has indiv fish data?
+flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type.1))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ]
+  #sum of all
+  flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type.1))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ][ , sum(V1) , ]
 
-# below is original aged fish files, I think we may still need these..? should check for overlap with region files
-# age <- rbindlist(list(mn_aged_fish_v2_20apr2023,
-#                                     mn_fish_2022only_31May2023),
-#                                fill = TRUE,
-#                                use.names = TRUE)
-# 
-# age[ , unique(species.1) ,]
-# age[, .N , .(species.1, species.2)][ order(-species.1)]
-# #move species codes to species.2
-# age[is.na(species.2) , `:=` (species.2 = species.1, species.1 = NA) ]
-# 
-# age[!is.na(species.1) , .N , .(species.1, species.2)][ order(-species.1)]
-# MN_sp_key <- age[!is.na(species.1) , .N , .(species.1, species.2)][ order(-species.1)][, .(species.1, species.2), ]
-# 
-# #something odd happening in here:
-# age[is.na(species.1)]$species.1 <- MN_sp_key[match(age[is.na(species.1) , species.2],MN_sp_key[ , species.2]), species.1]
-# 
-# age[species.1 == "walleye"]
-# 
-# names(catch_expanded)
-# names(age)
-# 
-# #fix up dates
-# age[ , .N , .(date.1, date.2) ]
-# age[ , unique(date.1) ,]
-# age[ , date.1 := as.IDate(date.1, format = "%m/%d/%Y") ,]
-# age[ , date.2 := as.IDate(date.2, format = "%m/%d/%Y") ,]
-# #date 1 was called sample_date, and date two was called SRVY_DT. 
-# age[ !(date.1 == date.2), summary(date.1 - date.2) ]
-# age[ !(date.1 == date.2), hist(date.1 - date.2) ]
-# # we will use "survey date"
-# age[, date_clean :=  as.IDate(date.1)]
-# age[ , hist(yday(date_clean))]
-# 
-# # make other dates character strings
-# # datecols <- colnames(age)[str_detect(colnames(age), "date\\.")]
-# # age[    , (datecols) := lapply(.SD, as.character)    ,   .SDcols = datecols]
-# 
-# #fix up methods
-# age[ , unique(sampling_method_abbrev) , ]
-# age[ , .N , sampling_method_abbrev]
-# age[sampling_method_abbrev == "GDE" , sampling_method := "Deep gill nets"]  
-# age[sampling_method_abbrev == "GSH", sampling_method := "Shallow gill nets"] 
-# age[sampling_method_abbrev == "GN", sampling_method := "Standard gill nets" ]
-# age[sampling_method_abbrev == "TN", sampling_method :=  "Standard trap nets"]
-# 
-# age[ , .N ,species.1]
-# names(age)[names(age)=="species.1"] <- "species"
+#for each of those with both effort and fish data, summarize catch by species (bring effort along too!)   
+flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type.1, species.1, total_effort_1.1, effort_units.1) ]
 
-#id to the aged fish
-age[ , id := seq_len(.N) , .(lake_id, date_clean, sampling_method, species) ]
-age[ , summary(id) ,]
+  ## SIDEBAR! Flagging suspected issues
+  #summarize the total effort for ef data
+  flatfish[ effort_units.1 == "knownunit_hours" , hist(total_effort_1.1, breaks = 100) , ]# there are some very wierd values in here! Def want to flag these for review by a user! Here's an example of that:
+  flatfish[ effort_units.1 == "knownunit_hours" , summary(total_effort_1.1) , ]
+  flatfish[ effort_units.1 == "knownunit_hours" & !is.na(total_effort_1.1) , .(mean(total_effort_1.1) , sd(total_effort_1.1)) , ] #find sd and mean
+  flatfish[ effort_units.1 == "knownunit_hours" & total_effort_1.1 > 1.464117 + (5*flatfish[ effort_units.1 == "knownunit_hours" & !is.na(total_effort_1.1) , sd(total_effort_1.1) , ])   , flagged_effort := TRUE , ] #flag records > 5 sd from mean
+  flatfish[ , .N , flagged_effort]
+  
+  
+#cast summarized catch data wide:
+wide_complete <- dcast(flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type.1, species.1, total_effort_1.1, effort_units.1) ], ... ~ species.1 , value.var = "N", fill = 0)
+
+# calc cpue for all wae
+wide_complete[ , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ,]
+wide_complete[ , wae_cpue := WAE/total_effort_1.1 , ]
+# check mean cpue for gillnets
+wide_complete[ str_detect(sampling_method, "gill net") , mean(wae_cpue) , sampling_method ]
+
+  
+
+flatfish[ species.1 == "WAE" , .N ,]
+
+#where lake Id is a kittle no, we can drop those data (lake_id blank, lake_id_chr has kittle)
+flatfish[ , .N , .(lake_id, lake_id_chr, date_clean , sampling_method, survey_type.1, total_effort_1.1, species.1)] 
+  flatfish[!is.na(lake_id), .N , .(lake_id, lake_id_chr, date_clean , sampling_method, survey_type.1, total_effort_1.1, species.1)]
+  flatfish <- flatfish[!is.na(lake_id)]
+
+#lets get a cpue for walleye
+  flatfish[ , , .(lake_id, date_clean , sampling_method, survey_type.1) ][]
+    
+  
+flatfish[ , summary(date_clean) ,]
+
+flatfish[ , hist(year(date_clean)) , ]
 
 
 
-catch_expanded[ , species:= gsub("taxa_", "", species) ,]
-
-# age data cleaning
-cols <- c("lake_id", "date_clean", "sampling_method", "id", "species",
-          "state", "county", "lake_name.1",  "survey_id", "site_id.1" ,  #loc dat
-          "date.1", "date.2", #date dat
-          "age", "length.1", "length_unit.1", "species.2", #core fish dat
-          "aging_structure", "sex", "weight.1", "weight_unit.1",  "young_of_year"  #extra useful bits
-)
-setcolorder(age,c(cols))
-
-colnames(age)
-colnames(catch_expanded)
-
-
-
-#scope the merge:
-#87% of the wb in the aged fish are in the catch data
-sum(age[ , .N , lake_id][,lake_id] %in% catch_expanded[ , unique(lake_id)])/age[, length(unique(lake_id)) ,] 
-
-#20% coverage on the survey id column--this checks. Corey Geving said to stay away from these
-sum(age[ , .N , survey_id][,survey_id] %in% catch_expanded[ , unique(survey_id)])/age[, length(unique(survey_id)) ,] 
-
-#49% coverage on the survey id column--this checks. Corey Geving said to stay away from these
-sum(age[ , .N , date_clean][,date_clean] %in% catch_expanded[ , unique(date_clean)])/age[, length(unique(date_clean)) ,] 
-
-#we know that dates are a problem, can we schmooze that join?
-# flatfish <- merge(catch_expanded,age, by = c("lake_id", "date_clean" , "sampling_method", "id", "species"), suffixes = c("_catch", "_age"))
-
-flatfish <- merge(catch_expanded,age, by = c("lake_id", "date_clean" , "sampling_method", "id", "species"), suffixes = c("_catch", "_age"), all = T)
-
-flatfish[ , .N , is.na(state_age)]
-
-
-
-#clearing memory to free up space:
-
-rm(catch, catch_w, wae_catch, unusedbits, names, mn_gde_gsh_fish_effort_03May2022, mn_fish_effort_03May2022, mn_cpue_2022only_31May2023, mn_ef_lmb_smb_catch_26Aug2022, mn_ef_lmb_smb_effort_26Aug2022, cde)
-
-flatfish[ species == "walleye" , .N ,]
-
-wae_gn_records <- flatfish[ species == "walleye" & 
+wae_gn_records <- flatfish[ species.1 == "WAE" & 
                               str_detect(sampling_method, "gill nets"),,]
 
-wae_gn_records[ , .N , .(effort_dat= !is.na(count), age_dat = !is.na(age), length_dat = !is.na(length.1))]
+wae_gn_records[ , .N , .( age_dat = !is.na(age), length_dat = !is.na(length.1))]
 
+wae_gn_records[ , .N , .(year = year(date_clean), age = !is.na(age), length = !is.na(length.1))][order(year, -N)]
 
-age[species == "walleye" , .N  , ]
+wae_gn_records[ ,  , .(lake_id, date_clean , sampling_method, survey_type.1) ]
 
-
-rm(a)
-
-age[lake_id == 38055200 & date_clean == "2010-6-21" & species == "walleye"]
 
 
 #save to disk:
 
-# saveRDS(wae_gn_records, file = "Data_and_Scripts\\Data\\output\\wae_gn_mn.rds")
+# saveRDS(effort, file = "Data_and_Scripts\\Data\\output\\mn_effort.rds")
+# saveRDS(DNR_calcd_catch, file = "Data_and_Scripts\\Data\\output\\mn_dnr_calcd_catch.rds")
+# saveRDS(indiv_fish, file = "Data_and_Scripts\\Data\\output\\mn_indivfish.rds")
+# saveRDS(flatfish, file = "Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_merge.rds")
 # 
-# saveRDS(flatfish, file = "Data_and_Scripts\\Data\\output\\mn_flat_catch_age_merge.rds")
-# 
+
 
 
 

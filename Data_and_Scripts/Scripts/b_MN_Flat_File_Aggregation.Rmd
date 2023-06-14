@@ -35,10 +35,10 @@ Update 7 June 2023 Mike:
 # Load Data
 
 
-
+* note Holly has to change "G" in file paths to "D" 
 ```{r}
 
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #manually drop that 2022 fish
@@ -53,7 +53,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
+          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
                                           files_list[i])))
   
   # note we want to review a sorted list of column names to check misspelling etc.
@@ -112,7 +112,7 @@ for(i in 1:n) {
 ```
 
 
-# Catch Merge
+# Effort Merge
 
 ```{r}
 
@@ -298,6 +298,22 @@ rm(mn_ef_lmb_smb_effort_26Aug2022, mn_fish_effort_03May2022, mn_gde_gsh_fish_eff
 #now tie the indiv fish data to these effort records
 
 #first, merge the indiv fish data
+indiv_fish <- rbindlist(list(mn_r1_gillnet_indiv_fish_20oct2020,
+                             mn_r2_gillnet_indiv_fish_20oct2020,
+                             mn_r3_gillnet_indiv_fish_20oct2020,
+                             mn_r4_gillnet_indiv_fish_20oct2020,
+                             mn_shallgillnet_indiv_fish_20oct2020,
+                             mn_deepgillnet_indiv_fish_20oct2020,
+                             mn_r1_trapnet_indiv_fish_20oct2020,
+                             mn_r2_trapnet_indiv_fish_20oct2020,
+                             mn_r3_trapnet_indiv_fish_20oct2020,
+                             mn_r4_trapnet_indiv_fish_20oct2020),
+                               fill = TRUE,
+                               use.names = TRUE) #will have to check this tomorrow, but seems like it worked
+
+
+
+# below is original aged fish files, I think we may still need these..? should check for overlap with region files
 age <- rbindlist(list(mn_aged_fish_v2_20apr2023,
                                     mn_fish_2022only_31May2023),
                                fill = TRUE,

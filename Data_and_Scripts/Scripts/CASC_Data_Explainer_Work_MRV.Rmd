@@ -27,7 +27,7 @@ library(tidyr)
 ### Read in
 ```{r}
 
-cde <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
+cde <- data.table(read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
 
 ```
 

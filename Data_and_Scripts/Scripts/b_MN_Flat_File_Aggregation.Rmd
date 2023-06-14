@@ -509,7 +509,6 @@ wide_complete[ , wae_cpue := WAE/total_effort_1.1 , ]
 wide_complete[ str_detect(sampling_method, "gill net") , mean(wae_cpue) , sampling_method ]
 
   
-
 flatfish[ species.1 == "WAE" , .N ,]
 
 #where lake Id is a kittle no, we can drop those data (lake_id blank, lake_id_chr has kittle)
@@ -525,16 +524,19 @@ flatfish[ , summary(date_clean) ,]
 
 flatfish[ , hist(year(date_clean)) , ]
 
+#walleye data product:
+wae_complete_surveys <- wide_complete[ , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ,]
+  
+wae_records <- flatfish[ species.1 == "WAE" , ,] 
+
+wae <- merge(wae_complete_surveys, wae_records, all = T, by = c("lake_id", "date_clean" , "sampling_method", "survey_type.1", "total_effort_1.1", "effort_units.1"))
+
+wae[ , .N , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ] 
 
 
-wae_gn_records <- flatfish[ species.1 == "WAE" & 
-                              str_detect(sampling_method, "gill nets"),,]
+wae_gn_records <- wae[ str_detect(sampling_method, "gill nets") , , ]
 
-wae_gn_records[ , .N , .( age_dat = !is.na(age), length_dat = !is.na(length.1))]
 
-wae_gn_records[ , .N , .(year = year(date_clean), age = !is.na(age), length = !is.na(length.1))][order(year, -N)]
-
-wae_gn_records[ ,  , .(lake_id, date_clean , sampling_method, survey_type.1) ]
 
 
 
@@ -544,7 +546,7 @@ wae_gn_records[ ,  , .(lake_id, date_clean , sampling_method, survey_type.1) ]
 # saveRDS(DNR_calcd_catch, file = "Data_and_Scripts\\Data\\output\\mn_dnr_calcd_catch.rds")
 # saveRDS(indiv_fish, file = "Data_and_Scripts\\Data\\output\\mn_indivfish.rds")
 # saveRDS(flatfish, file = "Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_merge.rds")
-# 
+# saveRDS(wae_gn_records, file = "Data_and_Scripts\\Data\\output\\mn_wae_gn.rds")
 
 
 

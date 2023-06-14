@@ -27,7 +27,6 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 CASC_Fish_Climate.Rproj
-*Data/
 desktop.ini
 *desktop.ini
 *.png

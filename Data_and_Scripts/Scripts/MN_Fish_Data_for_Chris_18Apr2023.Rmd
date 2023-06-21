@@ -19,11 +19,11 @@ Read in raw MN Data
 ```{r, warning=FALSE}
 # Load in gillnet and trapnet data
 
-GN_TN <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_fish_effort_03May2022.csv")
+GN_TN <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_fish_effort_03May2022.csv")
 
 #Load in shallow and deep gillnets, same kind of net, different gear code
 
-GDE_GSH <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_gde_gsh_fish_effort_03May2022.csv")
+GDE_GSH <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_gde_gsh_fish_effort_03May2022.csv")
 ```
 
 Combine GN, TN, GDE, GSH into one df
@@ -48,15 +48,15 @@ Add instances of zero catch
 ```{r}
 MN_Catch_0 <- all_GN_TN %>% mutate(DOW = str_pad(DOW, 8, side = "left", pad = "0"))%>%
   pivot_wider(names_from = COMMON_NAME, values_from = TOTAL_CATCH, values_fill = 0) %>% #creates 0s
-  select(!contains("frog"))%>% #attempt to drop non-fish species
-  select(!contains("crayfish"))%>%
-  select(!contains("toad"))%>% #syntax means keep all columns that don't contain "toad"
-  select(!contains("turtle"))%>%
-  select(!contains("mudpuppy"))%>%
-  select(!contains("snake"))%>%
-  select(!contains("salamander"))%>%
-  select(!contains("muskrat"))%>% #why are muskrats in the dataset?? tf??
-  select(!contains("snail"))%>%
+  # select(!contains("frog"))%>% #attempt to drop non-fish species
+  # select(!contains("crayfish"))%>%
+  # select(!contains("toad"))%>% #syntax means keep all columns that don't contain "toad"
+  # select(!contains("turtle"))%>%
+  # select(!contains("mudpuppy"))%>%
+  # select(!contains("snake"))%>%
+  # select(!contains("salamander"))%>%
+  # select(!contains("muskrat"))%>% #why are muskrats in the dataset?? tf??
+  # select(!contains("snail"))%>%
   pivot_longer(!1:6&!8:10, names_to = "COMMON_NAME", values_to = "TOTAL_CATCH")%>%
   filter(COMMON_NAME %in% c("black crappie",
                             "bluegill", 
@@ -94,22 +94,22 @@ write_csv(MN_Catch_0, "MN_Fish_Data_24Apr2023.csv")
 
 or easy
 ```{r}
-all_mn <- all_gn_tn_gde_gsh %>%
-  select(-FISHERIES_WATERBODY_ID)%>%
-  bind_rows(EF_LMB_SMB)%>%
-  filter(SURVEY_ID != 4421012345764001)%>% #this one survey has the columns shifted
-  mutate(TARGET_SPECIES = case_when(COMMON_NAME == "bluegill" ~ "1",
-                                    COMMON_NAME == "black crappie" ~ "1",
-                                    COMMON_NAME == "largemouth bass" ~ "1",
-                                    COMMON_NAME == "northern pike" ~ "1",
-                                    COMMON_NAME == "smallmouth bass" ~ "1",
-                                    COMMON_NAME == "walleye" ~ "1",
-                                    COMMON_NAME == "yellow perch" ~ "1",
-                                    TRUE ~ "0"))%>%
-  mutate(GEAR_CATEGORY = case_when(GEAR == "GN" ~"GN",
-                                   GEAR == "GDE" ~ "GN",
-                                   GEAR == "GSH" ~ "GN",
-                                   GEAR == "TN" ~ "TN",
-                                   GEAR == "EF" ~ "EF"))
+# all_mn <- all_GN_TN %>%
+#   select(-FISHERIES_WATERBODY_ID)%>%
+#   bind_rows(EF_LMB_SMB)%>%
+#   filter(SURVEY_ID != 4421012345764001)%>% #this one survey has the columns shifted
+#   mutate(TARGET_SPECIES = case_when(COMMON_NAME == "bluegill" ~ "1",
+#                                     COMMON_NAME == "black crappie" ~ "1",
+#                                     COMMON_NAME == "largemouth bass" ~ "1",
+#                                     COMMON_NAME == "northern pike" ~ "1",
+#                                     COMMON_NAME == "smallmouth bass" ~ "1",
+#                                     COMMON_NAME == "walleye" ~ "1",
+#                                     COMMON_NAME == "yellow perch" ~ "1",
+#                                     TRUE ~ "0"))%>%
+#   mutate(GEAR_CATEGORY = case_when(GEAR == "GN" ~"GN",
+#                                    GEAR == "GDE" ~ "GN",
+#                                    GEAR == "GSH" ~ "GN",
+#                                    GEAR == "TN" ~ "TN",
+                                   # GEAR == "EF" ~ "EF"))
 ```
 

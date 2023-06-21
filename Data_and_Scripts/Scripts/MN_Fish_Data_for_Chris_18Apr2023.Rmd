@@ -36,19 +36,20 @@ all_GN_TN <- bind_rows(GN_TN, GDE_GSH)
 ```{r}
 # create separate df of just surveys aka they survey effort
 Effort_GN_TN <-  all_GN_TN %>%
-  select(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>%
-  group_by(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>%
+  select(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>% #################### could consider dumping the Survey_ID here
+  group_by(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>% #################### could consider dumping the Survey_ID here
   summarise(NUMBER_OF_SP = n())%>%
   select(-NUMBER_OF_SP)%>%
-  filter(SURVEYTYPE %in% c("Population Assessment", "Re-Survey", "Standard Survey", "Special Assessment", "Targeted Survey", "Large Lake Survey", "Research Survey", "Initial Survey"))%>%
+  filter(SURVEYTYPE %in% c("Population Assessment", "Re-Survey", "Standard Survey", "Special Assessment", "Targeted Survey", "Large Lake Survey", "Research Survey", "Initial Survey"))%>% ######### these survey types are not currently excluded from the data product you send to chris, below
   mutate(SURVEY_ID_GEAR = str_c(SURVEY_ID, GEAR, sep = "_"))
 ```
 
 Add instances of zero catch
 ```{r}
-MN_Catch_0 <- all_GN_TN %>% mutate(DOW = str_pad(DOW, 8, side = "left", pad = "0"))%>%
-  pivot_wider(names_from = COMMON_NAME, values_from = TOTAL_CATCH, values_fill = 0) %>% #creates 0s
-  # select(!contains("frog"))%>% #attempt to drop non-fish species
+MN_Catch_0 <- all_GN_TN %>%
+  mutate(DOW = str_pad(DOW, 8, side = "left", pad = "0"))%>%  ############### pads Kittle Numbers for stream and river surveys (Not REALLY a problem, but weird)
+  pivot_wider(names_from = COMMON_NAME, values_from = TOTAL_CATCH, values_fill = 0) %>% #creates 0s #################################Here's A problem. CPUE is a species specific attribute. As such each survey's species matrix is duplicated for each unique CPUE
+  # select(!contains("frog"))%>% #attempt to drop non-fish species  ############# Not really a problem, but you don't have to get rid of weird shit at this phase  ####################
   # select(!contains("crayfish"))%>%
   # select(!contains("toad"))%>% #syntax means keep all columns that don't contain "toad"
   # select(!contains("turtle"))%>%
@@ -73,7 +74,7 @@ MN_Catch_0 <- all_GN_TN %>% mutate(DOW = str_pad(DOW, 8, side = "left", pad = "0
                             "black bullhead",
                             "brown bullhead",
                             "yellow bullhead"))%>%
-  mutate(COMMON_NAME = ifelse(str_detect(COMMON_NAME, "cisco"), paste("cisco species"), paste(COMMON_NAME)))%>%
+  mutate(COMMON_NAME = ifelse(str_detect(COMMON_NAME, "cisco"), paste("cisco species"), paste(COMMON_NAME)))%>% ####### PROB GENERATED HERE MUltiple lines with dif CPUE no longer parseable ##########################
   mutate(GEAR_CATEGORY = case_when(GEAR == "GN" ~"GN",
                                    GEAR == "GDE" ~ "GN",
                                    GEAR == "GSH" ~ "GN",

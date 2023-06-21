@@ -227,7 +227,9 @@ MN_EF_LMB_SMB_Catch <- mn_ef_lmb_smb_catch_26Aug2022 %>%
   select(-cpue)%>% #removing cpue column because it just contains "Y" which isn't useful
   mutate(date.1 = mdy(date.1))%>%
   mutate(year = year(date.1))
+```
 
+```{r}
 # filter EF effort data for only surveys that list bass as a target species or where target species is NA
 #MN_EF_Effort_bass <- mn_ef_lmb_smb_effort_26Aug2022 %>%mutate(Check = case_when(str_detect(target_species, "LMB") ~ 1, str_detect(target_species, "SMB") ~ 1,is.na(target_species) ~ 1,TRUE ~ 0))%>% #making a column to check which rows to keep based on target species, 1 is keep 0 is remo  filter(Check == 1)%>% select(-Check) #remove 691 effort surveys not targeting bass
 #even if other species were targeted (besides bass) we don't have catch data for them and should remove those surveys
@@ -250,7 +252,9 @@ col_comparison <- EF_catch_cols %>%
   mutate(Join_col = ifelse(!is.na(EF_Catch)&!is.na(EF_Effort), paste(EF_Catch), NA))%>%
   drop_na(Join_col)#identify common columns to use in join by dropping non matches (i.e. NAs)
 # so a problem with this is that our data explainer tracking columns and notes columns may not match between the two and should NOT be used as a key in the join, will manually identify which columns should be key in the join. For other columns they will need to be consolidated back into one column after the join (unless it does this automatically..?)
+```
 
+```{r}
 
 # join the electrofishing data based on columns that they share that should be the same (i.e. lake_name should be used, but not "original_file_name)
 MN_electofishing <- MN_EF_LMB_SMB_Catch %>%
@@ -289,7 +293,7 @@ effort_survey_id <- mn_ef_lmb_smb_effort_26Aug2022 %>% select(survey_id, lake_id
 
 Survey_ID_Check <- full_join(catch_survey_id, effort_survey_id, by = "survey_id")%>%
   filter(is.na(file.y))%>%
-  rename(lake_id = lake_id.x, year = year.x)%>%
+  rename(lake_id = lake_id.x, year = year.x, total_effort.1.1 = total_effort.1.1x)%>%
   left_join(mn_ef_lmb_smb_effort_26Aug2022, by = c("lake_id", "year"))%>%
   select(1:10, 19, 23, 26)
 ```
@@ -335,6 +339,13 @@ draft_MN_CPUE_02June2023 <- MN_CPUE %>%
 
 write_csv(draft_MN_CPUE_02June2023, "draft_MN_catch_effort_02June2023.csv")
   
+
+### add this to above code chunk the next time you run this!!!!
+
+mutate(species.1 = 
+           ifelse(species.1 == "LMB", paste("largemouth bass"), paste(species.1)))%>%
+  mutate(species.1 = 
+           ifelse(species.1 == "SMB", paste("smallmouth bass"), paste(species.1)))
 ```
 
 MN figures 5/23/23 REVISIT for SFS
@@ -393,7 +404,9 @@ MN_CPUE_w_AGES <- MN_CPUE_w_age_id %>%
 UGHHHH ERRORS
 - SMB and LMB from electrofishing (I think just EF) have three letter abbreviations for 'species.1' and not the common name
 - also appears lake_id, lake_name, and year didn't transfer over from the EF data, likely have to change the 'if_else' into a 'case_when' so that we can tell it to pull that lake info from the ef data
+- above seems fixed
 
+- Effort didn't pull in right for the EF data, but only for "EFB" gear
 
 
 

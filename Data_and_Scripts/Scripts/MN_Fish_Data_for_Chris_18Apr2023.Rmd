@@ -29,88 +29,92 @@ GDE_GSH <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey D
 Combine GN, TN, GDE, GSH into one df
 ```{r}
 all_GN_TN <- bind_rows(GN_TN, GDE_GSH)
-
 ```
 
 
+Determine Number of unique surveys/gears and number of total species
 ```{r}
-# create separate df of just surveys aka they survey effort
 Effort_GN_TN <-  all_GN_TN %>%
-  select(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>% #################### could consider dumping the Survey_ID here
-  group_by(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>% #################### could consider dumping the Survey_ID here
+  select( SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>%
+  group_by( SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>%
   summarise(NUMBER_OF_SP = n())%>%
   select(-NUMBER_OF_SP)%>%
-  filter(SURVEYTYPE %in% c("Population Assessment", "Re-Survey", "Standard Survey", "Special Assessment", "Targeted Survey", "Large Lake Survey", "Research Survey", "Initial Survey"))%>% ######### these survey types are not currently excluded from the data product you send to chris, below
+  filter(SURVEYTYPE %in% c("Population Assessment",
+                           "Re-Survey",
+                           "Standard Survey",
+                           "Special Assessment",
+                           "Targeted Survey",
+                           "Large Lake Survey",
+                           "Research Survey",
+                           "Initial Survey"))%>% #only keep representative survey types
   mutate(SURVEY_ID_GEAR = str_c(SURVEY_ID, GEAR, sep = "_"))
+
+#21,207 unique survey/gears (i.e. a survey may be listed more than once if more than one gear was used, each row is a unique survey and gear)
+
+Num_species <- all_GN_TN %>%
+  group_by(COMMON_NAME)%>%
+  summarise(Total_Instances = n()) #129 total species, note not all of them are fish
+
+Cisco_name_check <- Num_species%>%
+  filter(str_detect(Num_species$COMMON_NAME, "cisco"))
 ```
 
+
 Add instances of zero catch
+
+* quick note about lake IDs (DOW), there are some streams/rivers listed and they have letters in the DOW ID and vary in length
+  * creating a new column `WATERBODY_TYPE` to address this in case it matters for analysis
 ```{r}
 MN_Catch_0 <- all_GN_TN %>%
-  mutate(DOW = str_pad(DOW, 8, side = "left", pad = "0"))%>%  ############### pads Kittle Numbers for stream and river surveys (Not REALLY a problem, but weird)
-  pivot_wider(names_from = COMMON_NAME, values_from = TOTAL_CATCH, values_fill = 0) %>% #creates 0s #################################Here's A problem. CPUE is a species specific attribute. As such each survey's species matrix is duplicated for each unique CPUE
-  # select(!contains("frog"))%>% #attempt to drop non-fish species  ############# Not really a problem, but you don't have to get rid of weird shit at this phase  ####################
-  # select(!contains("crayfish"))%>%
-  # select(!contains("toad"))%>% #syntax means keep all columns that don't contain "toad"
-  # select(!contains("turtle"))%>%
-  # select(!contains("mudpuppy"))%>%
-  # select(!contains("snake"))%>%
-  # select(!contains("salamander"))%>%
-  # select(!contains("muskrat"))%>% #why are muskrats in the dataset?? tf??
-  # select(!contains("snail"))%>%
-  pivot_longer(!1:6&!8:10, names_to = "COMMON_NAME", values_to = "TOTAL_CATCH")%>%
-  filter(COMMON_NAME %in% c("black crappie",
-                            "bluegill", 
-                            "largemouth bass",
-                            "northern pike",
-                            "smallmouth bass",
-                            "walleye",
-                            "yellow perch",
-                            "cisco",
-                            "tullibee (cisco)",
-                            "cisco species",
-                            "shortjaw cisco",
-                            "white sucker",
-                            "black bullhead",
-                            "brown bullhead",
-                            "yellow bullhead"))%>%
-  mutate(COMMON_NAME = ifelse(str_detect(COMMON_NAME, "cisco"), paste("cisco species"), paste(COMMON_NAME)))%>% ####### PROB GENERATED HERE MUltiple lines with dif CPUE no longer parseable ##########################
+  filter(SURVEYTYPE %in% c("Population Assessment",
+                           "Re-Survey",
+                           "Standard Survey",
+                           "Special Assessment",
+                           "Targeted Survey",
+                           "Large Lake Survey",
+                           "Research Survey",
+                           "Initial Survey"))%>% #only keep representative survey types
+  mutate(WATERBODY_TYPE = if_else(str_detect(DOW, "[:alpha:]"), paste("river/stream"), paste("lake")))%>%
+  select(-CPUE)%>% #better to calculate CPUE ourselves
+  pivot_wider(id_cols = c(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT, WATERBODY_TYPE),
+              names_from = COMMON_NAME, values_from = TOTAL_CATCH, values_fill = 0) %>% #creates 0s, 21,207 surveys/gears matches check above
+  select("SURVEY_ID",    #select columns to keep and
+         "SURVEYDATE",
+         "SURVEYTYPE",
+         "DOW",
+         "LKNAME",
+         "YEAR",
+         "GEAR",
+         "EFFORT",
+         "WATERBODY_TYPE",
+         "black crappie",    #select species of interest
+         "bluegill",
+         "largemouth bass",
+         "northern pike",
+         "smallmouth bass",
+         "walleye",
+         "yellow perch",                 
+         "tullibee (cisco)", #2364 instances    # note that cisco species are listed three ways in the data
+         "cisco species",  # 163 instances
+         "shortjaw cisco", # 1 instance
+         "white sucker",
+         "black bullhead",
+         "brown bullhead",
+         "yellow bullhead")%>%
+  pivot_longer(cols = !c(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT, WATERBODY_TYPE),
+               names_to = "COMMON_NAME", values_to = "TOTAL_CATCH")%>%
   mutate(GEAR_CATEGORY = case_when(GEAR == "GN" ~"GN",
                                    GEAR == "GDE" ~ "GN",
                                    GEAR == "GSH" ~ "GN",
                                    GEAR == "TN" ~ "TN",
                                    GEAR == "EF" ~ "EF"))%>%
   mutate(CPUE = TOTAL_CATCH/EFFORT)%>%
-  select(1:5, 9, 6, 12, 10, 11, 7, 13)%>%
-  mutate(CPUE = round(CPUE, digits = 2))
+  mutate(CPUE = round(CPUE, digits = 2)) #14 species times 21207 survey/gears = 296,898 rows 
 
-write_csv(MN_Catch_0, "MN_Fish_Data_24Apr2023.csv")
-
-#Species_check <- MN_Catch_0 %>% group_by(COMMON_NAME)%>% summarise(total = n())
-
-
-```
+#write_csv(MN_Catch_0, "MN_Fish_Data_21JUN2023.csv")
 
 
 
-or easy
-```{r}
-# all_mn <- all_GN_TN %>%
-#   select(-FISHERIES_WATERBODY_ID)%>%
-#   bind_rows(EF_LMB_SMB)%>%
-#   filter(SURVEY_ID != 4421012345764001)%>% #this one survey has the columns shifted
-#   mutate(TARGET_SPECIES = case_when(COMMON_NAME == "bluegill" ~ "1",
-#                                     COMMON_NAME == "black crappie" ~ "1",
-#                                     COMMON_NAME == "largemouth bass" ~ "1",
-#                                     COMMON_NAME == "northern pike" ~ "1",
-#                                     COMMON_NAME == "smallmouth bass" ~ "1",
-#                                     COMMON_NAME == "walleye" ~ "1",
-#                                     COMMON_NAME == "yellow perch" ~ "1",
-#                                     TRUE ~ "0"))%>%
-#   mutate(GEAR_CATEGORY = case_when(GEAR == "GN" ~"GN",
-#                                    GEAR == "GDE" ~ "GN",
-#                                    GEAR == "GSH" ~ "GN",
-#                                    GEAR == "TN" ~ "TN",
-                                   # GEAR == "EF" ~ "EF"))
+
 ```
 

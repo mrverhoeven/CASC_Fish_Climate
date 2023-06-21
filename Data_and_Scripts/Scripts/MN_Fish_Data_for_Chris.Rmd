@@ -15,7 +15,7 @@ library(stringr)
 ```
 
 
-Data Chris is currently using for reference
+Data Chris was previously using for reference
 ```{r}
 Chris_MN_fish_3.23.22 <- read_csv("~/CASC/CASC_Fish_Abundance/Practice_MN_Fish_3.25.22.csv")
 ```
@@ -35,9 +35,10 @@ GN_TN <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GNT
 
 GDE_GSH <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
 
-Electrofishing_catch <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/ELECTROFISHING_CATCH_LMB_SMB.csv")
+#just using GN and TN
+#Electrofishing_catch <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/ELECTROFISHING_CATCH_LMB_SMB.csv")
 
-Electrofishing_effort <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/ELECTROFISHING_EFFORT.csv")
+#Electrofishing_effort <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/ELECTROFISHING_EFFORT.csv")
 ```
 
 Combine GN, TN, GDE, GSH into one df

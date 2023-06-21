@@ -39,7 +39,7 @@ Update 7 June 2023 Mike:
 * note Holly has to change "G" in file paths to "D" 
 ```{r}
 
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #manually drop that 2022 fish
@@ -54,7 +54,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
                                           files_list[i])))
   
   # note we want to review a sorted list of column names to check misspelling etc.
@@ -142,7 +142,7 @@ mn_fish_effort_03May2022[          , .N , .(lake_id, date.1, sampling_method_abb
 #drop cpue
 ## create an issue for this idea
   #general gears
-  mn_fish_effort_03May2022[ , cpue , ]
+  mn_fish_effort_03May2022[ , cpue , ] #view CPUE
   mn_fish_effort_03May2022[ , round(total_count/total_effort_1.1,2) , ]
   sum(!mn_fish_effort_03May2022[ , cpue == round(total_count/total_effort_1.1,2) , ])# the number of cases where DNR calcd CPUE does not == catch/effort
   
@@ -484,7 +484,8 @@ names(flatfish)
 
 #how many unique surveys exist for each category of has effort and has indiv fish data?
 flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type.1))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ]
-  #sum of all
+  
+#sum of all
   flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type.1))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ][ , sum(V1) , ]
 
 #for each of those with both effort and fish data, summarize catch by species (bring effort along too!)   

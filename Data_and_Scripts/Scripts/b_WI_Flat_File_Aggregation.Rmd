@@ -18,7 +18,7 @@ library(data.table)
 library(janitor)
 library(tidyr)
 library(lubridate)
-library(bit64)
+library(ggplot2)
 
 options(scipen = 999)
 ```
@@ -105,7 +105,7 @@ for(i in 1:n) {
 
 # Identify Which data types are in each file
 [1] "wi_inland_cpue_19Mar2021.csv"                  ~ CPUE (Effort and Catch)                 
-[2] "wi_inland_effort_19Mar2021.csv"                ~ True Effort          
+[2] "wi_inland_effort_19Mar2021.csv"                ~ True Effort (as distance, sample_time_notes.1, gear_data_notes.9)          
 [3] "wi_inland_fishobservations_19Mar2021.csv"      ~ Individual Fish    
 [4] "wi_inland_lenage_19Mar2021.csv"                ~ Individual Fish             
 [5] "wi_winnebago_cpue_23Apr2021.csv"               ~ CPUE (just has CPUE and units for CPUE)            
@@ -127,6 +127,81 @@ for(i in 1:n) {
     # Will need to sum up the individual fish data to calculate catch, then we will have to use catch and CPUE to calculate total effort
 
 
+#investigate the one true effort file we have
+
+# gears present
+wi_inland_effort_19Mar2021[ ,.N , sampling_method ]
+  # 53 unique gears: electrofishing, nets, hook and line, traps, trawls, etc.
+
+wi_inland_effort_19Mar2021[sampling_method=="seine" , ,  ][gear_data_notes.9 == "number.of.nets:NA"]
+
+# where do actual efforts live for each type of gear
+wi_inland_effort_19Mar2021[ ,.N , .(sampling_method, distance, sample_time_notes.1, gear_data_notes.9) ]
+  # it appears any kind of shocking effort is in "sample_time_notes.1 and "distance"
+  # net effort is in "gear_data_notes.9"
+
+wi_inland_effort_19Mar2021[ ,.(sampling_method, distance, gear_data_notes.1, gear_data_notes.2, gear_data_notes.3, gear_data_notes.4, gear_data_notes.5, gear_data_notes.6, gear_data_notes.7, gear_data_notes.8, gear_data_notes.9, gear_data_notes.10, gear_data_notes.11, gear_data_notes.12, gear_data_notes.13, sample_time_notes.1, sample_time_notes.2) , sampling_method]
+
+#is survey_id unique to each survey?
+wi_inland_effort_19Mar2021[ , , survey_id]
+    # yes!
+wi_inland_effort_19Mar2021[ , , .(lake_id, date.1, sampling_method)]
+  # lake_id, date.1, and sampling_method also work as a key
+
+# gear_data_notes 1:8 are all electrofishing details
+# gear_data_notes 10: depth
+melt(wi_inland_effort_19Mar2021,
+      id.vars = c("lake_id", "date.1", "sampling_method"),
+      measure.vars = c("distance",
+                       "gear_data_notes.1", 
+                       "gear_data_notes.9", 
+                       "sample_time_notes.1", 
+                       "sample_time_notes.2"),
+      variable.name = "Effort_Type",
+      value.name = "Effort")
+
+melt(wi_inland_effort_19Mar2021,
+      id.vars = c("lake_id", "date.1", "sampling_method"),
+      measure.vars = c( "gear_data_notes.9", 
+                       "sample_time_notes.1", 
+                       "sample_time_notes.2"),
+      variable.name = "Effort_Type",
+      value.name = "Effort")
+
+#wi_inland_effort_19Mar2021_Effort <- wi_inland_effort_19Mar2021 %>%mutate(Effort_Value = case_when(str_detect(sampling_method, "net")~ gear_data_notes.1,str_detect(sampling_method, "shock")~ distance))
+
+# Work on making an "effort" and "effort units" column
+gear_table <- wi_inland_effort_19Mar2021[ ,.N , sampling_method ]
+
+gear_table[str_detect(sampling_method, "shock") ,simple_gear:= "electrofishing",] 
+gear_table[str_detect(sampling_method, "net"), simple_gear:= "netting"]
+gear_table[str_detect(sampling_method, "hook"), simple_gear:= "hook and line"]
+gear_table[str_detect(sampling_method, "seine"), simple_gear:= "seine"]
+gear_table[str_detect(sampling_method, "weir"), simple_gear:= "weir"]
+gear_table[str_detect(sampling_method, "trap"), simple_gear:= "trapping"]
+gear_table[str_detect(sampling_method, "trawl"), simple_gear:= "trawling"]
+gear_table[str_detect(sampling_method, "cage"), simple_gear:= "trapping"]
+gear_table[sampling_method=="unknown", simple_gear:= "unknown"]
+gear_table[sampling_method=="poison", simple_gear:= "other"]
+gear_table[sampling_method=="setline", simple_gear:= "other"]
+gear_table[sampling_method=="limbline", simple_gear:= "other"]
+gear_table[sampling_method=="visual_observe", simple_gear:= "other"]
+gear_table[sampling_method=="multiple_gear_types", simple_gear:= "other"]
+gear_table[sampling_method=="bankpole", simple_gear:= "other"]
+gear_table[sampling_method=="spearing", simple_gear:= "other"]
+gear_table[sampling_method=="scuba_diving", simple_gear:= "other"]
+gear_table[sampling_method=="grid", simple_gear:= "other"][]
+
+#now add effort and effort units columns
+#gear_table[simple_gear == "electrofishing", ':='( effort_col ="distance", effort_units_col = "distance_units")]
+#gear_table[simple_gear == "netting", ':='( effort_col ="gear_data_notes.9", effort_units_col = "net_nights")][]
+
+
+#join gear table back to original data
+wi_inland_effort_19Mar2021[gear_table, on = "sampling_method"] #### PROBLEM WITH JOIN
+wi_inland_effort_19Mar2021[sampling_method == "fyke_net", , ]
+wi_inland_effort_19Mar2021[simple_gear == "electrofishing", ':='( effort =distance, effort_units = distance_units)]
+wi_inland_effort_19Mar2021[simple_gear == "netting", ':='( effort =gear_data_notes.9, effort_units = "net_nights")][]
 ```
 
 Find a unique key for these files
@@ -168,6 +243,8 @@ Format wi_winnebago_cpue_23Apr2021 from just cpue file to a file with catch and 
 ```{r}
 # rename "cpue" column to 'total_count' to match format of other files
     # get all column names from this DT, select only the column named "cpue", rename it "total_count"
+
+    # *note from "lake_winnebago_metadata_readme" : "-since the trawls are 5 minutes each the count values from winnebago_trawl_data.csv are simply summed to compute the cpe"
 colnames(wi_winnebago_cpue_23Apr2021)[colnames(wi_winnebago_cpue_23Apr2021)=="cpue"] <- "total_count"
 
 
@@ -178,15 +255,44 @@ wi_winnebago_cpue_23Apr2021[ ,total_effort_1.1 := "5 minute trawl", ]
 ```
 
 
-
-
-
 Make WI Inland CPUE file into a catch file
 ```{r}
 
 ```
 
 
+#drop cpue
+## create an issue for this idea
+  #general gears
+  mn_fish_effort_03May2022[ , cpue , ] #view CPUE
+  mn_fish_effort_03May2022[ , round(total_count/total_effort_1.1,2) , ]
+  sum(!mn_fish_effort_03May2022[ , cpue == round(total_count/total_effort_1.1,2) , ])# the number of cases where DNR calcd CPUE does not == catch/effort
+  
+  #this is odd, suggests something wonky w/ dnr measured cpues
+  mn_fish_effort_03May2022[ , cpue := NULL ,]
+  
+  #deep and shallow Gns
+  sum(!mn_gde_gsh_fish_effort_03May2022[ , cpue == round(total_count/total_effort_1.1,2) , ])# the number of cases where DNR calcd CPUE does not == catch/effort
+  ## create an issue for this idea
+  #this is odd, suggests something wonky w/ dnr measured cpues
+  mn_gde_gsh_fish_effort_03May2022[ , cpue := NULL ,]
 
+  #tag the species for easy col selection:
+  mn_gde_gsh_fish_effort_03May2022[ , species.1 := paste("taxa", species.1, sep = "_")]
+  mn_fish_effort_03May2022[ , species.1 := paste("taxa", species.1, sep = "_")]
+
+# species, total count and cpue are only species specific components (cpue has been dropped)
+mn_fish_effort_03May2022 <- dcast(mn_fish_effort_03May2022 , ... ~ species.1 , value.var = "total_count", fill = 0)
+mn_gde_gsh_fish_effort_03May2022 <- dcast(mn_gde_gsh_fish_effort_03May2022 , ... ~ species.1 , value.var = "total_count", fill = 0)
+
+
+# this rbind puts together 3 files that should now be equivalent (each row is gear in a survey)
+effort <- rbindlist(list(rbindlist(list(mn_gde_gsh_fish_effort_03May2022,
+                                    mn_fish_effort_03May2022),
+                               fill = TRUE,
+                               use.names = TRUE),
+                     mn_ef_lmb_smb_effort_26Aug2022),
+                fill = TRUE,
+                use.names = TRUE)
 
 

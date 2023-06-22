@@ -1,0 +1,192 @@
+---
+title: "b_WI_Flat_File_Aggregation"
+author: "Holly Kundel & Mike Verhoeven"
+date: "`r Sys.Date()`"
+output: html_document
+---
+This is Holly's first attempt at aggregating WI data using the new workflow format
+
+# Preamble
+
+libraries
+```{r}
+library(arrow)
+library(readr)
+library(dplyr)
+library(stringr)
+library(data.table)
+library(janitor)
+library(tidyr)
+library(lubridate)
+library(bit64)
+
+options(scipen = 999)
+```
+
+
+# Load Data
+
+* First run CASC Data Explainer
+* note Holly has to change "E" in file paths to "D" 
+```{r}
+
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list
+
+
+n <- length(files_list)
+
+for(i in 1:n) {
+  #i = 3
+  filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
+  #this does those two steps in one package
+  assign(filei ,
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+                                          files_list[i])))
+  
+  # note we want to review a sorted list of column names to check misspelling etc.
+  # we still need to use the columns with names like col_name_length_in, or known_units
+  
+  
+  cde %>% # call data explainer file
+    filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
+    select_if(~ !any(is.na(.))) %>% 
+    transpose(keep.names = "newname") %>% 
+    rename("oldname" = V1) %>% 
+    assign("names", ., envir = .GlobalEnv)
+  
+  #see if any column names will not have a match! 
+  # IF any pop FALSE, force stop and revist of data explainer ()
+  # - e.g., named something "total catch" when actual column name was "total_catch"
+  print(
+    cbind(colnames(get(filei)),
+          colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
+    )
+  )
+  
+  #this line is where the warnings are coming from
+  # break the loop if the current file has column names not in the data explainer
+  if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+  
+  # append old col names into new "notes" columns:
+  get(filei)[ , (names[ str_detect(newname, "notes") , oldname   ,  ]) := Map(paste, colnames(.SD), .SD, sep = ':') , .SDcols =  names[ str_detect(newname, "notes") , oldname   ,  ] ]
+  
+  #now rename that file's colnames
+  setnames(get(filei), colnames(get(filei)), names[!str_detect(newname,"unique_row_key")] [match(names(get(filei)),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
+  
+  #append all other data from data explainer
+  unusedbits <- 
+    data.table(
+      matrix(
+        rep(names[ !newname %in% colnames(get(filei)) , oldname , ],
+            each = nrow(get(filei))
+        ),
+        nrow = nrow(get(filei)),
+        dimnames = list(rep(NA,nrow(get(filei))),
+                        names[ !newname %in% colnames(get(filei)) , newname , ])
+        )
+      )
+  
+  #add all not yet used columns from data explainer:
+  get(filei)[ , (names[ !newname %in% colnames(get(filei)) , newname , ]) := unusedbits[] ]
+
+  #remove tempfile "unusedbits"
+  rm(unusedbits)
+  
+  #confirm import of files:  
+  print(paste(filei ,"added to workspace" ))  
+  
+} 
+
+# check warnings and see if we can make it go away
+#print some kind of completion confirmation?
+
+```
+
+# Identify Which data types are in each file
+[1] "wi_inland_cpue_19Mar2021.csv"                  ~ CPUE (Effort and Catch)                 
+[2] "wi_inland_effort_19Mar2021.csv"                ~ True Effort          
+[3] "wi_inland_fishobservations_19Mar2021.csv"      ~ Individual Fish    
+[4] "wi_inland_lenage_19Mar2021.csv"                ~ Individual Fish             
+[5] "wi_winnebago_cpue_23Apr2021.csv"               ~ CPUE (just has CPUE and units for CPUE)            
+[6] "wi_winnebago_fishobservations_23April2021.csv" ~ Individual Fish
+
+
+
+
+# Effort Merge
+
+```{r}
+# Only one "True Effort" file (each row is a gear in a survey): 'wi_inland_effort_19Mar2021'
+
+# Rest of the files with Effort also have catch (species in a gear with a survey)
+
+# CPUE/Effort Files with Catch: "wi_inland_cpue_19Mar2021" 
+
+# wi_winnebago_cpue_23Apr2021.csv ~ only has CPUE and CPUE units. No catch or effort
+    # Will need to sum up the individual fish data to calculate catch, then we will have to use catch and CPUE to calculate total effort
+
+
+```
+
+Find a unique key for these files
+```{r}
+# date format is "POSIXct" and it won't subset properly, so first change to IDate
+wi_winnebago_cpue_23Apr2021[ , date.1 := as.IDate(date.1),]
+
+#subset by date, see if multiple trawls are done per day per site
+  # are the species aggregated? Or listed once per site?
+wi_winnebago_cpue_23Apr2021[ date.1 == "1986-06-11", .N , .(site_id.1, site_id.2, site_id.3, site_id.4, species.1) ]
+    # appears that there is one trawl per site (using all 4 IDs), species are listed once per site, so CPUE is total catch
+
+
+# see if this holds true to the whole dataset
+wi_winnebago_cpue_23Apr2021[ , .N , .(site_id.1, site_id.2, site_id.3, site_id.4, species.1, date.1) ]
+
+# Are there any instances where N > 1
+wi_winnebago_cpue_23Apr2021[ , .N , .(site_id.1, site_id.2, site_id.3, site_id.4, species.1, date.1) ] [N>1, , ]
+    # YES, three instances where N > 1, what else can we add to get a unique key?
+
+#Try adding mesh size (now named "gear_data_notes.1")
+wi_winnebago_cpue_23Apr2021[ , .N , .(site_id.1, site_id.2, site_id.3, site_id.4, species.1, date.1, gear_data_notes.1) ] [N>1, , ]
+    # that worked! THIS IS OUR UNIQUE KEY
+
+#check that we have the same number of rows that we started with
+wi_winnebago_cpue_23Apr2021[ , .N , .(site_id.1, site_id.2, site_id.3, site_id.4, species.1, date.1, gear_data_notes.1) ] [, , ]
+      # yes we do
+
+# are the units always "catch_per_5_min_trawl" ?
+wi_winnebago_cpue_23Apr2021[ ,unique(cpue_units) , ]
+    # yes! So effort is constant, always 5 minutes per trawl
+
+# how often is included in the data?
+wi_winnebago_cpue_23Apr2021[ ,.N, gear_data_notes.1 ]
+    # hardly ever, mostly NA or 0. It is specified 4 times as an actual mesh size. 
+```
+
+Format wi_winnebago_cpue_23Apr2021 from just cpue file to a file with catch and effort listed
+```{r}
+# rename "cpue" column to 'total_count' to match format of other files
+    # get all column names from this DT, select only the column named "cpue", rename it "total_count"
+colnames(wi_winnebago_cpue_23Apr2021)[colnames(wi_winnebago_cpue_23Apr2021)=="cpue"] <- "total_count"
+
+
+#add a column for effort
+wi_winnebago_cpue_23Apr2021[ ,total_effort_1.1 := "5 minute trawl", ]
+
+### would it be helpful to have it be # of fish per minute of trawl? Probably not because the trawls are always the same as is idk it's confusing in its current format
+```
+
+
+
+
+
+Make WI Inland CPUE file into a catch file
+```{r}
+
+```
+
+
+
+
+

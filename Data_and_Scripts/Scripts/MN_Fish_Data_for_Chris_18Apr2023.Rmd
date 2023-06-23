@@ -11,19 +11,28 @@ library(readr)
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(data.table)
+library(ggplot2)
 ```
 
 
 
 Read in raw MN Data
 ```{r, warning=FALSE}
-# Load in gillnet and trapnet data
+# Load in gillnet and trapnet data (direct from source or current versions in directory)
+# direct from source
+# GN_TN <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_fish_effort_03May2022.csv")
+# 
+# #Load in shallow and deep gillnets, same kind of net, different gear code
+# 
+# GDE_GSH <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_gde_gsh_fish_effort_03May2022.csv")
 
-GN_TN <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_fish_effort_03May2022.csv")
 
-#Load in shallow and deep gillnets, same kind of net, different gear code
+# as an RData file (this will need to be updated if source files change)
+# save(GN_TN, GDE_GSH, file = "Data_and_Scripts/Data/Input/DNRcatchfiles.RData")
+# 
+# load("Data_and_Scripts/Data/Input/DNRcatchfiles.RData")
 
-GDE_GSH <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_gde_gsh_fish_effort_03May2022.csv")
 ```
 
 Combine GN, TN, GDE, GSH into one df
@@ -52,8 +61,16 @@ Effort_GN_TN <-  all_GN_TN %>%
 #21,207 unique survey/gears (i.e. a survey may be listed more than once if more than one gear was used, each row is a unique survey and gear)
 
 Num_species <- all_GN_TN %>%
+  filter(SURVEYTYPE %in% c("Population Assessment",
+                           "Re-Survey",
+                           "Standard Survey",
+                           "Special Assessment",
+                           "Targeted Survey",
+                           "Large Lake Survey",
+                           "Research Survey",
+                           "Initial Survey"))%>% #only keep representative survey types
   group_by(COMMON_NAME)%>%
-  summarise(Total_Instances = n()) #129 total species, note not all of them are fish
+  summarise(Total_Number_observed = sum(TOTAL_CATCH)) #129 total species, note not all of them are fish
 
 Cisco_name_check <- Num_species%>%
   filter(str_detect(Num_species$COMMON_NAME, "cisco"))
@@ -112,6 +129,52 @@ MN_Catch_0 <- all_GN_TN %>%
   mutate(CPUE = round(CPUE, digits = 2)) #14 species times 21207 survey/gears = 296,898 rows 
 
 #write_csv(MN_Catch_0, "MN_Fish_Data_21JUN2023.csv")
+
+setDT(MN_Catch_0)
+
+
+#tabling and summarizing for data checking
+MN_Catch_0[ , .(n_surveyswithspecieslisted = .N)  , COMMON_NAME ] # number of surveys for each species (here we've included all zeros)
+MN_Catch_0[ TOTAL_CATCH >0 , .(nsurveyswithspecies = .N) , COMMON_NAME ] # number of surveys where each species was caught (here we've nixed all zeros) this works b/c we don't have species dups with any "survey" (date,lake,gear, surveytype)
+MN_Catch_0[ , .(n_indiv_obs = sum(TOTAL_CATCH)) , COMMON_NAME ][order(-n_indiv_obs)] # how many fish observations are in here for each species? #after our operation this still matches the Num_species file
+MN_Catch_0[ , .N , .(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT, WATERBODY_TYPE,YEAR)  ][ , hist(YEAR) , ] # count of surveys per year
+MN_Catch_0[ , .N , .(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT, WATERBODY_TYPE,YEAR)  ][ , .(nsurveys = .N, firstyear = min(YEAR), lastyear = max(YEAR)) , .(DOW, LKNAME) ] # summary of surveys by lake
+
+MN_Catch_0[ , SURVEYDATE := as.IDate(SURVEYDATE, format = "%m/%d/%Y"), ]
+
+MN_Catch_0[ TOTAL_CATCH > 0 , length(unique(DOW)) , COMMON_NAME ] # how many unique lakes was each species found in?
+
+MN_Catch_0[ , CPUE := TOTAL_CATCH/EFFORT ,]
+
+ggplot(MN_Catch_0, aes(SURVEYDATE, TOTAL_CATCH))+
+  geom_point()+
+  facet_wrap(~COMMON_NAME)
+
+ggplot(MN_Catch_0, aes(SURVEYDATE, CPUE))+
+  geom_point()+
+  facet_wrap(~COMMON_NAME)+
+  geom_smooth()
+
+# now with non-zero ones
+
+ggplot(MN_Catch_0[TOTAL_CATCH>0], aes(SURVEYDATE, CPUE))+
+  geom_point()+
+  facet_wrap(~COMMON_NAME)+
+  geom_smooth()+
+  scale_y_log10()
+
+#compare CPUE by gears
+ggplot(MN_Catch_0[TOTAL_CATCH>0], aes(SURVEYDATE, CPUE, color = GEAR_CATEGORY))+
+  geom_point(alpha = .1)+
+  facet_wrap(~COMMON_NAME)+
+  geom_smooth()+
+  scale_y_log10()
+
+
+
+
+
+
 
 
 

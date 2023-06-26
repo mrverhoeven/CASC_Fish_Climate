@@ -27,7 +27,9 @@ library(tidyr)
 ### Read in
 ```{r}
 
-cde <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
+cde <- fread("https://docs.google.com/spreadsheets/d/e/2PACX-1vSE1oFKS5o65kqIkeeY5ISKx7oOHk5tBROE_g95JCaqcsLuxnmwwHvDhOPnFO0Okw/pub?gid=1011323178&single=true&output=csv")
+# 
+# cde <- data.table(read_excel("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
 
 ```
 

@@ -64,8 +64,11 @@ for(i in 1:n) {
     )
   )
   
+  
   # break the loop if the current file has column names not in the data explainer
-  if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+  # if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+  if (all(colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]) == FALSE ) break
+  
   
   # append old col names into new "notes" columns:
   get(filei)[ , (names[ str_detect(newname, "notes") , oldname   ,  ]) := Map(paste, colnames(.SD), .SD, sep = ':') , .SDcols =  names[ str_detect(newname, "notes") , oldname   ,  ] ]
@@ -91,11 +94,17 @@ for(i in 1:n) {
 
   #confirm import of files:  
   print(paste(filei ,"added to workspace" ))  
+  #confirm import of files:  
+  print(paste(i ,"files added to workspace" )) 
+
   
 } 
+  #confirm import of files:  
+  print(paste(i ,"files added to workspace" ))
+  #confirm import of files:  
+  print(paste(n-i ,"remaining to be added" )) 
 
-# check warnings and see if we can make it go away
-#print some kind of completion confirmation?
+
 
 ```
 

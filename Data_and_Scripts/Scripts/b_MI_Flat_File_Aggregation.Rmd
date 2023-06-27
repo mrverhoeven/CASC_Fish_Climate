@@ -1,0 +1,460 @@
+---
+title: "MI_Flat_File_Aggregation"
+author: "Mike Verhoeven"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Preamble
+
+##Libraries
+```{r}
+library(arrow)
+library(readr)
+library(dplyr)
+library(stringr)
+library(data.table)
+library(janitor)
+library(tidyr)
+library(lubridate)
+library(bit64)
+
+options(scipen = 999)
+```
+
+
+##Data
+* note Holly has to change file paths to "D" 
+```{r}
+#generate a file list to import
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list
+
+#object for use in loop (simple length of file list)
+n <- length(files_list)
+
+for(i in 1:n) {
+  #i = 3
+  filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
+  #this does those two steps in one package
+  assign(filei ,
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
+                                          files_list[i])))
+  
+  # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
+  if(str_detect(filei, "crosswalk")) next
+  
+  
+  # note we want to review a sorted list of column names to check misspelling etc.
+  # we still need to use the columns with names like col_name_length_in, or known_units
+  
+  
+  cde %>% # call data explainer file
+    filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
+    select_if(~ !any(is.na(.))) %>% 
+    transpose(keep.names = "newname") %>% 
+    rename("oldname" = V1) %>% 
+    assign("names", ., envir = .GlobalEnv)
+  
+  #see if any column names will not have a match! 
+  # IF any pop FALSE, force stop and revist of data explainer ()
+  # - e.g., named something "total catch" when actual column name was "total_catch"
+  print(
+    cbind(colnames(get(filei)),
+          colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
+    )
+  )
+  
+  
+  # break the loop if the current file has column names not in the data explainer
+  # if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+  if (all(colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]) == FALSE ) break
+  
+  
+  # append old col names into new "notes" columns:
+  get(filei)[ , (names[ str_detect(newname, "notes") , oldname   ,  ]) := Map(paste, colnames(.SD), .SD, sep = ':') , .SDcols =  names[ str_detect(newname, "notes") , oldname   ,  ] ]
+  
+  #now rename that file's colnames
+  setnames(get(filei), colnames(get(filei)), names[!str_detect(newname,"unique_row_key")] [match(names(get(filei)),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
+  
+  #append all other data from data explainer
+  unusedbits <- 
+    data.table(
+      matrix(
+        rep(names[ !newname %in% colnames(get(filei)) , oldname , ],
+            each = nrow(get(filei))
+        ),
+        nrow = nrow(get(filei)),
+        dimnames = list(rep(NA,nrow(get(filei))),
+                        names[ !newname %in% colnames(get(filei)) , newname , ])
+        )
+      )
+  
+  #add all not yet used columns from data explainer:
+  get(filei)[ , (names[ !newname %in% colnames(get(filei)) , newname , ]) := unusedbits[] ]
+
+  #confirm import of files:  
+  print(paste(filei ,"added to workspace" ))  
+  #confirm import of files:  
+  print(paste(i ,"files added to workspace" )) 
+
+  
+} 
+  #confirm import of files:  
+  print(paste(i ,"files added to workspace" ))
+  #confirm import of files:  
+  print(paste(n-i ,"remaining to be added" )) 
+
+
+
+```
+
+
+#Data Review
+```{r}
+#effort:
+mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
+
+mi_statustrends_effort_16Mar2021[  ,length(unique(lake_id)), .(lake_id)][V1>1]
+
+mi_statustrends_effort_16Mar2021[survey_id ==2446]
+mi_statustrends_catch_16Mar2021[survey_id == 2446]
+mi_statustrends_catchlengthclass_16June2022[survey_id == 2446, ]
+mi_statustrends_lenage_20May2021[survey_id == 2446, ]
+
+#counts match?
+mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count)]
+mi_statustrends_catchlengthclass_16June2022[survey_id == 2446, sum(total_count)]
+nrow(mi_statustrends_lenage_20May2021[survey_id == 2446, ])
+
+#counts match?
+mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count), .(species.1)]
+mi_statustrends_catchlengthclass_16June2022[survey_id == 2446, sum(total_count) , .(species.1)]
+mi_statustrends_lenage_20May2021[survey_id == 2446, .N ,.(species.1)] #it makes sense that this wouldn't match as they prob only age a subsample
+
+mi_statustrends_catchlengthclass_16June2022[ survey_id == 2446 & species.1 == "YEP", sum(total_count) , length.1][order(length.1)][,sum(V1)]
+
+#survey_ids matched across all surveys?
+mi_statustrends_effort_16Mar2021[ , .N , survey_id]
+mi_statustrends_catch_16Mar2021[ , .N , survey_id]
+mi_statustrends_catchlengthclass_16June2022[ , .N , survey_id ]
+mi_statustrends_lenage_20May2021[ , .N , survey_id] 
+
+```
+
+
+
+
+# Effort Merge
+```{r}
+
+#effort prep
+mi_statustrends_effort_16Mar2021[ , unique(date.1) , ]
+mi_statustrends_catch_16Mar2021[ , date.1 := as.IDate(date.1, format = "%m/%d/%Y") , ]
+
+names(mi_statustrends_effort_16Mar2021)
+colnames(mi_statustrends_catch_16Mar2021)
+
+
+mi_ce_merge <- merge(mi_statustrends_effort_16Mar2021,mi_statustrends_catch_16Mar2021, by = c( "lake_id", "county", "lon_unspec","lat_unspec", "lake_name.1","survey_id", "year", "survey_type.1", "target_species", "sampling_method_abbrev"), all = T, suffixes = c("_effort", "_catch"))
+
+
+mi_ce_merge[ , unique(sampling_method_abbrev) , file_number_catch]
+
+```
+
+
+# Merge Indiv Fish Data
+
+```{r}
+
+#now tie the indiv fish data to these effort records
+
+# the EF fish data have corrupted fish attributes (so we'll overwrite all of those with NAs for now)
+badcols <- c("sample_id", "length.1", "weight.1", "age", "young_of_year", "sex", "reproductive_condition", "gear_data_notes.1" )
+mn_ef_lmb_smb_catch_26Aug2022[ , (badcols) :=  NA , ]
+
+#check work
+mn_ef_lmb_smb_catch_26Aug2022
+
+# make EF survey_id into the same data format as others
+mn_ef_lmb_smb_catch_26Aug2022[ , survey_id := as.integer64(survey_id) ,]
+
+#first, merge the indiv fish data
+indiv_fish <- rbindlist(list(mn_ef_lmb_smb_catch_26Aug2022, 
+                             mn_r1_gillnet_indiv_fish_20oct2020,
+                             mn_r2_gillnet_indiv_fish_20oct2020,
+                             mn_r3_gillnet_indiv_fish_20oct2020,
+                             mn_r4_gillnet_indiv_fish_20oct2020,
+                             mn_shallgillnet_indiv_fish_20oct2020,
+                             mn_deepgillnet_indiv_fish_20oct2020,
+                             mn_r1_trapnet_indiv_fish_20oct2020,
+                             mn_r2_trapnet_indiv_fish_20oct2020,
+                             mn_r3_trapnet_indiv_fish_20oct2020,
+                             mn_r4_trapnet_indiv_fish_20oct2020),
+                               fill = TRUE,
+                               use.names = TRUE) #will have to check this tomorrow, but seems like it worked
+
+#inspect merge
+colnames(indiv_fish)
+sort(colnames(indiv_fish))
+
+setcolorder(indiv_fish, c("lake_id", "date.2", "date.1", "sampling_method_abbrev", "survey_type.1")) 
+
+indiv_fish[ , .N , .(sampling_method_abbrev, species.1)  ]
+indiv_fish[ species.1 == "WAE", .N , .(sampling_method_abbrev)  ] # here we can see that we've not got "all gears" data bc WAE have def been captured in EF (and other gears)
+indiv_fish[ species.1 == "WAE", .N , .(sampling_method_abbrev)  ][ , sum(N) , ]
+
+#drop data inputs for fish data
+rm(mn_ef_lmb_smb_catch_26Aug2022, 
+                             mn_r1_gillnet_indiv_fish_20oct2020,
+                             mn_r2_gillnet_indiv_fish_20oct2020,
+                             mn_r3_gillnet_indiv_fish_20oct2020,
+                             mn_r4_gillnet_indiv_fish_20oct2020,
+                             mn_shallgillnet_indiv_fish_20oct2020,
+                             mn_deepgillnet_indiv_fish_20oct2020,
+                             mn_r1_trapnet_indiv_fish_20oct2020,
+                             mn_r2_trapnet_indiv_fish_20oct2020,
+                             mn_r3_trapnet_indiv_fish_20oct2020,
+                             mn_r4_trapnet_indiv_fish_20oct2020)
+
+
+
+#to-do:
+# make these clean: "lake_id", "date_clean", "sampling_method", "survey_type.1"
+
+#dates (from data explainer we know that date.2 is survey date, but only available in non-EF files)
+indiv_fish[ , .(date.2, date.1), ]
+indiv_fish[ , .N , .(date1=is.na(date.1), date2=is.na(date.2)) ]
+
+#change dates to Idate:
+indiv_fish[ , date_clean := as.IDate(date.2, format = "%m/%d/%Y") ,]
+
+indiv_fish[ , summary(date_clean) , ]
+indiv_fish[is.na(date_clean) == T , .N ]
+
+indiv_fish[is.na(date_clean) == T , date_clean := as.IDate(date.1, format = "%m/%d/%Y") ,  ]
+
+#check our work:
+indiv_fish[ , summary(date_clean) , ]
+
+
+#lake_id
+indiv_fish[ , summary(lake_id) ,]
+indiv_fish[ , str(lake_id), ]
+effort[ , str(lake_id) ,]
+#we can anticipate this being a problem when we go to merge the data
+
+
+#tidy sampling methods
+indiv_fish[ , .N , .(sampling_method_abbrev)]
+effort[ , .N , sampling_method]
+# git issue on this: inidv fish dat include backpack EF, but effort data do not
+
+#create the sampling_method column from codes:
+indiv_fish[sampling_method_abbrev == "GSH",
+      sampling_method := "Shallow gill nets"]
+indiv_fish[sampling_method_abbrev == "GDE",
+      sampling_method := "Deep gill nets"]
+indiv_fish[sampling_method_abbrev == "TN",
+      sampling_method := "Standard trap nets"]
+indiv_fish[sampling_method_abbrev == "GN",
+      sampling_method := "Standard gill nets"]
+indiv_fish[sampling_method_abbrev == "EF",
+      sampling_method := "Standard electrofishing"]
+indiv_fish[sampling_method_abbrev == "SEF",
+      sampling_method := "Special sampling, electrofishing"]
+indiv_fish[sampling_method_abbrev == "EFB",
+      sampling_method := "Backpack electrofishing"]
+
+#check
+indiv_fish[ , .N , .(sampling_method_abbrev, sampling_method)]
+
+#ditch the abbreviation/code column
+indiv_fish[ , sampling_method_abbrev := NULL, ]
+
+#survey.type
+
+indiv_fish[ , .N , survey_type.1 ]
+effort[ , .N , survey_type.1]
+
+indiv_fish[ , .N , survey_type.1 ][ ,survey_type.1 , ]
+
+
+# generate a type table (these codes can be found in MN_Data folder)
+survey_type <- data.table(code = indiv_fish[ , .N , survey_type.1 ][ ,survey_type.1],
+                          fullname = effort[ , .N , survey_type.1][ ,survey_type.1 ][c(2,4,3,9,1,10,7,5,6,12,8,14,11,13) ]
+                                                         )
+#execute
+match(indiv_fish[ , survey_type.1], survey_type[,code])
+survey_type[match(indiv_fish[ , survey_type.1], survey_type[,code]), fullname]
+
+indiv_fish[ , survey_type.1 := survey_type[match(indiv_fish[ , survey_type.1], survey_type[,code]), fullname]   ,]
+rm(survey_type)
+
+
+# add an id to the indiv fish
+indiv_fish[ , id := seq_len(.N) , .(lake_id, date_clean, sampling_method, survey_type.1, species.1) ]
+indiv_fish[ , summary(id) ,]
+
+
+#summarize ages
+indiv_fish[ , .N , age ]
+indiv_fish[ , .N , .(age=!is.na(age))]
+#compare to the aged fish file:
+#how many aged fish in the age data from Years we havem Gears we have, and lakes we have?
+mn_aged_fish_v2_20apr2023[year(as.IDate(date.1, format = "%m/%d/%Y"))<2020 &
+                            sampling_method_abbrev %in% c("GN", "GSH", "GDE", "TN", "EF", "SEF", "EFB") &
+                            lake_id %in% indiv_fish[ ,unique(lake_id)], .N ,]
+#same, now by year:
+mn_aged_fish_v2_20apr2023[year(as.IDate(date.1, format = "%m/%d/%Y"))<2020 &
+                            sampling_method_abbrev %in% c("GN", "GSH", "GDE", "TN", "EF", "SEF", "EFB") &
+                            lake_id %in% indiv_fish[ ,unique(lake_id)], .N , year(as.IDate(date.1, format = "%m/%d/%Y"))]
+
+#make an issue for this
+#we need to check this out further, BUT generally 7/8 of the aged fish are represented in the indiv fish data we recieved
+
+#merge the effort and indiv fish data
+
+
+#scope the merge:
+#99% of the wb in the effort data are represneted in indiv fish data
+sum(indiv_fish[ , unique(lake_id) , ] %in% effort[ , unique(lake_id)])/effort[, length(unique(lake_id)) ,] 
+
+#99% of the wb in the indiv fish data are represneted in  effort data
+sum(indiv_fish[ , unique(lake_id) , ] %in% effort[ , unique(lake_id)])/indiv_fish[, length(unique(lake_id)) ,] 
+
+# come back and scope out each individual key column match
+# #20% coverage on the survey id column--this checks. Corey Geving said to stay away from these
+# sum(age[ , .N , survey_id][,survey_id] %in% catch_expanded[ , unique(survey_id)])/age[, length(unique(survey_id)) ,] 
+# 
+# #49% coverage on the survey id column--this checks. Corey Geving said to stay away from these
+# sum(age[ , .N , date_clean][,date_clean] %in% catch_expanded[ , unique(date_clean)])/age[, length(unique(date_clean)) ,] 
+
+#we know that dates are a problem, can we schmooze that join?
+# flatfish <- merge(catch_expanded,age, by = c("lake_id", "date_clean" , "sampling_method", "id", "species"), suffixes = c("_catch", "_age"))
+
+flatfish <- merge(effort,indiv_fish, by = c("lake_id", "date_clean" , "sampling_method", "survey_type.1"), suffixes = c("_effort", "_indivfish"), all = T)
+
+flatfish[ , .N , sampling_method]
+
+flatfish[ (species.1 == "WAE" & sampling_method %in% c("Standard gill nets", "Shallow gill nets", "Deep gill nets")), .N, .(year = year(date_clean), age = !is.na(age), length = !is.na(length.1))][order(year, -N)]
+
+
+#this chunk is what Mike thinks GH wants for today
+names(flatfish)
+
+#how many unique surveys exist for each category of has effort and has indiv fish data?
+flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type.1))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ]
+  
+#sum of all
+  flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type.1))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ][ , sum(V1) , ]
+
+#for each of those with both effort and fish data, summarize catch by species (bring effort along too!)   
+flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type.1, species.1, total_effort_1.1, effort_units.1) ]
+
+  ## SIDEBAR! Flagging suspected issues
+  #summarize the total effort for ef data
+  flatfish[ effort_units.1 == "knownunit_hours" , hist(total_effort_1.1, breaks = 100) , ]# there are some very wierd values in here! Def want to flag these for review by a user! Here's an example of that:
+  flatfish[ effort_units.1 == "knownunit_hours" , summary(total_effort_1.1) , ]
+  flatfish[ effort_units.1 == "knownunit_hours" & !is.na(total_effort_1.1) , .(mean(total_effort_1.1) , sd(total_effort_1.1)) , ] #find sd and mean
+  flatfish[ effort_units.1 == "knownunit_hours" & total_effort_1.1 > 1.464117 + (5*flatfish[ effort_units.1 == "knownunit_hours" & !is.na(total_effort_1.1) , sd(total_effort_1.1) , ])   , flagged_effort := TRUE , ] #flag records > 5 sd from mean
+  flatfish[ , .N , flagged_effort]
+  
+  
+#cast summarized catch data wide:
+wide_complete <- dcast(flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type.1, species.1, total_effort_1.1, effort_units.1) ], ... ~ species.1 , value.var = "N", fill = 0)
+
+# calc cpue for all wae
+wide_complete[ , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ,]
+wide_complete[ , wae_cpue := WAE/total_effort_1.1 , ]
+# check mean cpue for gillnets
+wide_complete[ str_detect(sampling_method, "gill net") , mean(wae_cpue) , sampling_method ]
+
+  
+flatfish[ species.1 == "WAE" , .N ,]
+
+#where lake Id is a kittle no, we can drop those data (lake_id blank, lake_id_chr has kittle)
+flatfish[ , .N , .(lake_id, lake_id_chr, date_clean , sampling_method, survey_type.1, total_effort_1.1, species.1)] 
+  flatfish[!is.na(lake_id), .N , .(lake_id, lake_id_chr, date_clean , sampling_method, survey_type.1, total_effort_1.1, species.1)]
+  flatfish <- flatfish[!is.na(lake_id)]
+
+#lets get a cpue for walleye
+  flatfish[ , , .(lake_id, date_clean , sampling_method, survey_type.1) ][]
+    
+  
+flatfish[ , summary(date_clean) ,]
+
+flatfish[ , hist(year(date_clean)) , ]
+
+#walleye data product:
+wae_complete_surveys <- wide_complete[ , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ,]
+  
+wae_records <- flatfish[ species.1 == "WAE" , ,] 
+
+wae <- merge(wae_complete_surveys, wae_records, all = T, by = c("lake_id", "date_clean" , "sampling_method", "survey_type.1", "total_effort_1.1", "effort_units.1"))
+
+wae[ , .N , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ] 
+
+
+wae_gn_records <- wae[ str_detect(sampling_method, "gill nets") , , ]
+
+
+
+
+
+#save to disk:
+
+# saveRDS(effort, file = "Data_and_Scripts\\Data\\output\\mn_effort.rds")
+# saveRDS(DNR_calcd_catch, file = "Data_and_Scripts\\Data\\output\\mn_dnr_calcd_catch.rds")
+# saveRDS(indiv_fish, file = "Data_and_Scripts\\Data\\output\\mn_indivfish.rds")
+# saveRDS(flatfish, file = "Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_merge.rds")
+# saveRDS(wae_gn_records, file = "Data_and_Scripts\\Data\\output\\mn_wae_gn.rds")
+
+
+
+
+```
+
+
+```{r}
+# review what's available for WAE data, esp to compare to kelsey V's work:
+
+wae_gn_records[ year(date_clean)%in% c(2018:2022)  , .N , .(year(date_clean), cpue = !is.na(count) ,length = !is.na(length.1), age = !is.na(age)) ][order(year)]
+
+
+
+mn_fish_2022only_31May2023[ , .N , .(length = !is.na(length.1), age = !is.na(age) )  ]
+
+KV_WAE <- fread("C:\\Users\\verh0064\\Desktop\\2019_WAE_RAW_ALLREGIONS_20200505.csv")
+
+colnames(KV_WAE)
+KV_WAE[ , .N , as.integer(FISH_COUNT)]
+
+KV_WAE[ , FISH_COUNT := as.integer(FISH_COUNT) ,]
+
+KV_WAE <-  uncount(KV_WAE, FISH_COUNT, .id = "id", .remove = T  )
+
+KV_WAE[ , date_clean := as.IDate(SRVY_DT, format = "%m/%d/%Y") ,]
+
+KV_WAE[ , .N , .(catch = !is.na(CPUE), length = !is.na(LEN_MM), weight = !is.na(WT_G), age = !is.na(OFF_AGE))]
+KV_WAE[ , .N , .(year = year(date_clean) , catch = !is.na(CPUE), length = !is.na(LEN_MM), age = !is.na(OFF_AGE))]
+
+
+
+# lets explore some unmatched lengths and see if there are catch data that correspond:
+
+wae_gn_records[is.na()]
+
+
+raw_agedfish <- fread("C:\\Users\\verh0064\\Desktop\\all_aged_fish_GH_2023_nullS.txt")
+
+raw_agedfish[ , .N , OFFICIAL_AGE ][order(OFFICIAL_AGE)]
+raw_agedfish[ , .N , is.na(OFFICIAL_AGE) ]
+
+
+
+
+
+```
+
+

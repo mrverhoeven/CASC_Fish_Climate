@@ -124,7 +124,7 @@ for(i in 1:n) {
 # CPUE/Effort Files with Catch: "wi_inland_cpue_19Mar2021" 
 
 # wi_winnebago_cpue_23Apr2021.csv ~ only has CPUE and CPUE units. No catch or effort
-    # Will need to sum up the individual fish data to calculate catch, then we will have to use catch and CPUE to calculate total effort
+    # effort for all winnebago surveys is "5 min trawl"
 
 
 #investigate the one true effort file we have
@@ -148,27 +148,9 @@ wi_inland_effort_19Mar2021[ , , survey_id]
 wi_inland_effort_19Mar2021[ , , .(lake_id, date.1, sampling_method)]
   # lake_id, date.1, and sampling_method also work as a key
 
-# gear_data_notes 1:8 are all electrofishing details
+# gear_data_notes 1:8 and 12 through 15 are all electrofishing details
 # gear_data_notes 10: depth
-melt(wi_inland_effort_19Mar2021,
-      id.vars = c("lake_id", "date.1", "sampling_method"),
-      measure.vars = c("distance",
-                       "gear_data_notes.1", 
-                       "gear_data_notes.9", 
-                       "sample_time_notes.1", 
-                       "sample_time_notes.2"),
-      variable.name = "Effort_Type",
-      value.name = "Effort")
 
-melt(wi_inland_effort_19Mar2021,
-      id.vars = c("lake_id", "date.1", "sampling_method"),
-      measure.vars = c( "gear_data_notes.9", 
-                       "sample_time_notes.1", 
-                       "sample_time_notes.2"),
-      variable.name = "Effort_Type",
-      value.name = "Effort")
-
-#wi_inland_effort_19Mar2021_Effort <- wi_inland_effort_19Mar2021 %>%mutate(Effort_Value = case_when(str_detect(sampling_method, "net")~ gear_data_notes.1,str_detect(sampling_method, "shock")~ distance))
 
 # Work on making an "effort" and "effort units" column
 gear_table <- wi_inland_effort_19Mar2021[ ,.N , sampling_method ]
@@ -192,16 +174,90 @@ gear_table[sampling_method=="spearing", simple_gear:= "other"]
 gear_table[sampling_method=="scuba_diving", simple_gear:= "other"]
 gear_table[sampling_method=="grid", simple_gear:= "other"][]
 
+gear_table[is.na(simple_gear), .N, ]
+# all gears have been assigned a "simple gear"
+
 #now add effort and effort units columns
 #gear_table[simple_gear == "electrofishing", ':='( effort_col ="distance", effort_units_col = "distance_units")]
 #gear_table[simple_gear == "netting", ':='( effort_col ="gear_data_notes.9", effort_units_col = "net_nights")][]
 
 
 #join gear table back to original data
-wi_inland_effort_19Mar2021[gear_table, on = "sampling_method"] #### PROBLEM WITH JOIN
+wi_inland_effort_19Mar2021[gear_table, on = "sampling_method", simple_gear:=simple_gear]
 wi_inland_effort_19Mar2021[sampling_method == "fyke_net", , ]
 wi_inland_effort_19Mar2021[simple_gear == "electrofishing", ':='( effort =distance, effort_units = distance_units)]
 wi_inland_effort_19Mar2021[simple_gear == "netting", ':='( effort =gear_data_notes.9, effort_units = "net_nights")][]
+
+
+
+### doing this with dplyr functions for now, can update to data.table later
+    ### how do we want to name the effort columns so they match format from other files/states should we have sample.time 1 and 2 for minutes EF and hours nets are in or should we have total.effort.1 be distance and number of nets and total.effort.2 be minutes EF and hours nets are in..? both are important. Just need a naming scheme
+
+# used code chunk below to check where effort lived for these gears
+#wi_gear_eff_check <- wi_inland_effort_19Mar2021 %>%
+#  select(gear_data_notes.11, sample_time_notes.1, sample_time_notes.3, gear_data_notes.9, sampling_method)%>%
+#  filter(sampling_method %in% c("seine"))
+
+
+# create effort column based upon which gear was used while retaining all original columns, not perfect, but pretty complete
+
+wi_inland_effort <- wi_inland_effort_19Mar2021 %>%
+  left_join(gear_table, by = "sampling_method")%>% #join gear table
+  relocate(county, lake_name.1, lake_id, year, survey_id, sample_id.1, sampling_method, simple_gear, date.1, distance, distance_units, sample_time_notes.1, gear_data_notes.9, sample_time_notes.3)%>% #take these columns and put them in front
+  mutate(sample_time_min = str_sub(sample_time_notes.1, 22))%>% #keep only the number of minutes
+  mutate(hours_set_net = str_sub(sample_time_notes.3, 11)) %>% #keep only the number of hours nets are in
+  mutate(number_of_nets = str_sub(gear_data_notes.9, 16))%>% #keep just number of nets
+  mutate(distance = as.character(distance))%>% #make this a character so it can be used with other gear types
+  mutate(total.effort.1 = case_when(simple_gear == "electrofishing" ~ sample_time_min, #create total effort 1
+                                    simple_gear == "netting" ~ hours_set_net,
+                                    simple_gear == "hook and line" ~ sample_time_min,
+                                    simple_gear == "seine" ~ sample_time_min,
+                                    simple_gear == "trapping" ~ hours_set_net,
+                                    simple_gear == "trawling" ~ sample_time_min,
+                                    simple_gear == "unknown" ~ NA,
+                                    simple_gear == "weir" ~ NA,
+                                    sampling_method == "poison" ~ NA,
+                                    sampling_method == "limbline" ~ sample_time_min,
+                                    sampling_method == "scuba_diving" ~ sample_time_min,
+                                    sampling_method == "spearing" ~ hours_set_net,
+                                    sampling_method == "visual_observe" ~ NA,
+                                    sampling_method == "bankpole" ~ sample_time_min,
+                                    sampling_method == "dip_net" ~ sample_time_min,
+                                    sampling_method == "setline" ~ sample_time_min,
+                                    simple_gear == "seine" ~ hours_set_net))%>%
+  mutate(total.effort.2 = case_when(simple_gear == "electrofishing" ~ distance, #create total effort 2 if two relevant efforts
+                                    simple_gear == "netting" ~ number_of_nets,
+                                    simple_gear == "trapping" ~ number_of_nets,
+                                    simple_gear == "seine" ~ number_of_nets))%>%
+  mutate(total.effort.1.units = case_when(simple_gear == "electrofishing" ~ "minutes", #assign units to efforts in effort 1
+                                    simple_gear == "netting" ~ "hours",
+                                    simple_gear == "hook and line" ~ "minutes",
+                                    simple_gear == "seine" ~ "minutes",
+                                    simple_gear == "trapping" ~ "hours",
+                                    simple_gear == "trawling" ~ "minutes",
+                                    simple_gear == "unknown" ~ NA,
+                                    simple_gear == "weir" ~ NA,
+                                    sampling_method == "poison" ~ NA,
+                                    sampling_method == "limbline" ~ "minutes",
+                                    sampling_method == "scuba_diving" ~ "minutes",
+                                    sampling_method == "spearing" ~ "hours",
+                                    sampling_method == "visual_observe" ~ NA,
+                                    sampling_method == "bankpole" ~ "minutes",
+                                    sampling_method == "dip_net" ~ "minutes",
+                                    sampling_method == "setline" ~ "minutes"))%>%
+  mutate(total.effort.2.units = case_when(simple_gear == "electrofishing" ~ "miles", #assign units to efforts in effort 2
+                                    simple_gear == "netting" ~ "number_of_nets",
+                                    simple_gear == "trapping" ~ "number_of_traps",
+                                    simple_gear == "seine" ~ "number_of_nets"))%>%
+  select(county, lake_name.1, lake_id, year, survey_id, sampling_method, date.1, total.effort.1, total.effort.1.units, total.effort.2, total.effort.2.units)%>% #subset these columns to export for later, my r is having a hard time with it
+  mutate(total.effort.1 = na_if(total.effort.1, "NA"))%>% #some of the NAs from the gear_data_notes:NA aren't true NAs, change to true NA
+  mutate(total.effort.2 = na_if(total.effort.2, "NA"))%>% #make character NA into true NA
+  mutate(total.effort.1.units = ifelse(is.na(total.effort.1), NA, total.effort.1.units))%>% #make character NA into true NA
+  mutate(total.effort.2.units = ifelse(is.na(total.effort.2), NA, total.effort.2.units)) #make character NA into true NA
+  
+#export as a csv in case r crashes
+#write_csv(wi_inland_effort, "wi_inland_effort_gear_table.csv")       
+  
 ```
 
 Find a unique key for these files

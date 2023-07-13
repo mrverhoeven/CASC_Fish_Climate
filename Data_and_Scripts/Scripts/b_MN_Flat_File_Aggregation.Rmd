@@ -138,7 +138,14 @@ effort <- rbindlist(list(rbindlist(list(mn_gde_gsh_fish_effort_03May2022,
 mn_ef_lmb_smb_effort_26Aug2022[ ,  .N , .(lake_id, date.2, sampling_method_abbrev, survey_type.1)] #here date.2 is the survey date
 mn_gde_gsh_fish_effort_03May2022[ , .N , .(lake_id, date.1, sampling_method_abbrev, survey_type.1) ] #here date.1 is the survey date
 mn_fish_effort_03May2022[          , .N , .(lake_id, date.1, sampling_method_abbrev, survey_type.1) ]
+```
 
+Drop CPUE from effort
+- investigate why DNR CPUE and our calculated CPUE are different
+  - MN DNR flag some surveys as not being suitable for CPUE calculations, likely what is causing this difference
+  - Kelsey V did work with this when working witht the MN WAE GN data
+  
+```{r}
 #drop cpue
 ## create an issue for this idea
   #general gears
@@ -148,7 +155,10 @@ mn_fish_effort_03May2022[          , .N , .(lake_id, date.1, sampling_method_abb
   
   #this is odd, suggests something wonky w/ dnr measured cpues
   mn_fish_effort_03May2022[ , cpue := NULL ,]
-  
+```
+
+Deep and Shallow GNs
+```{r}
   #deep and shallow Gns
   sum(!mn_gde_gsh_fish_effort_03May2022[ , cpue == round(total_count/total_effort_1.1,2) , ])# the number of cases where DNR calcd CPUE does not == catch/effort
   ## create an issue for this idea
@@ -163,7 +173,10 @@ mn_fish_effort_03May2022[          , .N , .(lake_id, date.1, sampling_method_abb
 mn_fish_effort_03May2022 <- dcast(mn_fish_effort_03May2022 , ... ~ species.1 , value.var = "total_count", fill = 0)
 mn_gde_gsh_fish_effort_03May2022 <- dcast(mn_gde_gsh_fish_effort_03May2022 , ... ~ species.1 , value.var = "total_count", fill = 0)
 
+```
 
+# Create MN Effort File
+```{r}
 # this rbind puts together 3 files that should now be equivalent (each row is gear in a survey)
 effort <- rbindlist(list(rbindlist(list(mn_gde_gsh_fish_effort_03May2022,
                                     mn_fish_effort_03May2022),
@@ -172,9 +185,11 @@ effort <- rbindlist(list(rbindlist(list(mn_gde_gsh_fish_effort_03May2022,
                      mn_ef_lmb_smb_effort_26Aug2022),
                 fill = TRUE,
                 use.names = TRUE)
+```
 
 
-
+Clean Effort
+```{r}
 #fix up dates
 # catch[ , as.IDate(unique(word(date.1, 1, sep = fixed(" "))), format = "%m/%d/%Y") , ]
 effort[ , date_clean :=  as.IDate(word(date.1, 1, sep = fixed(" ")), format = "%m/%d/%Y"),]
@@ -255,7 +270,10 @@ effort[new_file_name == "mn_ef_lmb_smb_effort_26Aug2022", names(effort)[str_dete
 #check work
 unique(rowSums(is.na(effort[ , .SD , .SDcols = names(effort)[str_detect(names(effort), "taxa_")] ])))
 
+```
 
+Walleye GN example
+```{r}
 #how many walleye expected in our results from GN? This number matches that generated on 8 June 
 sum(effort[ str_detect(sampling_method, "gill net")  , taxa_walleye , ])
 
@@ -553,6 +571,13 @@ wae_gn_records <- wae[ str_detect(sampling_method, "gill nets") , , ]
 
 
 ```
+
+## 7/11/2023 are there two lengths for fish in the MN fish file? If so, how do they differ?
+
+```{r}
+MN_lengths <- 
+```
+
 
 
 ```{r}

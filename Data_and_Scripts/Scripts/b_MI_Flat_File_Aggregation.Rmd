@@ -41,7 +41,10 @@ for(i in 1:n) {
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
-  if(str_detect(filei, "crosswalk")) next
+  if(str_detect(filei, "crosswalk")) {  #confirm import of files:  
+    print(paste(filei ,"added to workspace" ))  
+    #confirm import of files:  
+    print(paste(i ,"files added to workspace" )) ; next}
   
   
   # note we want to review a sorted list of column names to check misspelling etc.
@@ -114,30 +117,52 @@ for(i in 1:n) {
 #effort:
 mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
 
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_id)), .(lake_id)][V1>1]
+#some lake IDs seem to have >1 name:
+mi_statustrends_effort_16Mar2021[  ,length(unique(lake_id)), .(lake_name.1)][V1>1] # lake names not unique (they usually aren't)
+mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1] # lake ids not unique (they *should* be though)
 
+#which lakes have multiple names for a single ID?
+mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id]
+mi_statustrends_effort_16Mar2021[lake_id %in% 
+                                   mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id], , ]
+# it appears here that a full survey (all gears were deployed in each part of these lakes. For that reason, My vote is that we keep them separate and use lake_id + lake_name for our key. 
+
+# view each data level for a single survey
 mi_statustrends_effort_16Mar2021[survey_id ==2446]
 mi_statustrends_catch_16Mar2021[survey_id == 2446]
-mi_statustrends_catchlengthclass_16June2022[survey_id == 2446, ]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, ]
 mi_statustrends_lenage_20May2021[survey_id == 2446, ]
 
-#counts match?
+# do the counts match across all levels?
 mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count)]
-mi_statustrends_catchlengthclass_16June2022[survey_id == 2446, sum(total_count)]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, sum(total_count)]
 nrow(mi_statustrends_lenage_20May2021[survey_id == 2446, ])
 
-#counts match?
-mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count), .(species.1)]
-mi_statustrends_catchlengthclass_16June2022[survey_id == 2446, sum(total_count) , .(species.1)]
-mi_statustrends_lenage_20May2021[survey_id == 2446, .N ,.(species.1)] #it makes sense that this wouldn't match as they prob only age a subsample
+#no. not even close. I suspect this is bc of a species seletion that happened in the catch data:
+mi_statustrends_catch_16Mar2021[survey_id == 2446, length(unique(species.1))]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, length(unique(species.1))]
+mi_statustrends_lenage_20May2021[survey_id == 2446, length(unique(species.1)) ]
+#view species lists:
+mi_statustrends_catch_16Mar2021[survey_id == 2446,sum(total_count) , species.1]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 2446,sum(total_count) , species.1]
+mi_statustrends_lenage_20May2021[survey_id == 2446, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
+#view species lists:
+mi_statustrends_catch_16Mar2021[survey_id == 4079,sum(total_count) , species.1]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 4079,sum(total_count) , species.1]
+mi_statustrends_lenage_20May2021[survey_id == 4079, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
 
-mi_statustrends_catchlengthclass_16June2022[ survey_id == 2446 & species.1 == "YEP", sum(total_count) , length.1][order(length.1)][,sum(V1)]
+
+
+# not exactly clear WHY the numbers still don't jive between the inch grp file and the catch file, BUT the catch file seems to have problems with the n per species X gear where there are zeros in an inchgroup (see survey 2446)
+
 
 #survey_ids matched across all surveys?
 mi_statustrends_effort_16Mar2021[ , .N , survey_id]
 mi_statustrends_catch_16Mar2021[ , .N , survey_id]
-mi_statustrends_catchlengthclass_16June2022[ , .N , survey_id ]
+mi_statustrends_catchlengthclass_03July2023[ , .N , survey_id ]
 mi_statustrends_lenage_20May2021[ , .N , survey_id] 
+
+
 
 ```
 
@@ -152,13 +177,30 @@ mi_statustrends_effort_16Mar2021[ , unique(date.1) , ]
 mi_statustrends_catch_16Mar2021[ , date.1 := as.IDate(date.1, format = "%m/%d/%Y") , ]
 
 names(mi_statustrends_effort_16Mar2021)
-colnames(mi_statustrends_catch_16Mar2021)
+colnames(mi_statustrends_catchlengthclass_03July2023)
+
+colnames(mi_statustrends_catchlengthclass_03July2023)[colnames(mi_statustrends_catchlengthclass_03July2023)== "sampling_method" ] <- "sampling_method_abbrev"
 
 
-mi_ce_merge <- merge(mi_statustrends_effort_16Mar2021,mi_statustrends_catch_16Mar2021, by = c( "lake_id", "county", "lon_unspec","lat_unspec", "lake_name.1","survey_id", "year", "survey_type.1", "target_species", "sampling_method_abbrev"), all = T, suffixes = c("_effort", "_catch"))
+mi_cine_merge <- merge(mi_statustrends_effort_16Mar2021,mi_statustrends_catchlengthclass_03July2023, by = c( "lake_name.1", "survey_id", "sampling_method_abbrev"), all = T, suffixes = c("_effort", "_catch"))
+
+rbindlist(list(mi_statustrends_effort_16Mar2021,mi_statustrends_catchlengthclass_03July2023))
 
 
-mi_ce_merge[ , unique(sampling_method_abbrev) , file_number_catch]
+mi_statustrends_catchlengthclass_03July2023[mi_statustrends_effort_16Mar2021,
+                                            on = .(lake_name.1 = lake_name.1,
+                                                   survey_id = survey_id,
+                                                   sampling_method_abbrev = sampling_method_abbrev) ]
+
+
+
+
+length(colnames(mi_statustrends_effort_16Mar2021))
+
+mi_ce_merge[ , unique(sampling_method_abbrev) , file_number_effort] #full coverage of effort for all catch data
+mi_ce_merge[ , .N , .(file_number_catch,sampling_method_abbrev)]
+
+
 
 ```
 

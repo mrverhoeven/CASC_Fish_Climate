@@ -174,32 +174,29 @@ mi_statustrends_lenage_20May2021[ , .N , survey_id]
 
 #effort prep
 mi_statustrends_effort_16Mar2021[ , unique(date.1) , ]
-mi_statustrends_catch_16Mar2021[ , date.1 := as.IDate(date.1, format = "%m/%d/%Y") , ]
+mi_statustrends_effort_16Mar2021[ , date.1 := as.IDate(date.1, format = "%m/%d/%Y") , ]
 
 names(mi_statustrends_effort_16Mar2021)
 colnames(mi_statustrends_catchlengthclass_03July2023)
 
 colnames(mi_statustrends_catchlengthclass_03July2023)[colnames(mi_statustrends_catchlengthclass_03July2023)== "sampling_method" ] <- "sampling_method_abbrev"
 
+#set key columns
 
-mi_cine_merge <- merge(mi_statustrends_effort_16Mar2021,mi_statustrends_catchlengthclass_03July2023, by = c( "lake_name.1", "survey_id", "sampling_method_abbrev"), all = T, suffixes = c("_effort", "_catch"))
-
-rbindlist(list(mi_statustrends_effort_16Mar2021,mi_statustrends_catchlengthclass_03July2023))
-
-
-mi_statustrends_catchlengthclass_03July2023[mi_statustrends_effort_16Mar2021,
-                                            on = .(lake_name.1 = lake_name.1,
-                                                   survey_id = survey_id,
-                                                   sampling_method_abbrev = sampling_method_abbrev) ]
+names(mi_statustrends_catchlengthclass_03July2023)
+keycols <- c("lake_name.1", "survey_id", "sampling_method_abbrev")
+setkeyv(mi_statustrends_effort_16Mar2021, keycols )
+setkeyv(mi_statustrends_catchlengthclass_03July2023, keycols )
 
 
+dtnew <- mi_statustrends_effort_16Mar2021[, lapply(.SD, as.character), by=state]
+dt2new <- mi_statustrends_catchlengthclass_03July2023[, lapply(.SD, as.character), by=state]
 
 
-length(colnames(mi_statustrends_effort_16Mar2021))
 
-mi_ce_merge[ , unique(sampling_method_abbrev) , file_number_effort] #full coverage of effort for all catch data
-mi_ce_merge[ , .N , .(file_number_catch,sampling_method_abbrev)]
+mi_cine_merge <- merge(dtnew,dt2new, all = T, suffixes = c("_effort", "_catch"))
 
+rm(dtnew, dt2new)
 
 
 ```

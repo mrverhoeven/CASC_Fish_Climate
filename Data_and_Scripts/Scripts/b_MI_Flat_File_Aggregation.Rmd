@@ -181,10 +181,13 @@ colnames(mi_statustrends_catchlengthclass_03July2023)
 
 colnames(mi_statustrends_catchlengthclass_03July2023)[colnames(mi_statustrends_catchlengthclass_03July2023)== "sampling_method" ] <- "sampling_method_abbrev"
 
+#add lake_id to lengthclass file:
+mi_statustrends_catchlengthclass_03July2023[mi_statustrends_effort_16Mar2021[ ,.N , .(lake_id, lake_name.1, survey_id)], on = c("lake_name.1", "survey_id"), lake_id := lake_id ]
+
 #set key columns
 
 names(mi_statustrends_catchlengthclass_03July2023)
-keycols <- c("lake_name.1", "survey_id", "sampling_method_abbrev")
+keycols <- c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")
 setkeyv(mi_statustrends_effort_16Mar2021, keycols )
 setkeyv(mi_statustrends_catchlengthclass_03July2023, keycols )
 
@@ -194,9 +197,14 @@ dt2new <- mi_statustrends_catchlengthclass_03July2023[, lapply(.SD, as.character
 
 
 
-mi_cine_merge <- merge(dtnew,dt2new, all = T, suffixes = c("_effort", "_catch"))
+mi_cine_merge <- merge(dtnew, dt2new, all = T, suffixes = c("_effort", "_catch"))
 
-rm(dtnew, dt2new)
+rm(dtnew, dt2new, keycols)
+
+mi_cine_merge[ , total_count := as.numeric(total_count) , ]
+
+mi_cine_merge[ str_detect(lake_name.1, "Proud" ), sum(total_count), .(lake_name.1, lake_id, survey_id, sampling_method_abbrev) ]
+
 
 
 ```

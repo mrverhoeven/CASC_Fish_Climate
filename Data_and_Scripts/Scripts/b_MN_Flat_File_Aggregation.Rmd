@@ -39,7 +39,7 @@ Update 7 June 2023 Mike:
 * note Holly has to change "G" in file paths to "D" 
 ```{r}
 
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #manually drop that 2022 fish
@@ -54,7 +54,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
                                           files_list[i])))
   
   # note we want to review a sorted list of column names to check misspelling etc.
@@ -572,11 +572,6 @@ wae_gn_records <- wae[ str_detect(sampling_method, "gill nets") , , ]
 
 ```
 
-## 7/11/2023 are there two lengths for fish in the MN fish file? If so, how do they differ?
-
-```{r}
-MN_lengths <- 
-```
 
 
 
@@ -621,4 +616,48 @@ raw_agedfish[ , .N , is.na(OFFICIAL_AGE) ]
 
 ```
 
+```{r}
 
+library(vegan)
+
+colnames(wide_complete)
+wide_complete[ , 7:112 ,]
+
+diversity(wide_complete[ , 7:112 ,], index = "invsimpson" )
+
+
+wide_complete[ , invsimpson := diversity(wide_complete[ , 7:112 ,], index = "invsimpson" ) ,]
+
+wide_complete[ , alltime_masIS:= round(max(invsimpson),0)  ,  .(lake_id, sampling_method)]
+wide_complete[ , alltime_medIS:= median(invsimpson)  ,  .(lake_id, sampling_method)]
+
+
+
+ggplot(wide_complete[sampling_method %in% c("Standard gill nets", "Standard trap nets")] , aes(year(date_clean), invsimpson)  )+
+  geom_line(aes(group = lake_id))+
+  facet_grid(alltime_masIS~sampling_method)+
+  geom_smooth()
+
+
+ggplot(data = wide_complete[ , .(var(invsimpson) , alltime_medIS), lake_id ], aes(alltime_medIS, V1))+
+  geom_point()+geom_smooth()+ ylab("variance in Diversity") + xlab("alltime median Diversity")
+
+ggplot(data = wide_complete[ , .(var(WAE/total_effort_1.1) , alltime_medIS), lake_id ], aes(alltime_medIS, V1))+
+  geom_point()+geom_smooth()+ ylab("variance in walleye cpue") + xlab("alltime median Diversity")+scale_y_log10()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```

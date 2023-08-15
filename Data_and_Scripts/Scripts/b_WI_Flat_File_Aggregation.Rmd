@@ -4,7 +4,14 @@ author: "Holly Kundel & Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
 ---
-This is Holly's first attempt at aggregating WI data using the new workflow format
+Outstanding work:
+
+DNOE  1. Fix data import to squash warnings and add ticker
+      2. Button up the column name cleaning section of the file
+      2b. consider a reformat to Arrow for speed
+      3. Add section for data proofing
+DONE  4. Lake winnebago data are not yet "uncount" ed
+      5. Need to tidy up as many colnames as possible at each merge phase to prevent huge buildup of shit at the end (see current section at line 550ish)
 
 # Preamble
 
@@ -31,11 +38,12 @@ options(scipen = 999)
 * This data import block takes about 10 minutes to run
 * needs an update to nix warnings (see Github issue on this)
 ```{r}
-
+#generate a file list to import
 files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+#grabs only.csv files
 files_list
 
-
+#object for use in loop (simple length of file list)
 n <- length(files_list)
 
 for(i in 1:n) {
@@ -45,6 +53,13 @@ for(i in 1:n) {
   assign(filei ,
           fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
+  
+  # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
+  if(str_detect(filei, "crosswalk")) {  #confirm import of files:  
+    print(paste(filei ,"added to workspace" ))  
+    #confirm import of files:  
+    print(paste(i ,"files added to workspace" )) ; next}
+  
   
   # note we want to review a sorted list of column names to check misspelling etc.
   # we still need to use the columns with names like col_name_length_in, or known_units
@@ -66,9 +81,11 @@ for(i in 1:n) {
     )
   )
   
-  #this line is where the warnings are coming from
+    
   # break the loop if the current file has column names not in the data explainer
-  if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+  # if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
+  if (all(colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]) == FALSE ) break
+  
   
   # append old col names into new "notes" columns:
   get(filei)[ , (names[ str_detect(newname, "notes") , oldname   ,  ]) := Map(paste, colnames(.SD), .SD, sep = ':') , .SDcols =  names[ str_detect(newname, "notes") , oldname   ,  ] ]
@@ -92,16 +109,18 @@ for(i in 1:n) {
   #add all not yet used columns from data explainer:
   get(filei)[ , (names[ !newname %in% colnames(get(filei)) , newname , ]) := unusedbits[] ]
 
-  #remove tempfile "unusedbits"
-  rm(unusedbits)
-  
   #confirm import of files:  
   print(paste(filei ,"added to workspace" ))  
+  #confirm import of files:  
+  print(paste(i ,"files added to workspace" )) 
+
   
 } 
 
-# check warnings and see if we can make it go away
-#print some kind of completion confirmation?
+  #confirm import of files:  
+  print(paste(i ,"files added to workspace" ))
+  #confirm import of files:  
+  print(paste(n-i ,"remaining to be added" )) 
 
 ```
 
@@ -111,7 +130,7 @@ for(i in 1:n) {
 [3] "wi_inland_fishobservations_19Mar2021.csv"      ~ Individual Fish    
 [4] "wi_inland_lenage_19Mar2021.csv"                ~ Individual Fish             
 [5] "wi_winnebago_cpue_23Apr2021.csv"               ~ CPUE (just has CPUE and units for CPUE)       LINE 338 - LINE 356 shows that this file is redundant and unneeded.       
-[6] "wi_winnebago_fishobservations_23April2021.csv" ~ Individual Fish
+[6] "wi_winnebago_fishobservations_23April2021.csv" ~ Individual Fish NO THIS IS NOT!!!!!!!!!
 
 
 # Effort Data
@@ -241,7 +260,7 @@ wi_inland_effort_19Mar2021[ simple_gear == 'netting', .(effort, effort_units) , 
 
 ## in future: re-write below code chunk with data.table syntax to help it run faster ## 
 
-
+Merge WI fish data to effort
 ```{r}
 
 ### doing this with dplyr functions for now, can update to data.table later
@@ -401,12 +420,18 @@ winnebago_cpue_comp%>%
     rm(wi_winnebago_cpue_23Apr2021, winnebago_calc_cpue, winnebago_cpue_comp)
 ```
 
-Finalize Winnebago file so individual fish observations have an effort and effort units column
+Finalize Winnebago file so individual fish observations have an effort and effort units column (should be total.effort.1 and total.effort.1.units)
 ```{r}
 wi_winnebago_fishobservations_23April2021  <- wi_winnebago_fishobservations_23April2021 %>%
-  mutate(effort = "1")%>%
-  mutate(effort_units = "5 minute trawl")%>%
-  relocate(year, date.1, lake_name.1, lake_id, site_id.1, site_id.2, site_id.3, site_id.4, gear_data_notes.1, sampling_method, species.1, total_count, length.1, young_of_year, effort, effort_units, jan2023_inventoried, file_number, file_status, state, source_contact, date_recieved, source_agency, file_path, new_file_name, file_type, data_type, targeted_or_standard, individual_count, original_file_name.1, unique_row_key.1) #re-order columns
+  mutate(total.effort.1 = "1")%>%
+  mutate(total.effort.1.units = "5 minute trawl")%>%
+  relocate(year, date.1, lake_name.1, lake_id, site_id.1, site_id.2, site_id.3, site_id.4, gear_data_notes.1, sampling_method, species.1, total_count, length.1, young_of_year, total.effort.1, total.effort.1.units, jan2023_inventoried, file_number, file_status, state, source_contact, date_recieved, source_agency, file_path, new_file_name, file_type, data_type, targeted_or_standard, individual_count, original_file_name.1, unique_row_key.1) %>% #re-order columns
+uncount( weights = total_count, .remove = T, .id = "ident_uncount")
+
+
+
+
+
 
 #saveRDS(wi_winnebago_fishobservations_23April2021 , file = "Data_and_Scripts\\Data\\output\\wi_winnebago_indiv_fish_w_effort.rds")
 ```
@@ -536,6 +561,8 @@ rm(wi_inland_cpue_19Mar2021, wi_inland_effort_19Mar2021, wi_inland_fishobservati
 Bind winnebago and inland data together
 ```{r}
 #prep for merge
+
+
 wi_winnebago_fishobservations_23April2021 [ , date.1 := as.IDate(date.1,format = "%Y/%m/%d"),]
 
 
@@ -550,6 +577,7 @@ rm(wi_winnebago_fishobservations_23April2021 )
 colnames(WI_indiv_fish_w_effort)
 
 #county
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "county")]
 WI_indiv_fish_w_effort[ county_indivfish != county_effort , .N ,  ] 
 WI_indiv_fish_w_effort[  , .N , .(countyindvNA = is.na(county_indivfish), countyeffNA = is.na(county_effort)) ] 
 WI_indiv_fish_w_effort[is.na(county_effort),  county_effort := county_indivfish ,  ]
@@ -557,56 +585,86 @@ WI_indiv_fish_w_effort[ , county_indivfish := NULL , ]
 setnames(WI_indiv_fish_w_effort, "county_effort", "county")
 
 #lake_name
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "lake_name")]
 WI_indiv_fish_w_effort[ lake_name.1_indivfish != lake_name.1_effort , .N ,  ] 
 WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(lake_name.1_indivfish), effNA = is.na(lake_name.1_effort)) ] 
 WI_indiv_fish_w_effort[is.na(lake_name.1_effort),  lake_name.1_effort := lake_name.1_indivfish ,  ]
 WI_indiv_fish_w_effort[ , lake_name.1_indivfish := NULL , ]
-setnames(WI_indiv_fish_w_effort, "lake_name.1_effort", "lake_name.1")
+#move effort lake_name to reg lake_name column
+WI_indiv_fish_w_effort[ lake_name.1!= lake_name.1_effort , .N ,  ] 
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(lake_name.1), effNA = is.na(lake_name.1_effort) ) ] 
+WI_indiv_fish_w_effort[is.na(lake_name.1),  lake_name.1 := lake_name.1_effort ,  ]
+WI_indiv_fish_w_effort[ , lake_name.1_effort := NULL , ]
 
-#year THIS ONE SUGGESTS THAT THE VARIABLES NEED TIDYING BEFORE THE RBIND TO WINNEBAGO 
+#year
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "year")] #what's here for year data?
+#move indiv fish years to effort
 WI_indiv_fish_w_effort[ year_indivfish != year_effort , .N ,  ] 
-WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(lake_name.1_indivfish), effNA = is.na(lake_name.1_effort), ) ] 
-WI_indiv_fish_w_effort[is.na(lake_name.1_effort),  lake_name.1_effort := lake_name.1_indivfish ,  ]
-WI_indiv_fish_w_effort[ , lake_name.1_indivfish := NULL , ]
-setnames(WI_indiv_fish_w_effort, "lake_name.1_effort", "lake_name.1")
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(year_indivfish), effNA = is.na(year_effort) ) ] 
+WI_indiv_fish_w_effort[is.na(year_effort),  year_effort := year_indivfish ,  ]
+WI_indiv_fish_w_effort[ , year_indivfish := NULL , ]
+#move effort years to reg years column
+WI_indiv_fish_w_effort[ year!= year_effort , .N ,  ] 
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(year), effNA = is.na(year_effort) ) ] 
+WI_indiv_fish_w_effort[is.na(year),  year := year_effort ,  ]
+WI_indiv_fish_w_effort[ , year_effort := NULL , ]
+
+#survey_id
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "survey_id")] #what's here for this var name?
+#consolidate if possible
+WI_indiv_fish_w_effort[ survey_id_indivfish != survey_id_effort , .N ,  ] #any disagreememnt among non-NA fields
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(survey_id_indivfish), effNA = is.na(survey_id_effort) ) ] # whats the NA coverage look like?
+WI_indiv_fish_w_effort[is.na(survey_id_effort),  survey_id_effort := survey_id_indivfish ,  ]
+WI_indiv_fish_w_effort[ , survey_id_indivfish := NULL , ]
+setnames(WI_indiv_fish_w_effort, "survey_id_effort", "survey_id")
+
+#survey_type.1
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "survey_type.1")] #what's here for this var name?
+#consolidate if possible
+WI_indiv_fish_w_effort[ survey_type.1_indivfish != survey_type.1_effort , .N ,  ] #any disagreememnt among non-NA fields
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(survey_type.1_indivfish), effNA = is.na(survey_type.1_effort) ) ] # whats the NA coverage look like?
+#mostly disagreement, need to retain both. 
+
+#state
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "state")] #what's here for this var name?
+#consolidate if possible
+WI_indiv_fish_w_effort[ state_indivfish != state_effort , .N ,  ] #any disagreememnt among non-NA fields
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(state_indivfish), effNA = is.na(state_effort) ) ] # whats the NA coverage look like?
+WI_indiv_fish_w_effort[is.na(state_effort),  state_effort := state_indivfish ,  ]
+WI_indiv_fish_w_effort[ , state_indivfish := NULL , ]
+#move effort years to reg years column
+WI_indiv_fish_w_effort[ state!= state_effort , .N ,  ] 
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(state), effNA = is.na(state_effort) ) ] 
+WI_indiv_fish_w_effort[is.na(state),  state := state_effort ,  ]
+WI_indiv_fish_w_effort[ , state_effort := NULL , ]
+
+WI_indiv_fish_w_effort[ , unique(simple_gear) , ]
 
 
+
+#alt approach is to include all of these in the merge. A problem with this is that if one or the other ha NA, we want to fill that void, NOT match on the NA...
+#alt approach is do this before Rbind to winnebago data! That would prevent a bunch of this work. 
 
 
 not_garbage <- c(
-"lake_id",                        "date.1",                         "sampling_method",                "sample_id.1",                   
-"county",                        "lake_name.1_indivfish"          "year_indivfish"                 "survey_id_indivfish"           
-"species.1"                      "garbage_bin_notes.1_indivfish"  "length.1"                       "garbage_bin_notes.2_indivfish" 
-"length_unit.1"                  "weight.1"                       "weight_unit.1"                  "age"                           
-"aging_structure"                "sex"                            "garbage_bin_notes.3_indivfish"  "garbage_bin_notes.4_indivfish" 
-"garbage_bin_notes.5_indivfish"  "target_species_indivfish"       "gear_data_notes.1_indivfish"    "mark_recap_data_notes.1"       
-"mark_recap_data_notes.2"        "mark_recap_data_notes.3"        "mark_recap_data_notes.4"        "mark_recap_data_notes.5"       
-"mark_recap_data_notes.6"        "mark_recap_data_notes.7"        "young_of_year"                  "survey_type.1_indivfish"       
-"survey_type.2_indivfish"        "jan2023_inventoried_indivfish"  "file_number_indivfish"          "file_status_indivfish"         
-"state_indivfish"                "source_contact_indivfish"       "date_recieved_indivfish"        "source_agency_indivfish"       
-"file_path_indivfish"            "new_file_name_indivfish"        "file_type_indivfish"            "data_type_indivfish"           
-"targeted_or_standard_indivfish" "original_file_name.1_indivfish" "unique_row_key.1_indivfish"                      
-"lake_name.1_effort"             "year_effort"                    "survey_id_effort"               "simple_gear"                   
-"distance"                       "distance_units"                 "sample_time_notes.1"            "gear_data_notes.9"             
-"sample_time_notes.3"            "garbage_bin_notes.1_effort"     "garbage_bin_notes.2_effort"     "garbage_bin_notes.3_effort"    
-"target_species_effort"          "garbage_bin_notes.4_effort"     "secondary_target_species"       "survey_type.1_effort"          
-"survey_type.2_effort"           "start_time"                     "end_time"                       "garbage_bin_notes.5_effort"    
-"notes.1"                        "gear_data_notes.1_effort"       "gear_data_notes.2"              "gear_data_notes.3"             
-"gear_data_notes.4"              "gear_data_notes.5"              "gear_data_notes.6"              "gear_data_notes.7"             
-"gear_data_notes.8"              "sample_time_notes.2"            "gear_data_notes.10"             "water_temp"                    
-"water_temp_units"               "garbage_bin_notes.6"            "garbage_bin_notes.7"            "water_clarity"                 
-"gear_data_notes.11"             "gear_data_notes.12"             "gear_data_notes.13"             "lat_start"                     
-"lon_start"                      "lat_end"                        "lon_end"                        "location_notes.1"              
-"location_notes.2"               "location_notes.3"               "gear_data_notes.14"             "gear_data_notes.15"            
-"jan2023_inventoried_effort"     "file_number_effort"             "file_status_effort"             "state_effort"                  
-"source_contact_effort"          "date_recieved_effort"           "source_agency_effort"           "file_path_effort"              
-"new_file_name_effort"           "file_type_effort"               "data_type_effort"               "targeted_or_standard_effort"   
-"water_clarity_units"            "original_file_name.1_effort"    "unique_row_key.1_effort"        "unique_row_key.2"              
-"sample_time_units.1"            "sample_time_units.2"            "sample_time_units.3"            "effort_units"                  
-"effort"                         "sample_time_min"                "hours_set_net"                  "number_of_nets"                
-"total.effort.1"                 "total.effort.2"                 "total.effort.1.units"           "total.effort.2.units"          
-"year"                           "lake_name.1"                    "site_id.1"                      "site_id.2"                     
-"site_id.3"                      "site_id.4"                      "gear_data_notes.1"              "total_count"                   
+"lake_id",                       "date.1",                        "sampling_method",               "sample_id.1",                   
+"county",                        "lake_name.1",                   "year",                          "survey_id",            
+"species.1",                     "length.1",                      "length_unit.1",                 "weight.1",
+"weight_unit.1",                 "age",                           "aging_structure",               "sex",
+"young_of_year",                 "survey_type.1_indivfish",       "survey_type.2_indivfish",       "survey_type.1_effort",
+"survey_type.2_effort",          "state",                         "simple_gear",                   "distance",
+"distance_units",                "lat_start",                     "lon_start",                     "lat_end",
+"lon_end",                       "location_notes.1",              "location_notes.2",              "location_notes.3",
+"sample_time_units.1",           "sample_time_units.2",           "sample_time_units.3",           "effort_units",                  
+"effort",                        "sample_time_min",               "hours_set_net",                 "number_of_nets",                 
+"total.effort.1",                "total.effort.2",                "total.effort.1.units",          "total.effort.2.units",
+"site_id.1",                     "site_id.2",                     "site_id.3",                     "site_id.4",
+
+
+"total_count"   # Im a problem. 
+
+
+
 "jan2023_inventoried"            "file_number"                    "file_status"                    "state"                         
 "source_contact"                 "date_recieved"                  "source_agency"                  "file_path"                     
 "new_file_name"                  "file_type"                      "data_type"                      "targeted_or_standard"          

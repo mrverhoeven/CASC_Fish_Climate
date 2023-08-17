@@ -11,7 +11,7 @@ DNOE  1. Fix data import to squash warnings and add ticker
       2b. consider a reformat to Arrow for speed
       3. Add section for data proofing
 DONE  4. Lake winnebago data are not yet "uncount" ed
-      5. Need to tidy up as many colnames as possible at each merge phase to prevent huge buildup of shit at the end (see current section at line 550ish)
+CURRENT LOC      5. Need to tidy up as many colnames as possible at each merge phase to prevent huge buildup of shit at the end (see current section at line 550ish)
 
 # Preamble
 
@@ -260,7 +260,7 @@ wi_inland_effort_19Mar2021[ simple_gear == 'netting', .(effort, effort_units) , 
 
 ## in future: re-write below code chunk with data.table syntax to help it run faster ## 
 
-Merge WI fish data to effort
+Prep WI effort file
 ```{r}
 
 ### doing this with dplyr functions for now, can update to data.table later
@@ -446,90 +446,111 @@ wi_inland_fishobservations_19Mar2021[, .N , .(nolength = is.na(length.1))] #7 mi
 wi_inland_fishobservations_19Mar2021[, .N, species.1] #21 species/hybrids
 ```
 
-are the aged fish also in the wi_inland_fishobservations_19Mar2021 file?
+are the aged fish also in the wi_inland_fishobservations_19Mar2021 file? (MOVED TO ITS OWN SCRIPT)
 ```{r}
         
 #This is an issue: 
 
-
-        # fish_ob_test <- wi_inland_fishobservations_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", .N ,][,.(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age),]
-        # # 650 walleye in a fyke net in this survey
-        # 
-        # 
-        # len_age_test <- wi_inland_lenage_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age)]
-        # # 1,137 walleye in fyke net in the same survey, but these fish have no ages, all NA..?
-        # 
-        #   ### in the example above, there are more fish in the length age file than the fish ob file... 
-        # 
-        # fish_ob_plot <- ggplot(data = fish_ob_test, aes(x = length.1))+geom_histogram(binwidth = .5)
-        # len_age_plot <- ggplot(data = len_age_test, aes(x = length.1))+geom_histogram(binwidth = .5)
-        # 
-        # library(cowplot)
-        # compare_plot <- plot_grid(fish_ob_plot, len_age_plot, labels = c("fish observations", "length age")) #same distribution of lengths
-        # 
-        # len_age_test[fish_ob_test, on = .(survey_id, sampling_method, species.1, lake_id, length.1, date.1),nomatch = NULL]
-        # 
-        # matches <- fish_ob_test[ , date.1 := as.POSIXct(date.1) ,] %>%
-        #   inner_join(len_age_test, by = c("survey_id", "sampling_method", "species.1", "lake_id", "length.1", "date.1"))
-        # 
-        # 
-        # data_common1 <- generics::intersect(len_age_test, fish_ob_test)  # Apply intersect function
-        # data_common1 #384 have same survey_id, sampling_method, species, lake id, length and date
-
-# review the data from that survey (from each source):
-wi_inland_fishobservations_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", , ][,.(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age),][order(length.1)][ ,.N , length.1]
-  wi_inland_fishobservations_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", , ][,.(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age),][order(length.1)]
-
-wi_inland_lenage_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age)][order(length.1)][ ,.N , length.1]
-  wi_inland_lenage_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age)][order(length.1)]
-
-  wi_inland_lenage_19Mar2021[ , date.1 := as.IDate(date.1) , ]
-  
-crosscheck <- merge(
-  wi_inland_fishobservations_19Mar2021[ , .("obsN" = .N), .(survey_id, sampling_method, species.1, lake_id, length.1, date.1) ],
-  wi_inland_lenage_19Mar2021[ , .("laaN" = .N), .(survey_id, sampling_method, species.1, lake_id, length.1, date.1) ],
-  by = c("survey_id", "sampling_method", "species.1", "lake_id", "length.1", "date.1")
-  )
-
-plot(laaN~obsN, data = crosscheck[!is.na(obsN)])
-abline(0,1)
-
-crosscheck[laaN > obsN] #10k cases (N of lengthXspeciesXgearXsurvey) with more obs in laa data than in the ind fish dataset
-
-
-#there are fish with backcalcualted ages (not what we want)
-wi_inland_lenage_19Mar2021[,.N ,(backcalculated_age)] #yes, dp, fl
-
-#how many ages are NAs?
-wi_inland_lenage_19Mar2021[, .N,is.na(age)] #443,811 fish have ages and 239,785 fish do not have ages (35% of ages are NA)
-
-# eliminate instances where age is NA and age was backcalculated in length age file and try a similar test as above
-
-crosscheck <- merge(
-  wi_inland_fishobservations_19Mar2021[ , .("obsN" = .N), .(survey_id, sampling_method, species.1, lake_id, length.1, date.1) ],
-  wi_inland_lenage_19Mar2021[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl")  , .("laaN" = .N), .(survey_id, sampling_method, species.1, lake_id, length.1, date.1) ],
-  by = c("survey_id", "sampling_method", "species.1", "lake_id", "length.1", "date.1")
-  )
-
-
-ggplot(crosscheck, aes(laaN, obsN))+
-  geom_point()+
-  # geom_abline(slope = 1, intercept = 0)+
-  scale_y_log10()
-
-crosscheck[ , laa_subset_prop := laaN/obsN , ]
-
-ggplot(crosscheck, aes(laa_subset_prop))+
-  geom_histogram()
-
-crosscheck[ , summary(laa_subset_prop)]
-
-crosscheck[laaN > obsN] #eliminating the NA ages and backcalculated ages still leaves ~ 50% of the laaN>obsN data 
-
-rm(crosscheck)
-
-wi_inland_fishobservations_19Mar2021[ ]
-colnames(wi_inland_fishobservations_19Mar2021)
+# 
+#         # fish_ob_test <- wi_inland_fishobservations_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", .N ,][,.(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age),]
+#         # # 650 walleye in a fyke net in this survey
+#         # 
+#         # 
+#         # len_age_test <- wi_inland_lenage_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age)]
+#         # # 1,137 walleye in fyke net in the same survey, but these fish have no ages, all NA..?
+#         # 
+#         #   ### in the example above, there are more fish in the length age file than the fish ob file... 
+#         # 
+#         # fish_ob_plot <- ggplot(data = fish_ob_test, aes(x = length.1))+geom_histogram(binwidth = .5)
+#         # len_age_plot <- ggplot(data = len_age_test, aes(x = length.1))+geom_histogram(binwidth = .5)
+#         # 
+#         # library(cowplot)
+#         # compare_plot <- plot_grid(fish_ob_plot, len_age_plot, labels = c("fish observations", "length age")) #same distribution of lengths
+#         # 
+#         # len_age_test[fish_ob_test, on = .(survey_id, sampling_method, species.1, lake_id, length.1, date.1),nomatch = NULL]
+#         # 
+#         # matches <- fish_ob_test[ , date.1 := as.POSIXct(date.1) ,] %>%
+#         #   inner_join(len_age_test, by = c("survey_id", "sampling_method", "species.1", "lake_id", "length.1", "date.1"))
+#         # 
+#         # 
+#         # data_common1 <- generics::intersect(len_age_test, fish_ob_test)  # Apply intersect function
+#         # data_common1 #384 have same survey_id, sampling_method, species, lake id, length and date
+# 
+# # review the data from that survey (from each source):
+# wi_inland_fishobservations_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", , ][,.(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age),][order(length.1)][ ,.N , length.1]
+#   wi_inland_fishobservations_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", , ][,.(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age),][order(length.1)]
+# 
+# wi_inland_lenage_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age)][order(length.1)][ ,.N , length.1]
+#   wi_inland_lenage_19Mar2021[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date.1, age)][order(length.1)]
+# 
+#   wi_inland_lenage_19Mar2021[ , date.1 := as.IDate(date.1) , ]
+#   
+# crosscheck <- merge(
+#   wi_inland_fishobservations_19Mar2021[ , .("obsN" = .N), .(survey_id, sampling_method, species.1, lake_id, length.1, date.1) ],
+#   wi_inland_lenage_19Mar2021[ , .("laaN" = .N), .(survey_id, sampling_method, species.1, lake_id, length.1, date.1) ],
+#   by = c("survey_id", "sampling_method", "species.1", "lake_id", "length.1", "date.1")
+#   )
+# 
+# plot(laaN~obsN, data = crosscheck[!is.na(obsN)])
+# abline(0,1)
+# 
+# crosscheck[laaN > obsN] #10k cases (N of lengthXspeciesXgearXsurvey) with more obs in laa data than in the ind fish dataset
+# 
+# 
+# #there are fish with backcalcualted ages (not what we want)
+# wi_inland_lenage_19Mar2021[,.N ,(backcalculated_age)] #yes, dp, fl
+# 
+# #how many ages are NAs?
+# wi_inland_lenage_19Mar2021[, .N,is.na(age)] #443,811 fish have ages and 239,785 fish do not have ages (35% of ages are NA)
+# 
+# # eliminate instances where 1) age is NA 2) age was backcalculated in length age file and 3) summarize by species in survey gear (no lengths) and try a similar test as above
+# 
+# crosscheck <- merge(
+#   wi_inland_fishobservations_19Mar2021[ , .("obsN" = .N), .(survey_id, sampling_method, species.1, lake_id, date.1) ],
+#   wi_inland_lenage_19Mar2021[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl")  , .("laaN" = .N), .(survey_id, sampling_method, species.1, lake_id, date.1) ],
+#   by = c("survey_id", "sampling_method", "species.1", "lake_id", "date.1"), all = T
+#   )
+# 
+# ggplot(crosscheck, aes(laaN, obsN))+
+#   geom_point()+
+#   geom_abline(slope = 1, intercept = 0)
+# 
+# crosscheck[ , laa_subset_prop := laaN/obsN , ]
+# 
+# ggplot(crosscheck, aes(laa_subset_prop))+
+#   geom_histogram()
+# 
+# crosscheck[ , summary(laa_subset_prop)]
+# 
+# crosscheck[laaN > obsN] #eliminating the NA ages and backcalculated ages still leaves ~ 50% of the laaN>obsN data 
+# 
+# 
+# Qsurveys <- crosscheck[crosscheck[laaN>obsN, .N, .(survey_id, sampling_method)][ , N := NULL] , , ]
+# 
+# Qsurveys[ , flagged_laa_obs_Qs := laaN>obsN   ,]
+# 
+# 
+# a <- wi_inland_fishobservations_19Mar2021[survey_id == 651 & species.1 == "yellow_perch"]
+# 
+# b <- wi_inland_lenage_19Mar2021[survey_id == 651 & species.1 == "yellow_perch"]
+# 
+# 
+# 
+# crosscheck <- merge(
+#   wi_inland_fishobservations_19Mar2021[ , .("obsN" = .N), .(survey_id, species.1, lake_id) ],
+#   wi_inland_lenage_19Mar2021[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl")  , .("laaN" = .N), .(survey_id, species.1, lake_id) ],
+#   by = c("survey_id", "species.1", "lake_id"), all = T
+#   )
+# 
+# Qsurveys <- crosscheck[crosscheck[laaN>obsN, .N, .(survey_id)][ , N := NULL] , , ]
+# 
+# 
+# 
+# 
+# rm(crosscheck)
+# 
+# wi_inland_fishobservations_19Mar2021[ ]
+# colnames(wi_inland_fishobservations_19Mar2021)
 
 
 

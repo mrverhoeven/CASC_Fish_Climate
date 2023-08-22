@@ -12,6 +12,8 @@ DNOE  1. Fix data import to squash warnings and add ticker
       3. Add section for data proofing
 DONE  4. Lake winnebago data are not yet "uncount" ed
 CURRENT LOC      5. Need to tidy up as many colnames as possible at each merge phase to prevent huge buildup of shit at the end (see current section at line 550ish)
+      6.Crosscheck to CPUE file provided to us to check calcs/agreement
+      6a. Flag abunds affected by this mismatch
 
 # Preamble
 
@@ -560,6 +562,63 @@ are the aged fish also in the wi_inland_fishobservations_19Mar2021 file? (MOVED 
 
 ```
 
+Does the CPUE file tell us which is correct?
+```{r}
+#sampling method is simplified.
+wi_inland_cpue_19Mar2021[ , unique(sampling_method)]
+wi_inland_fishobservations_19Mar2021[ , unique(sampling_method)  , ]
+wi_inland_lenage_19Mar2021[ ,unique(sampling_method)  ,]
+
+wi_inland_cpue_19Mar2021[ , .N ,.(survey_id, sampling_method, species.1, lake_id, total_count) ] #this line shows that I have defined a unique key (length = length of full data; no N>1)
+
+
+#Aggregate these three to a comparable level
+wi_inland_cpue_19Mar2021[ , .("cpue_n_gears" = .N, "cpue_Nfish" = sum(total_count)) ,.(survey_id, species.1, lake_id) ]
+wi_inland_fishobservations_19Mar2021[ , .("obs_n_gears" = length(unique(sampling_method)) , "obs_Nfish" = .N), .(survey_id, species.1, lake_id) ]
+wi_inland_lenage_19Mar2021[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl")  , .("laa_n_gears" = length(unique(sampling_method)), "laa_Nfish" = .N), .(survey_id, species.1, lake_id) ]
+
+
+#this crosscheck has a resolution 1 lower than above because we haven't got full gear types in the cpue files
+crosscheck <- merge(
+  wi_inland_fishobservations_19Mar2021[ , .("obs_n_gears" = length(unique(sampling_method)) , "obs_Nfish" = .N), .(survey_id, species.1, lake_id) ],
+  wi_inland_lenage_19Mar2021[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl")  , .("laa_n_gears" = length(unique(sampling_method)), "laa_Nfish" = .N), .(survey_id, species.1, lake_id) ],
+  by = c("survey_id","species.1", "lake_id"), all = T
+  )
+
+crosscheck <- merge(crosscheck,
+wi_inland_cpue_19Mar2021[ , .("cpue_n_gears" = .N, "cpue_Nfish" = sum(total_count)) ,.(survey_id, species.1, lake_id) ],
+by = c("survey_id", "species.1", "lake_id"), all = T
+)
+
+crosscheck[ , cpue_obs_match := cpue_Nfish == obs_Nfish , ]
+crosscheck[ , cpue_laa_match := cpue_Nfish == laa_Nfish , ]
+crosscheck[ , laa_exceeds_obs := laa_Nfish>obs_Nfish ]
+
+crosscheck[ , .N , .(cpue_obs_match)]
+crosscheck[ , .N , .(cpue_obs_match, cpue_laa_match, laa_exceeds_obs)][order(cpue_obs_match, laa_exceeds_obs)]
+
+#summarize these: 
+crosscheck[ , .N , .(cpue_obs_match, cpue_laa_match, laa_exceeds_obs)][order(cpue_obs_match, laa_exceeds_obs)][ , sum(N), cpue_obs_match]
+#this says that 3404/of 60027 (5.7%) surveys with both CPUE and fish obs have a mismatch in the catch between files
+#the NAs are largely not of concern to me, because they are mostly from 0 speciesXsurvey obs:
+crosscheck[ , .N , .(cpue_obs_match, cpue_Nfish == 0)]
+#for at least one other case, a stream shocker survey is in the indiv fish obs file but not in the CPUE file. NO idea why.
+
+crosscheck[is.na(cpue_obs_match) & is.na(cpue_Nfish) , ,]
+crosscheck[survey_id == 515094436]
+wi_inland_fishobservations_19Mar2021[survey_id==515094436]
+
+
+##########INSERT A IND FISH OBS FLAG HERE FOR THE DISAGREEMENT INDICATING ABUND VALS COULD BE NO BUENO##############
+
+
+
+# fwrite(crosscheck, file = "Data_and_Scripts/Data/output/crosscheck_cpue_fishobs_lengthage.csv")
+rm(crosscheck)
+
+```
+
+
 Join wi_inland_fishobservations to the wi_inland_effort
 - note, unique key is: .(lake_id, date.1, sampling_method, and sample_id.1) (year can be used too)
 ```{r}
@@ -573,6 +632,106 @@ WI_indiv_fish_w_effort <- merge(wi_inland_fishobservations_19Mar2021, wi_inland_
 WI_indiv_fish_w_effort[, total_count:= 1, ]
 
 rm(wi_inland_cpue_19Mar2021, wi_inland_effort_19Mar2021, wi_inland_fishobservations_19Mar2021)
+
+
+#clean up this data product:
+
+colnames(WI_indiv_fish_w_effort)
+
+#county
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "county")]
+WI_indiv_fish_w_effort[ county_indivfish != county_effort , .N ,  ] 
+WI_indiv_fish_w_effort[  , .N , .(countyindvNA = is.na(county_indivfish), countyeffNA = is.na(county_effort)) ] 
+WI_indiv_fish_w_effort[is.na(county_effort),  county_effort := county_indivfish ,  ]
+WI_indiv_fish_w_effort[ , county_indivfish := NULL , ]
+setnames(WI_indiv_fish_w_effort, "county_effort", "county")
+
+#lake_name
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "lake_name")]
+WI_indiv_fish_w_effort[ lake_name.1_indivfish != lake_name.1_effort , .N ,  ] 
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(lake_name.1_indivfish), effNA = is.na(lake_name.1_effort)) ] 
+WI_indiv_fish_w_effort[is.na(lake_name.1_effort),  lake_name.1_effort := lake_name.1_indivfish ,  ]
+WI_indiv_fish_w_effort[ , lake_name.1_indivfish := NULL , ]
+setnames(WI_indiv_fish_w_effort, "lake_name.1_effort", "lake_name.1")
+
+#year
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "year")] #what's here for year data?
+#move indiv fish years to effort
+WI_indiv_fish_w_effort[ year_indivfish != year_effort , .N ,  ] 
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(year_indivfish), effNA = is.na(year_effort) ) ] 
+WI_indiv_fish_w_effort[is.na(year_effort),  year_effort := year_indivfish ,  ]
+WI_indiv_fish_w_effort[ , year_indivfish := NULL , ]
+setnames(WI_indiv_fish_w_effort, "year_effort", "year")
+
+#survey_id
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "survey_id")] #what's here for this var name?
+#consolidate if possible
+WI_indiv_fish_w_effort[ survey_id_indivfish != survey_id_effort , .N ,  ] #any disagreememnt among non-NA fields
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(survey_id_indivfish), effNA = is.na(survey_id_effort) ) ] # whats the NA coverage look like?
+WI_indiv_fish_w_effort[is.na(survey_id_effort),  survey_id_effort := survey_id_indivfish ,  ]
+WI_indiv_fish_w_effort[ , survey_id_indivfish := NULL , ]
+setnames(WI_indiv_fish_w_effort, "survey_id_effort", "survey_id")
+
+#survey_type.1
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "survey_type.1")] #what's here for this var name?
+#consolidate if possible
+WI_indiv_fish_w_effort[ survey_type.1_indivfish != survey_type.1_effort , .N ,  ] #any disagreememnt among non-NA fields
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(survey_type.1_indivfish), effNA = is.na(survey_type.1_effort) ) ] # whats the NA coverage look like?
+#mostly disagreement, need to retain both. 
+
+#state
+colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "state")] #what's here for this var name?
+#consolidate if possible
+WI_indiv_fish_w_effort[ state_indivfish != state_effort , .N ,  ] #any disagreememnt among non-NA fields
+WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(state_indivfish), effNA = is.na(state_effort) ) ] # whats the NA coverage look like?
+WI_indiv_fish_w_effort[is.na(state_effort),  state_effort := state_indivfish ,  ]
+WI_indiv_fish_w_effort[ , state_indivfish := NULL , ]
+setnames(WI_indiv_fish_w_effort, "state_effort", "state")
+
+#total_count
+WI_indiv_fish_w_effort[ , unique(total_count) , ]
+
+#drop age data
+WI_indiv_fish_w_effort[ , unique(age)]
+WI_indiv_fish_w_effort[ , unique(aging_structure),]
+WI_indiv_fish_w_effort[ , `:=` (age = NULL, aging_structure = NULL) ,]
+
+
+
+
+
+not_garbage <- c( 
+  "lake_id",                        "date.1",                         "sampling_method",                "sample_id.1",                   
+  "species.1",                      "length.1",                       "state",
+  "length_unit.1",                  "weight.1" ,                      "weight_unit.1",                  "sex",                            
+  "young_of_year",                  "survey_type.1_indivfish",        "survey_type.2_indivfish",        "survey_type.1_effort",
+  "survey_type.2_effort",           "county",                         "lake_name.1",                   
+  "year",                           "survey_id",                      "simple_gear",                    "distance",                      
+  "effort",                         "effort_units",                  
+  "total.effort.1",                 "total.effort.2",                 "total.effort.1.units",           "total.effort.2.units",           "total_count"  
+)
+
+
+setcolorder(WI_indiv_fish_w_effort, not_garbage)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ```
 
 *** things we may want to change about the merge above

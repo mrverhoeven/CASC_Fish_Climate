@@ -6,14 +6,14 @@ output: html_document
 ---
 Outstanding work:
 
-DNOE  1. Fix data import to squash warnings and add ticker
+DONE  1. Fix data import to squash warnings and add ticker
       2. Button up the column name cleaning section of the file
-      2b. consider a reformat to Arrow for speed
+      2b. consider a reformat to Arrow for speed -- at export? earlier?
       3. Add section for data proofing
 DONE  4. Lake winnebago data are not yet "uncount" ed
-CURRENT LOC      5. Need to tidy up as many colnames as possible at each merge phase to prevent huge buildup of shit at the end (see current section at line 550ish)
-      6.Crosscheck to CPUE file provided to us to check calcs/agreement
-      6a. Flag abunds affected by this mismatch
+DUP2  5. Need to tidy up as many colnames as possible at each merge phase to prevent huge buildup of shit at the end (see current section at line 550ish)
+DONE  6.Crosscheck to CPUE file provided to us to check calcs/agreement
+INPRO 6a. Flag abunds affected by this mismatch
 
 # Preamble
 
@@ -260,7 +260,7 @@ wi_inland_effort_19Mar2021[simple_gear == "netting", ':='( effort =gear_data_not
 wi_inland_effort_19Mar2021[ simple_gear == 'netting', .(effort, effort_units) , ]
 ```
 
-## in future: re-write below code chunk with data.table syntax to help it run faster ## 
+## Prep effort file ## 
 
 Prep WI effort file
 ```{r}
@@ -860,6 +860,37 @@ WI_indiv_fish_w_effort[ , .(lake_id, date.1, county, sampling
 ```
 
 
+## Export a WI file, Import a WI file, Reformat to Arrow
+
+```{r}
+wi_flat_effort_indivfish_merge <- readRDS("E:/My Drive/Documents/UMN/Hansen Lab/Rprojects/CASC_Fish_Climate/Data_and_Scripts/Data/output/wi_flat_effort_indivfish_merge.rds")
+
+wi_flat_effort_indivfish_merge <- as_arrow_table(wi_flat_effort_indivfish_merge)
+
+
+#arrow file print:
+wi_flat_effort_indivfish_merge
+
+#now dplyr
+glimpse(wi_flat_effort_indivfish_merge)
+
+#try a piped operation (note the "lazy evaluation" means require collect())
+wi_flat_effort_indivfish_merge %>% 
+  group_by(species.1) %>%
+  summarise(sum(!is.na(weight.1)))%>%
+  collect()%>%
+  print(n = 22)
+
+
+
+colnames(wi_flat_effort_indivfish_merge)
+
+wi_flat_effort_indivfish_merge %>%
+
+  summarize(n())
+glimpse()
+
+```
 
 
 Now you can cast wide to make species matrix and add instances of 0 catch
@@ -870,56 +901,25 @@ Now you can cast wide to make species matrix and add instances of 0 catch
 ```
 
 
-Add ages to inland fish
+## Priority column tidying 
 ```{r}
-colnames()
+#species column
+#cols containing "species" (skipping pipe to names includes a format report from arrow)
+wi_flat_effort_indivfish_merge %>% 
+  select(contains("species"))
+  # %>%
+  # names()
 
-WI_indiv_fish_w_effort[ , ,   ]
+#location columns
+#lake_id & lake_name
+wi_flat_effort_indivfish_merge %>%
+  select(contains("lake"))%>%
+  unique()%>%
+  collect()
 
+#
 
 
 ````
 
-
-#### Mike this is where you can merge the age data to the WI data
-
-Below is my bad attempts at doing so
-
-was told by Paul Frater and Alex Latzka on July 7th 2023 that the aged fish are a subset, and that primary motivation for selecting the subset is to develop age length keys
-```{r}
-#find unique key for the fish observations and the length age data
-unique(wi_inland_fishobservations_19Mar2021, by = c("survey_id", "species.1", "sampling_method", "length.1", "date.1", "lake_id")) #not unique... check fishes without length
-
-wi_inland_fishobservations_19Mar2021[!is.na(length.1), .N] #7,412,784 have a length, 4,968,003 do not have a length
-
-#how about for the length and age data set
-unique(wi_inland_lenage_19Mar2021, by = c("survey_id", "species.1", "sampling_method", "length.1", "date.1", "lake_id"))
-wi_inland_lenage_19Mar2021[is.na(length.1), .N] #2,883 do not have a length
-wi_inland_lenage_19Mar2021[is.na(age), .N]
-```
-
-
-
-```{r}
-
-wi_inland_fishobservations_19Mar2021[ , , .(lake_id, date.1, sampling_method)]
-
-# create a fish id number for joining purposes
-wi_inland_fishobservations_19Mar2021[, id := seq_len(.N), .(lake_id, year, sampling_method, species.1)]
-wi_inland_fishobservations_19Mar2021[, summary(id),] #some VERY high numbers...
-
-#rename length column for clarity
-setnames(wi_inland_fishobservations_19Mar2021, c("length.1"), c("length.fish.obs"))
-
-setnames(wi_inland_lenage_19Mar2021, c("length.1"), c("length.fish.obs"))
-
-wi_inland_lenage_19Mar2021[, id := seq_len(.N), .(lake_id, year, sampling_method, species.1)]
-wi_inland_lenage_19Mar2021[, summary(id),]
-
-# only getting out the same length as the length age data set... #use merge function instead
-wi_inland_fishobservations_19Mar2021[wi_inland_lenage_19Mar2021, on = .(lake_id, year, sampling_method, species.1, id), all.x=TRUE]
-
-
-
-```
 

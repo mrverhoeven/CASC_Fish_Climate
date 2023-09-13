@@ -542,52 +542,12 @@ merge(
 
 # saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
 
+mi_catch_eff_merge <- readRDS(file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
 
-
-
-
-```
-
-
-```{r}
-# review what's available for WAE data, esp to compare to kelsey V's work:
-
-wae_gn_records[ year(date_clean)%in% c(2018:2022)  , .N , .(year(date_clean), cpue = !is.na(count) ,length = !is.na(length.1), age = !is.na(age)) ][order(year)]
-
-
-
-mn_fish_2022only_31May2023[ , .N , .(length = !is.na(length.1), age = !is.na(age) )  ]
-
-KV_WAE <- fread("C:\\Users\\verh0064\\Desktop\\2019_WAE_RAW_ALLREGIONS_20200505.csv")
-
-colnames(KV_WAE)
-KV_WAE[ , .N , as.integer(FISH_COUNT)]
-
-KV_WAE[ , FISH_COUNT := as.integer(FISH_COUNT) ,]
-
-KV_WAE <-  uncount(KV_WAE, FISH_COUNT, .id = "id", .remove = T  )
-
-KV_WAE[ , date_clean := as.IDate(SRVY_DT, format = "%m/%d/%Y") ,]
-
-KV_WAE[ , .N , .(catch = !is.na(CPUE), length = !is.na(LEN_MM), weight = !is.na(WT_G), age = !is.na(OFF_AGE))]
-KV_WAE[ , .N , .(year = year(date_clean) , catch = !is.na(CPUE), length = !is.na(LEN_MM), age = !is.na(OFF_AGE))]
-
-
-
-# lets explore some unmatched lengths and see if there are catch data that correspond:
-
-wae_gn_records[is.na()]
-
-
-raw_agedfish <- fread("C:\\Users\\verh0064\\Desktop\\all_aged_fish_GH_2023_nullS.txt")
-
-raw_agedfish[ , .N , OFFICIAL_AGE ][order(OFFICIAL_AGE)]
-raw_agedfish[ , .N , is.na(OFFICIAL_AGE) ]
-
-
-
-
+str(mi_catch_eff_merge)
 
 ```
+
+
 
 

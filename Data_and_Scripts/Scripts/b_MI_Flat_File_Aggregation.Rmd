@@ -544,10 +544,24 @@ merge(
 
 mi_catch_eff_merge <- readRDS(file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
 
+
+
 str(mi_catch_eff_merge)
 
 ```
 
+#export as parquet file
+```{r}
+
+mi_catch_eff_merge <- as_arrow_table(mi_catch_eff_merge)
+
+write_dataset(dataset = mi_catch_eff_merge, path = "Data_and_Scripts/Data/output/mi_file_arrow")
+
+mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
+
+glimpse(mi_data)
+
+```
 
 
 

@@ -1036,7 +1036,17 @@ wi_data %>%
   arrange(n) %>% 
   print( n = nrow(.))  
 
+wi_data %>% 
+  filter(sampling_method == "vertical_gill_net") %>% 
+  group_by(species.1) %>% 
+  summarise(n = n()) %>% 
+  collect()
 
+wi_data %>% 
+  filter(sampling_method == "vertical_gill_net") %>% 
+  group_by(survey_id, date.1, lake_name.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% print(n = nrow(.))
 
 #target species
 

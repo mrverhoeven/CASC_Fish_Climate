@@ -17,6 +17,7 @@ library(janitor)
 library(tidyr)
 library(lubridate)
 library(bit64)
+library(mwlaxeref)
 
 options(scipen = 999)
 ```
@@ -508,6 +509,20 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
   #effort files for survey type, lat/long, and target species contained more data than the merged catch files
   select(state, county, lake_id, lake_name.1, date.1, year, survey_type.1_effort, survey_id, lat_unspec_effort, lon_unspec_effort, sampling_method, sampling_method_abbrev, target_species_effort, species.1, species.abbrev, length.1, length_unit.1, total_effort_1.1_effort, effort_units.1, effort_ident, nothing_caught, original_file_name.1_catch,original_file_name.1_catchlengths,original_file_name.1_effort)                        
 
+mi_catch_eff_merge[state == "Michigan", state := "mi"]
+
+ local_to_nhdhr(mi_catch_eff_merge[!is.na(lake_id)], from_colname = "lake_id"  ) %>% count(nhdhr.id)
+
+mi_catch_eff_merge[!is.na(lake_id)  ,   nhdhr.id := local_to_nhdhr(mi_catch_eff_merge[!is.na(lake_id)], from_colname = "lake_id"  )$nhdhr.id ,  ]
+
+#If there are NAs in the lake Ids you feed into these local to NHD functions, you'll end up raking a ton of extra nhdhr vals from the NA local ID column. 
+
+#these are the unmatched lake_ids that we're left with.
+mi_catch_eff_merge[is.na(nhdhr.id), .N , lake_id ]
+
+
+
+
 ```                        
                         
  
@@ -551,6 +566,8 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
                         
                         
                         glimpse(mi_catch_eff_merge)
+                        
+                        
                         #Naming scheme updated to match overall approach:
                         
                       
@@ -568,6 +585,7 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
 
 # saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
 # mi_catch_eff_merge <- readRDS(file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
+
 
 str(mi_catch_eff_merge)
 

@@ -3,6 +3,8 @@ title: "MN_Flat_File_Aggregation"
 author: "Holly Kundel & Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 # Preamble
 
@@ -574,7 +576,8 @@ wae_gn_records <- wae[ str_detect(sampling_method, "gill nets") , , ]
 
 flatfish <- write_dataset(dataset = flatfish, path = "Data_and_Scripts/Data/output/mn_file_arrow")
 
-mn_data <- open_dataset("Data_and_Scripts/Data/output/mn_file_arrow/")
+mn_data <- open_dataset(sources = "Data_and_Scripts/Data/output/mn_file_arrow/")
+mn_data <- open_dataset(sources = "Data_and_Scripts\\Data\\output\\mn_file_arrow\\")
 
 glimpse(mn_data)
 
@@ -593,8 +596,6 @@ gear_table_mn <- mn_data %>%
   collect() %>% 
   print(n = nrow(.))
 
-mn_data %>% 
-  mutate( sampling_method = )
 
 mn_data %>% 
   select(!sampling_method) %>% 
@@ -603,6 +604,7 @@ mn_data %>%
   summarize(n = n()) %>% 
   collect() %>% 
   print(n = nrow(.))
+
 
 ```
 

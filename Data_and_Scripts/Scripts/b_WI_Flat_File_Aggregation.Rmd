@@ -3,6 +3,8 @@ title: "b_WI_Flat_File_Aggregation"
 author: "Holly Kundel & Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 
@@ -856,7 +858,7 @@ colnames(WI_indiv_fish_w_effort)
 
 WI_indiv_fish_w_effort %>%
 
-  summarize(n())
+summarize(n())
 glimpse()
 
 ```
@@ -867,7 +869,7 @@ glimpse()
 
 write_dataset(dataset = WI_indiv_fish_w_effort, path = "Data_and_Scripts/Data/output/wi_file_arrow")
 
-wi_data <- open_dataset("Data_and_Scripts/Data/output/wi_file_arrow")
+wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow/")
 
 glimpse(wi_data)
 
@@ -973,10 +975,6 @@ wi_data %>%
   print( n = 100)
 
 
-
-
-
-
 #now review the date columns
 #fields with "date"
 wi_data %>%
@@ -1021,7 +1019,6 @@ wi_data %>%
 
 
 #gear
-
 wi_data %>% 
   select(sampling_method) %>% 
   unique() %>% 
@@ -1037,16 +1034,97 @@ wi_data %>%
   print( n = nrow(.))  
 
 
-
 #target species
+wi_data %>% 
+  group_by(target_species_indivfish) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(n) %>% 
+  print(n = nrow(.))
+
+wi_data %>% 
+  group_by(target_species_effort) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(n) %>% 
+  print(n = nrow(.))
+#counts are different for fish and effort
+
+wi_data %>% 
+  mutate(same_target = ifelse(target_species_effort == target_species_indivfish, "Same", "Different")) %>% 
+  group_by(same_target) %>% 
+  count() %>% 
+  collect()
+#no conflicting rows between effort and fish, but data might be missing from one or the other
+
+wi_data %>% 
+  filter(is.na(target_species_effort) & !is.na(target_species_indivfish)) %>% 
+  count(species.1) %>% 
+  collect()
+#only one case where effort is na but fish is not
+
+wi_data %>% 
+  filter(!is.na(target_species_effort) & is.na(target_species_indivfish)) %>% 
+  count(species.1) %>% 
+  collect()
+#33657 cases where fish is na but effort is not - ironically the species is also na 
+
+wi_data %>% 
+  filter(is.na(target_species_effort) & is.na(target_species_indivfish)) %>% 
+  summarise(n = n()) %>% 
+  collect()
+#this tells us that the effort column should be used for the targeted data - there is only one case where indivfish has data and effort doesn't. All other cases are na for both
+
+wi_data %>% 
+  select(target_species_effort) %>% 
+  unique() %>% 
+  compute() %>% 
+  collect() %>% 
+  print(n = nrow(.))
 
 
+#length
+wi_data %>% 
+  group_by(species.1) %>% 
+  summarise(mean = mean(length.1, na.rm = T), min = min(length.1, na.rm = T), max = max(length.1, na.rm = T)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
 
+#big walleye and pike?
+wi_data %>% 
+  filter((length.1 > 900 & species.1 == "walleye") |
+          (length.1 > 2000 & species.1 == "northern_pike")) %>% 
+  collect()
+#walleye and pike are big have units of inches but appear to be in mm
 
+wi_data %>% 
+  group_by(length_unit.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(n) %>% 
+  print(n = nrow(.))
+#units are in inches, 4153536 obs that are na for length unit
 
+#Are the cases of na length unit when length is na?
+wi_data %>% 
+  filter(is.na(length.1) & is.na(length_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#3928844 are missing both length and length unit
 
+#cases where there are lengths without any length units
+wi_data %>% 
+  filter(!is.na(length.1) & is.na(length_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#224692 have a length but are missing the unit
 
+#the two cases above make up all cases for when length is na
 
+#weight
+glimse(wi_data)
 
 
 

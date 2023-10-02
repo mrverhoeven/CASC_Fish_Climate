@@ -526,7 +526,7 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
   rename(species.abbrev = species.1) %>% 
   #agency species code updated with common name
   mutate(species.1 = case_when(species.abbrev == "taxon_BCR" ~ "black_crappie",
-                             species.abbrev == "taxon_BLG" ~ "blue_gill",
+                             species.abbrev == "taxon_BLG" ~ "bluegill",
                              species.abbrev == "taxon_CIS" ~ "cisco",
                              species.abbrev == "taxon_LMB" ~ "largemouth_bass",
                              species.abbrev == "taxon_NOP" ~ "northern_pike",
@@ -562,7 +562,7 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
 
 #save to disk:
 
-saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
+# saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
 
 mi_catch_eff_merge <- readRDS(file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
 

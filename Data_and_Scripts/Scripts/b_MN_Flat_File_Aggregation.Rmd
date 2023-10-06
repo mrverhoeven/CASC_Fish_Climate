@@ -604,6 +604,16 @@ mn_data %>%
   collect() %>% 
   print(n = nrow(.))
 
+
+mn_data %>% 
+  filter(species.1 == "WAE") %>% 
+  group_by(sampling_method, sampling_method_abbrev) %>% 
+  summarise(n = n()) %>% 
+  arrange( n) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+
 ```
 
 

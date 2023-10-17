@@ -31,6 +31,7 @@ library(janitor)
 library(tidyr)
 library(lubridate)
 library(ggplot2)
+library(mwlaxeref)
 
 options(scipen = 999)
 ```
@@ -900,7 +901,6 @@ wi_data %>%
 wi_data %>% 
   group_by(species.1) %>% 
   summarise( n = n()) %>% 
-  arrange( n) %>% 
   collect() %>% 
   print(n = nrow(.))
 

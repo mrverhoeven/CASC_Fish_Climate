@@ -1,74 +1,24 @@
 ---
-title: "IA_Flat_File_Aggregation"
+title: "SD_Flat_File_Aggregation"
 author: "Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
 ---
 # Preamble
 
-This code is written in chunks that each accomplish a task moving towards the goal of a file for each state that encompasses all fish observations made/shared with us. The structure of that observation-level data should be one row per individual fish. By joining these data to the effort info, we will be able to aggregate the data in flexible ways and always carry along info on how much effort it took to catch each the fish obs (or set of fish).
-
-The data explainer sticks .n suffixes on columns where multiple fields from one of the datastes has multiple cols that match that field (i.e., date.1, date.2, date.3). The namin conventions for cols uses "_" and no spaces.  
-
-
-A basic guide to columns we expect to see in a observation level data are as follows:
-
-LOCATION INFORMATION:
-state - 
-county - county associate with the wb in the state data
-lake_name - common lang name of the lake
-lake_id - usually a local id specific to the state contributing the data
-nhdhr.id - This column is usually added towards the end of the script using the mwlaxeref (Paul Frater) package from here: https://drive.google.com/drive/u/1/folders/1HURmPTtufVzI0aqn7D8MpKdL5B8atCL5
-
-SURVEY INFORMATION:
-date_clean - usually multiple dates are submitted with each fish (e.g., collection date, survey end date). Use the date of the survey as the primary date for each fish observation, generating a date_clean column
-survey_type - this is often specified in the data, and sometimes helps to filter out which data are useful for any given purpose (e.g., research survey, fishkill check)
-survey_id - in some states this is a provided variable used as a key to each "survey." Ususally a "survey" is multiple gears on a single lake on a single date (often surveys might run multiple consecutive dates, but only one date is reported )
-sampling_method
-sampling_method_abbrev
-total_effort_1.1
-effort_units.1
-nothing_caught
-target_species
-effort_ident
-
-INFO ON 
-species.1
-species_abbrev
-length.1
-length_unit.1
-weight.1
-weight_unit.1
-sample_id.1
-age
-aging_structure
-young_of_year
-sex
-
-SOURCE FILES
-original_file_name.1_effort,original_file_name.1_indivfish, original_file_name.1_histcatch, flag
-
-
-
-
-
-
-
-
-
-
-
 ##Libraries
 ```{r}
 library(arrow)
 library(readr)
-library(dplyr)
+library(tidyverse)
 library(stringr)
 library(data.table)
 library(janitor)
 library(tidyr)
 library(lubridate)
 library(bit64)
+library(ggplot2)
+library(mwlaxeref)
 
 options(scipen = 999)
 ```
@@ -79,8 +29,9 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
+
 
 
 

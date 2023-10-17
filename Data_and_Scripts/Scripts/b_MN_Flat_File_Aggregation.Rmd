@@ -1072,7 +1072,8 @@ glimpse(mn_data)
 #add more gears from this list if desired
 mn_data %>% 
   group_by(sampling_method_abbrev,sampling_method) %>% 
-  count()
+  count() %>% 
+  compute()
 
 mn_data %>% 
   filter(sampling_method_abbrev %in% c("GN", #gill nets common type

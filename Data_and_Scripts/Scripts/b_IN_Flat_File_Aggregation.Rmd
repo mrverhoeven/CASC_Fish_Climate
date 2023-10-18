@@ -9,9 +9,9 @@ output: html_document
 ##Instructions
 This code is written in chunks that each accomplish a task moving towards the goal of a file for each state that encompasses all fish observations made/shared with us. The structure of that observation-level data should be one row per individual fish. By joining these data to the effort info, we will be able to filter and aggregate the data in flexible ways, always bringing along info on how much effort it took to catch each the fish obs (or set of fish).
 
-The data explainer sticks .n suffixes on columns where multiple fields from one of the datastes has multiple cols that match that field (i.e., date.1, date.2, date.3). The naming conventions for cols uses "_" and no spaces.
+The data explainer sticks .n suffixes on columns where multiple fields from one of the datasets has multiple cols that match that field (i.e., date.1, date.2, date.3). The naming conventions for cols uses "_" and no spaces.
 
-After loading packages, the data from each state will be loaded into the WS and renamed according to the mapping of old colnames to new colnames in the data explainer. Next, the files should be explored a bit, and the script should identify files that will not be used, but instead get removed from the workspace. After this initial exploration fo what's there, the files should be restructured and munged into the obs-level format described above. When this is done, subsequent blocks should conduct some baseline additional QC should be done to verify the product of the munging is as-expected. Finally, the script should tidy up an remaining column or field formatting (e.g., species uses common names, no spaces, but "_"), and drop an unneeded columns. 
+After loading packages, the data from each state will be loaded into the WS and renamed according to the mapping of old colnames to new colnames in the data explainer. Next, the files should be explored a bit, and the script should identify files that will not be used, but instead get removed from the workspace. After this initial exploration of what's there, the files should be restructured and munged into the obs-level format described above. When this is done, subsequent blocks should conduct some baseline additional QC to verify the product of the munging is as-expected. Finally, the script should tidy up an remaining column or field formatting (e.g., species uses common names, no spaces, but "_"), and drop any unneeded columns. 
 
 
 A basic guide to columns we expect to see in a observation level data are as follows:
@@ -87,7 +87,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IN_Data/in_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IN_Data/in_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -100,7 +100,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IN_Data/in_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IN_Data/in_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line

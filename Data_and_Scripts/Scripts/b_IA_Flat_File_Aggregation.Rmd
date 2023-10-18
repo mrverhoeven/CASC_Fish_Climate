@@ -6,9 +6,12 @@ output: html_document
 ---
 # Preamble
 
-This code is written in chunks that each accomplish a task moving towards the goal of a file for each state that encompasses all fish observations made/shared with us. The structure of that observation-level data should be one row per individual fish. By joining these data to the effort info, we will be able to aggregate the data in flexible ways and always carry along info on how much effort it took to catch each the fish obs (or set of fish).
+##Instructions
+This code is written in chunks that each accomplish a task moving towards the goal of a file for each state that encompasses all fish observations made/shared with us. The structure of that observation-level data should be one row per individual fish. By joining these data to the effort info, we will be able to filter and aggregate the data in flexible ways, always bringing along info on how much effort it took to catch each the fish obs (or set of fish).
 
-The data explainer sticks .n suffixes on columns where multiple fields from one of the datastes has multiple cols that match that field (i.e., date.1, date.2, date.3). The namin conventions for cols uses "_" and no spaces.  
+The data explainer sticks .n suffixes on columns where multiple fields from one of the datastes has multiple cols that match that field (i.e., date.1, date.2, date.3). The naming conventions for cols uses "_" and no spaces.
+
+After loading packages, the data from each state will be loaded into the WS and renamed according to the mapping of old colnames to new colnames in the data explainer. Next, the files should be explored a bit, and the script should identify files that will not be used, but instead get removed from the workspace. After this initial exploration fo what's there, the files should be restructured and munged into the obs-level format described above. When this is done, subsequent blocks should conduct some baseline additional QC should be done to verify the product of the munging is as-expected. Finally, the script should tidy up an remaining column or field formatting (e.g., species uses common names, no spaces, but "_"), and drop an unneeded columns. 
 
 
 A basic guide to columns we expect to see in a observation level data are as follows:
@@ -18,35 +21,40 @@ state -
 county - county associate with the wb in the state data
 lake_name - common lang name of the lake
 lake_id - usually a local id specific to the state contributing the data
-nhdhr.id - This column is usually added towards the end of the script using the mwlaxeref (Paul Frater) package from here: https://drive.google.com/drive/u/1/folders/1HURmPTtufVzI0aqn7D8MpKdL5B8atCL5
+nhdhr.id - This column is usually added towards the end of the script based on state lake_ids using the mwlaxeref (Paul Frater) package from here: https://drive.google.com/drive/u/1/folders/1HURmPTtufVzI0aqn7D8MpKdL5B8atCL5
 
 SURVEY INFORMATION:
 date_clean - usually multiple dates are submitted with each fish (e.g., collection date, survey end date). Use the date of the survey as the primary date for each fish observation, generating a date_clean column
 survey_type - this is often specified in the data, and sometimes helps to filter out which data are useful for any given purpose (e.g., research survey, fishkill check)
 survey_id - in some states this is a provided variable used as a key to each "survey." Ususally a "survey" is multiple gears on a single lake on a single date (often surveys might run multiple consecutive dates, but only one date is reported )
-sampling_method
-sampling_method_abbrev
-total_effort_1.1
-effort_units.1
-nothing_caught
-target_species
-effort_ident
+sampling_method - This is a gear field, and often includes wide ranging gears and sometimes very specific gears
+total_effort.1 - This should be a numeric field with only the qty of effort
+effort_units.1 - paired with total_effort.1, defines units for numeric
+nothing_caught - specifies that nothing was caught in this effort (species will also be NA)
+target_species - what was the species being targeted in the survey?
+effort_ident - This is a field we add, it is a unique key for each effort unit that we have data for(usually a gear within a survey). For example, a data user could get cpue by counting all fish within a group_by(effort_id) or it's equivalent group_by(lake_id, date, survey_type,sampling_method) 
 
-INFO ON 
-species.1
-species_abbrev
-length.1
-length_unit.1
-weight.1
-weight_unit.1
-sample_id.1
-age
-aging_structure
-young_of_year
-sex
+TAXA INFORMATION: 
+species.1 - species common name
+species_abbrev - State level code sometimes used in data share
+length.1 - length of fish observed, numeric
+length_unit.1 - units for length.1, also specify resolution if needed (e.g, cm, whole cm)
+weight.1 - weight of fish obs, numeric
+weight_unit.1 - units of weight.1, also specify resolution if needed (e.g, lb, whole lb)
+sample_id.1 - unique id for each fish observation sometimes provided and sometimes useful for connecting to aged fish
+age - age in years, numeric
+aging_structure - what was used to determine age?
+young_of_year - was the fish a YOY (i.e. hatched <365d before surveyed)
+sex - sex of fish (male, female, unknown, NA)
 
-SOURCE FILES
-original_file_name.1_effort,original_file_name.1_indivfish, original_file_name.1_histcatch, flag
+SOURCE FILE INFORMATION: These columns come in with each dataset from the data explainer and we leave them in the product so that we could hunt down issues we find a bit more easily. 
+
+original_file_name.1_effort - name of effort file that was used to generate data in this row
+original_file_name.1_indivfish - name of individual fish file that was used to generate data in this row
+original_file_name.1_[...]
+
+FLAGS AND ISSUES:
+flag - this column contains a character string with issues describing each row, each issue separated with a comma. Use mutate(flag = paste(flag, "new issue description", sep = ",")) to add to this column without overwriting other issues already specified.
 
 
 
@@ -100,6 +108,14 @@ for(i in 1:n) {
     print(paste(filei ,"added to workspace" ))  
     #confirm import of files:  
     print(paste(i ,"files added to workspace" )) ; next}
+  
+  #if the file is not in the data explainer, don't try to rename it:
+  if(filei %in% cde$new_file_name) {
+    print("renaming with data explainer")
+  } else {next}
+  
+  
+  
   
   
   # note we want to review a sorted list of column names to check misspelling etc.
@@ -169,11 +185,14 @@ for(i in 1:n) {
 
 #Data Review
 ```{r}
+
+# review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
+# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
+
+
 #effort:
 mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
 
-#some lake IDs seem to have >1 name:
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_id)), .(lake_name.1)][V1>1] # lake names not unique (they usually aren't)
 mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1] # lake ids not unique (they *should* be though)
 
 #which lakes have multiple names for a single ID?
@@ -236,6 +255,10 @@ merge(
 
 # Effort Merge
 ```{r}
+#in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
+
+
+
 #Start with a merge of catch and catch-length?
 
         #file prep
@@ -386,10 +409,16 @@ merge(
                         #do merge
                         mi_catch_eff_merge <- merge(mi_catch_merge, mi_statustrends_effort_16Mar2021, by = keycols, all = T, suffixes = c("_mergedcatch", "_effort"))
                         
- 
-                        
-                        
- ### dataset cleanup and tidying                       
+``` 
+          
+          
+          
+# Data tidying                        
+```{r}                       
+### dataset cleanup and tidying. MI work left here as an idea of a previous state's work
+
+
+
                                                
                         #check the product:
                         colnames(mi_catch_eff_merge)
@@ -531,63 +560,60 @@ merge(
                         
  
 
+
 # Review & QC datasets
 ```{r}
- 
-                        #effort per survey?
+#here I do some very basic checks on what the data structure and general outputs look like (i.e., s this thing behaving like the obs-level file I think it is?). MI work left here as an idea of a previous state's work. In my opinion, it is not our job to QC the actual observations at this point (like, is a WAE really going to be 500mm at age zero), but instead to use this QC as a check on the operations performed in this script.  
+
+
+
+                        #effort per surveyXgear?
                         mi_catch_eff_merge[ , .(effort = first(total_effort_1.1_effort), units = first(effort_units.1)) ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")]
                         
                         #effort per survey type?
                         mi_catch_eff_merge[!is.na(total_effort_1.1_effort) , .(effort = first(total_effort_1.1_effort), units = first(effort_units.1), number = .N) ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")][ ,.(effort = sum(effort), counts = sum(number), grandCPUE = sum(number)/sum(effort)) , .(sampling_method_abbrev, units)]
                         
                         #effort per survey type (Walleye ONLY)?
-                        mi_catch_eff_merge[!is.na(total_effort_1.1_effort) & species.1=="taxon_WAE" , .(effort = first(total_effort_1.1_effort), units = first(effort_units.1), number = .N) ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")][ ,.(effort = sum(effort), counts = sum(number), grandCPUE = sum(number)/sum(effort)) , .(sampling_method_abbrev, units)]
+                        mi_catch_eff_merge[!is.na(total_effort_1.1_effort) & species.1=="walleye" , .(effort = first(total_effort_1.1_effort), units = first(effort_units.1), number = .N) ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")][ ,.(effort = sum(effort), counts = sum(number), grandCPUE = sum(number)/sum(effort)) , .(sampling_method_abbrev, units)]
                         
                         
                         
                         #how many Walleye in surveys where we had effort data?
-                        mi_catch_eff_merge[ species.1== "taxon_WAE"  , .("n_fish" = .N) , .(sampling_method_abbrev) ][, sum(n_fish)]
+                        mi_catch_eff_merge[ species.1== "walleye"  , .("n_fish" = .N) , .(sampling_method_abbrev) ][, sum(n_fish)]
                         mi_catch_eff_merge[ , .N , species.1]
                         
                         
                         #whats the effort look like?
-                        mi_catch_eff_merge[ , unique(paste(total_effort_1.1_effort, total_effort_1.1_mergedcatch)) , ]
-                        #for each row, what effort should be used? For each survey, what effort should be used. 
-                        
-                        
-                        
+                        mi_catch_eff_merge[ ,.N, total_effort_1.1_effort ]
                         
                         # data coverage
-                        # how many surveys were we missing effort data for? 
+                        # how many surveys were we missing effort data for? One survey, 3 gears. Survey 4042 on Twin Lake
+                        mi_catch_eff_merge[ is.na(total_effort_1.1_effort), .N , ]
+                        mi_catch_eff_merge[ is.na(total_effort_1.1_effort), c("numberofspp" = length(unique(species.1))) , c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
+                        
+                        
                         # how many surveys were we missing catch data from?
                         # how many surveys missing catchlength for?
-                        #
+                        mi_catch_eff_merge[ , .N, is.na(original_file_name.1_catch)]
+                        mi_catch_eff_merge[ , .N, .(catchNA = is.na(original_file_name.1_catch),
+                                                    catchlengthNA = is.na(original_file_name.1_catchlengths),
+                                                    effortNA = is.na(original_file_name.1_effort))]
+                        mi_catch_eff_merge[is.na(original_file_name.1_catch)]
                         
                         
                         
-                        #Naming scheme updated to match overall approach: flatfish? mi_catch_eff_merge?
+                        glimpse(mi_catch_eff_merge)
                         
-                        #Check formatting match to MN template file?
                         
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                        #Naming scheme updated to match overall approach:
+                        
+                      
+                        
 
 ```
 
 
-# Export files
+# Import/Export files
 
 ```{r}
 
@@ -595,17 +621,11 @@ merge(
 #save to disk:
 
 # saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
-
-mi_catch_eff_merge <- readRDS(file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
-
+# mi_catch_eff_merge <- readRDS(file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
 
 
 str(mi_catch_eff_merge)
 
-```
-
-#export as parquet file
-```{r}
 
 mi_catch_eff_merge <- as_arrow_table(mi_catch_eff_merge)
 
@@ -616,6 +636,7 @@ mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
 glimpse(mi_data)
 
 ```
+
 
 
 

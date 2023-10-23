@@ -12,7 +12,7 @@ libraries
 ```{r}
 library(arrow)
 library(readr)
-library(dplyr)
+library(tidyverse)
 library(stringr)
 library(data.table)
 library(janitor)
@@ -20,6 +20,7 @@ library(tidyr)
 library(lubridate)
 library(bit64)
 library(ggplot2)
+library(mwlaxeref)
 
 options(scipen = 999)
 ```
@@ -503,66 +504,18 @@ flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_cl
 
 
 
-
-  ## SIDEBAR! Flagging suspected issues
-  #summarize the total effort for ef data
-  flatfish[ effort_units.1 == "knownunit_hours" , hist(total_effort_1.1, breaks = 100) , ]# there are some very wierd values in here! Def want to flag these for review by a user! Here's an example of that:
-  flatfish[ effort_units.1 == "knownunit_hours" , summary(total_effort_1.1) , ]
-  flatfish[ effort_units.1 == "knownunit_hours" & !is.na(total_effort_1.1) , .(mean(total_effort_1.1) , sd(total_effort_1.1)) , ] #find sd and mean
-  flatfish[ effort_units.1 == "knownunit_hours" & total_effort_1.1 > 1.464117 + (5*flatfish[ effort_units.1 == "knownunit_hours" & !is.na(total_effort_1.1) , sd(total_effort_1.1) , ])   , flagged_effort := TRUE , ] #flag records > 5 sd from mean
-  flatfish[ , .N , flagged_effort]
-  
-  
-#cast summarized catch data wide:
-wide_complete <- dcast(flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type.1, species.1, total_effort_1.1, effort_units.1) ], ... ~ species.1 , value.var = "N", fill = 0)
-
-# calc cpue for all wae
-wide_complete[ , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ,]
-wide_complete[ , wae_cpue := WAE/total_effort_1.1 , ]
-# check mean cpue for gillnets
-wide_complete[ str_detect(sampling_method, "gill net") , mean(wae_cpue) , sampling_method ]
-
-  
-flatfish[ species.1 == "WAE" , .N ,]
-
-#where lake Id is a kittle no, we can drop those data (lake_id blank, lake_id_chr has kittle)
-flatfish[ , .N , .(lake_id, lake_id_chr, date_clean , sampling_method, survey_type.1, total_effort_1.1, species.1)] 
-  flatfish[!is.na(lake_id), .N , .(lake_id, lake_id_chr, date_clean , sampling_method, survey_type.1, total_effort_1.1, species.1)]
-  flatfish <- flatfish[!is.na(lake_id)]
-
-#lets get a cpue for walleye
-  flatfish[ , , .(lake_id, date_clean , sampling_method, survey_type.1) ][]
-    
-  
-flatfish[ , summary(date_clean) ,]
-
-flatfish[ , hist(year(date_clean)) , ]
-
-#walleye data product:
-wae_complete_surveys <- wide_complete[ , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ,]
-  
-wae_records <- flatfish[ species.1 == "WAE" , ,] 
-
-wae <- merge(wae_complete_surveys, wae_records, all = T, by = c("lake_id", "date_clean" , "sampling_method", "survey_type.1", "total_effort_1.1", "effort_units.1"))
-
-wae[ , .N , .(lake_id, date_clean , sampling_method, survey_type.1, total_effort_1.1, effort_units.1, WAE) ] 
-
-
-wae_gn_records <- wae[ str_detect(sampling_method, "gill nets") , , ]
-
-
-
-
-
 #save to disk:
 
 # saveRDS(mn_cpue_21aug2023, file = "Data_and_Scripts\\Data\\output\\mn_hist_data_flat.rds")
 # saveRDS(flatfish, file = "Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_merge.rds")
 
 
-# saveRDS(DNR_calcd_catch, file = "Data_and_Scripts\\Data\\output\\mn_dnr_calcd_catch.rds")
-# saveRDS(indiv_fish, file = "Data_and_Scripts\\Data\\output\\mn_indivfish.rds")
-# saveRDS(wae_gn_records, file = "Data_and_Scripts\\Data\\output\\mn_wae_gn.rds")
+#this flatfish file is big AF and will slow down Mike's Hansen Lab Computer (32gb RAM)
+flatfish <- readRDS("Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_merge.rds")
+
+
+
+
 
 
 ```
@@ -572,38 +525,588 @@ wae_gn_records <- wae[ str_detect(sampling_method, "gill nets") , , ]
 ```{r}
 
 
-
-
-flatfish <- write_dataset(dataset = flatfish, path = "Data_and_Scripts/Data/output/mn_file_arrow")
+write_dataset(dataset = flatfish, path = "Data_and_Scripts/Data/output/mn_file_arrow")
 
 mn_data <- open_dataset(sources = "Data_and_Scripts/Data/output/mn_file_arrow/")
 mn_data <- open_dataset(sources = "Data_and_Scripts\\Data\\output\\mn_file_arrow\\")
 
 glimpse(mn_data)
 
-# gear full names need filling out
+```
+
+
+
+#Tidy up dataframe
+```{r}
+# required columns: 
+# 
+# 
+# mn_data %>% 
+#   select(contains("target")  )
+
+
+mn_dat <- mn_data %>% 
+  select(
+    state, state_effort, state_indivfish,
+    county_effort, county_indivfish,
+    lake_id,
+    lake_name.1, lake_name.1_effort, lake_name.1_indivfish,
+    date_clean, date.1_effort, date.2_effort, end_date, date.2_indivfish, date.1_indivfish, date.1,
+    survey_type.1,
+    survey_id, survey_id_effort, survey_id_indivfish,
+    sampling_method, sampling_method_abbrev,
+    target_species,
+    total_effort_1.1,
+    species.1,
+    length.1, length_unit.1,
+    weight.1, weight_unit.1,
+    sample_id.1,
+    age, aging_structure, young_of_year, sex,
+    original_file_name.1_effort,original_file_name.1_indivfish, original_file_name.1
+  ) %>%
+  collect() %>% 
+  setDT()#set as data.table
+
+
+#gear full names need filling out
+    #show problem
+    # mn_dat %>% 
+    #   group_by(sampling_method_abbrev, sampling_method) %>% 
+    #   summarize(n = n()) %>% 
+    #   collect() %>% 
+    #   print(n = nrow(.)) #everyone has data in sampling method abbrev
+    # in DT
+    mn_dat[ , .N , .(sampling_method_abbrev, sampling_method)]
+    
+    #borrow codes as key from other rows
+    # gear_table_mn <- mn_dat %>% 
+    #   filter(!is.na(sampling_method)) %>%
+    #   select( sampling_method_abbrev, sampling_method) %>% 
+    #   unique()
+    # in DT
+    gear_table_mn <- mn_dat[!is.na(sampling_method), .N , .(sampling_method_abbrev,sampling_method) ]
+    
+    
+    #apply these to all rows
+    # mn_dat <- mn_dat %>% 
+    #   select(!sampling_method) %>% 
+    #   inner_join(. , gear_table_mn, by = "sampling_method_abbrev") 
+    # in DT
+    #drop old col
+    mn_dat[ , sampling_method := NULL ,]
+    #rejoin to complete gear table
+    mn_dat[gear_table_mn,
+      on = .(sampling_method_abbrev), sampling_method := sampling_method
+          ]
+    #checkwork
+    mn_dat[ , .N , .(sampling_method_abbrev, sampling_method)]
+   
+    
+#add nothing_caught
+    mn_dat[is.na(species.1), nothing_caught := T , ] #THIS NEED VERIFICATION AGAINST CODE ABOVE
+     
+    
+#species names are mixed codes and names
+    #what cols are have species in name?
+    mn_dat %>%
+      select(contains("species"))
+    #show problem
+    # mn_dat %>% 
+    #   group_by(species.1) %>% 
+    #   summarise(n = n()) %>% 
+    #   # collect() %>% 
+    #   print(n = nrow(.))
+    mn_dat[ , .N , species.1 ]
+    
+    # Review "codes" as defined by 3 letter species names
+    print(mn_dat[nchar(species.1) == 3, .N , species.1 ],
+          nrow(mn_dat[nchar(species.1) == 3, .N , species.1 ]))
+    
+    # choose only species.1 length of 3, assign these to a species_code
+    mn_dat[nchar(species.1) == 3, `:=` (species_abbrev = species.1, species.1 = NA) , ]
+    
+    
+    #generate a species code table (will also use later to fix target species cols)    
+      species_codes_mn <-  mn_dat[!is.na(species_abbrev), .(species_abbrev = unique(species_abbrev)) ,  ] 
+    
+    #adds names to that table (uses key provided by Jon Hansen, MNDNR on 10 Oct 2023: https://docs.google.com/spreadsheets/d/1ZakE4S2zfSdYNEWHfikFqILNnD1gYpNf?rtpof=true&usp=drive_fs )    
+        #This chunk cleans codes and names within the species column, references? for codes?
+      species_codes_mn[ , species.1 := 
+                          case_when(# first fish codes are converted,
+                            species_abbrev == "LMB" ~ "largemouth_bass",
+                            species_abbrev == "SMB" ~ "smallmouth_bass",
+                            species_abbrev == "WAE" ~ "walleye", 
+                            species_abbrev == "WTS" ~ "white_sucker",
+                            species_abbrev == "BLC" ~ "black_crappie",
+                            species_abbrev == "YEP" ~ "yellow_perch",
+                            species_abbrev == "BLG" ~ "bluegill",
+                            species_abbrev == "NOP" ~ "northern_pike",
+                            species_abbrev == "PMK" ~ "pumpkinseed", 
+                            species_abbrev == "RKB" ~ "rock_bass",
+                            species_abbrev == "BKF" ~ "banded_killifish",
+                            species_abbrev == "IOD" ~ "iowa_darter",
+                            species_abbrev == "BCS" ~ "blackchin_shiner",
+                            species_abbrev == "BLB" ~ "black_bullhead",
+                            species_abbrev == "JND" ~ "johnny_darter",
+                            species_abbrev == "GOS" ~ "golden_shiner",
+                            species_abbrev == "YEB" ~ "yellow_bullhead",
+                            species_abbrev == "BRB" ~ "brown_bullhead",
+                            species_abbrev == "CNM" ~ "central_mudminnow",
+                            species_abbrev == "NRD" ~ "northern_redbelly_dace",
+                            species_abbrev == "CSH" ~ "chinook_salmon",
+                            species_abbrev == "MTS" ~ "mottled_sculpin",
+                            species_abbrev == "TPM" ~ "tadpole_madtom",
+                            species_abbrev == "SHR" ~ "shorthead_redhorse",
+                            species_abbrev == "HSF" ~ "hybrid_sunfish",
+                            species_abbrev == "BOF" ~ "bowfin",
+                            species_abbrev == "WDS" ~ "weed_shiner",
+                            species_abbrev == "BNM" ~ "bluntnose_minnow",
+                            species_abbrev == "BND" ~ "blacknose_dace",
+                            species_abbrev == "OTM" ~ "minnows",
+                            species_abbrev == "FHM" ~ "fathead_minnow",
+                            species_abbrev == "FND" ~ "finescale_dace",
+                            species_abbrev == "SDM" ~ "slender_madtom",
+                            species_abbrev == "SPO" ~ "spottail_shiner",
+                            species_abbrev == "BNS" ~ "blacknose_shiner",
+                            species_abbrev == "BKT" ~ "brook_trout",
+                            species_abbrev == "SPT" ~ "splake",
+                            species_abbrev == "RBT" ~ "rainbow_trout",
+                            species_abbrev == "BNT" ~ "brown_trout",
+                            species_abbrev == "BUB" ~ "burbot",
+                            species_abbrev == "BIB" ~ "bigmouth_buffalo",
+                            species_abbrev == "BLH" ~ "bullheads",
+                            species_abbrev == "TLC" ~ "cisco",
+                            species_abbrev == "CCF" ~ "channel_catfish",
+                            species_abbrev == "BSD" ~ "blackside_darter",
+                            species_abbrev == "BKS" ~ "brook_silverside",
+                            species_abbrev == "LED" ~ "least_darter",
+                            species_abbrev == "LGP" ~ "logperch",
+                            species_abbrev == "SLR" ~ "silver_redhorse",
+                            species_abbrev == "HHC" ~ "hornyhead_chub",
+                            species_abbrev == "MUE" ~ "muskellunge",
+                            species_abbrev == "TRP" ~ "trout_perch",
+                            species_abbrev == "RHS" ~ "redhorse",
+                            species_abbrev == "CAP" ~ "common_carp",
+                            species_abbrev == "MMS" ~ "mimic_shiner",
+                            species_abbrev == "EMS" ~ "emerald_shiner",
+                            species_abbrev == "SUN" ~ "sunfish",
+                            species_abbrev == "CRC" ~ "creek_chub",
+                            species_abbrev == "GSF" ~ "green_sunfish",
+                            species_abbrev == "SFS" ~ "spotfin_shiner",
+                            species_abbrev == "SHI" ~ "shiners",
+                            species_abbrev == "BST" ~ "brook_stickleback",
+                            species_abbrev == "CSR" ~ "central_stoneroller",
+                            species_abbrev == "SDS" ~ "sand_shiner",
+                            species_abbrev == "GRR" ~ "greater_redhorse",
+                            species_abbrev == "PGS" ~ "pugnose_shiner",
+                            species_abbrev == "SMS" ~ "slimy_sculpin",
+                            species_abbrev == "LND" ~ "longnose_dace",
+                            species_abbrev == "FRD" ~ "freshwater_drum",
+                            species_abbrev == "WHC" ~ "white_crappie",
+                            species_abbrev == "DAR" ~ "darters",
+                            species_abbrev == "SAR" ~ "sauger",
+                            species_abbrev == "FCF" ~ "flathead_catfish",
+                            species_abbrev == "BMS" ~ "bigmouth_shiner",
+                            species_abbrev == "LKS" ~ "lake_sturgeon",
+                            species_abbrev == "LKW" ~ "lake_whitefish",
+                            species_abbrev == "BRM" ~ "brassy_minnow",
+                            species_abbrev == "SLM" ~ "mississippi_silvery_minnow",
+                            species_abbrev == "GLR" ~ "golden_redhorse",
+                            species_abbrev == "OTS" ~ "suckers",
+                            species_abbrev == "NST" ~ "ninespine_stickleback",
+                            species_abbrev == "GOE" ~ "goldeye",
+                            species_abbrev == "QBS" ~ "quillback",
+                            species_abbrev == "RVS" ~ "river_shiner",
+                            species_abbrev == "LES" ~ "longear_sunfish",
+                            species_abbrev == "CHL" ~ "chestnut_lamprey",
+                            species_abbrev == "RRH" ~ "river_redhorse",
+                            species_abbrev == "WHB" ~ "white_bass",
+                            species_abbrev == "OSS" ~ "orangespotted_sunfish",
+                            species_abbrev == "STC" ~ "stonecat",
+                            species_abbrev == "SNG" ~ "shortnose_gar",
+                            species_abbrev == "RFS" ~ "rosyface_shiner",
+                            species_abbrev == "CMS" ~ "carmine_shiner",
+                            species_abbrev == "SAB" ~ "smallmouth_buffalo",
+                            species_abbrev == "GIS" ~ "gizzard_shad",
+                            species_abbrev == "LNG" ~ "longnose_gar",
+                            species_abbrev == "RCS" ~ "river_carpsucker",
+                            species_abbrev == "SLS" ~ "shovelnose_sturgeon",
+                            species_abbrev == "LAT" ~ "lake_trout",
+                            species_abbrev == "TME" ~ "tiger_muskellunge",
+                            species_abbrev == "PRD" ~ "pearl_dace",
+                            species_abbrev == "PLS" ~ "pallid_shiner",
+                            species_abbrev == "RBS" ~ "rainbow_smelt",
+                            species_abbrev == "RBD" ~ "rainbow_darter",
+                            species_abbrev == "LNS" ~ "longnose_sucker",
+                            species_abbrev == "SJC" ~ "shortjaw_cisco",
+                            species_abbrev == "DWS" ~ "deepwater_sculpin",
+                            species_abbrev == "SHS" ~ "spoonhead_sculpin",
+                            species_abbrev == "BDD" ~ "banded_darter",
+                            species_abbrev == "MOE" ~ "mooneye",
+                            species_abbrev == "BLS" ~ "blue_sucker",
+                            species_abbrev == "SLC" ~ "silver_chub",
+                            species_abbrev == "HFS" ~ "highfin_carpsucker",
+                            species_abbrev == "MCP" ~ "mirror_carp",
+                            species_abbrev == "WAS" ~ "walleye/sauger",
+                            species_abbrev == "AME" ~ "american_eel",
+                            species_abbrev == "GOF" ~ "goldfish",
+                            species_abbrev == "SPS" ~ "spotted_sucker",
+                            species_abbrev == "PAH" ~ "paddlefish",
+                            species_abbrev == "RVD" ~ "river_darter",
+                            species_abbrev == "NHS" ~ "northern_hog_sucker",
+                            species_abbrev == "BHM" ~ "bullhead_minnow",
+                            species_abbrev == "WSD" ~ "western_sand_darter",
+                            species_abbrev == "MDD" ~ "mud_darter",
+                            species_abbrev == "SIL" ~ "silver_lamprey",
+                            species_abbrev == "SKJ" ~ "skipjack_herring",
+                            species_abbrev == "PGM" ~ "pugnose_minnow",
+                            species_abbrev == "BKB" ~ "black_buffalo",
+                            species_abbrev == "FTD" ~ "fantail_darter",
+                            species_abbrev == "YLB" ~ "yellow_bass",
+                            species_abbrev == "PRP" ~ "pirate_perch",
+                            species_abbrev == "LKC" ~ "lake_chub",
+                            species_abbrev == "RIR" ~ "river_ruffe",
+                            species_abbrev == "WHP" ~ "white_perch",
+                            species_abbrev == "ALW" ~ "alewife",
+                            species_abbrev == "SEL" ~ "sea_lamprey",
+                            species_abbrev == "BHC" ~ "bighead_carp",
+                            species_abbrev == "GLD" ~ "gilt_darter",
+                            species_abbrev == "CRD" ~ "crystal_darter",
+                            species_abbrev == "SMT" ~ "speckled_madtom",
+                            species_abbrev == "RDS" ~ "red_shiner",
+                            species_abbrev == "WAM" ~ "warmouth",
+                            # below unknown codes specified as such
+                            species_abbrev == "CIS" ~ "cisco",
+                            species_abbrev == "CPS" ~ "carpsucker",
+                            species_abbrev == "CRP" ~ "crappie",
+                            species_abbrev == "HCR" ~ "hybrid_crappie",
+                            species_abbrev == "LXB" ~ "see_ambiguous_species_code",
+                            species_abbrev == "SCU" ~ "sculpin",
+                            species_abbrev == "SHD" ~ "slenderhead_darter",
+                            species_abbrev == "SIP" ~ "northern_pike_silver_phase",
+                            species_abbrev == "UK1" ~ "unknown_fish",
+                            species_abbrev == "UK2" ~ "unknown_fish",
+                            TRUE ~ species_abbrev
+                          )
+      ]
+      
+      #some dulicated common names (two codes for one thing)
+      species_codes_mn[duplicated(species_codes_mn$species.1), , ]
+      
+      setnames(species_codes_mn, "species.1" , "common.name" )
+      
+        #fill species names
+      mn_dat[species_codes_mn,
+             on = .(species_abbrev=species_abbrev),
+             species.fix := common.name 
+      ]
+        #fill into species.1 col, drop fix column
+        mn_dat[is.na(species.1), species.1 := species.fix , ]
+                mn_dat[ , species.fix := NULL ,]
+       
+        
+        #clean up common names
+        mn_dat[ , species.1 := str_replace_all( str_replace_all( str_replace_all(tolower(species.1),
+                                                                                 " ", "_") ,
+                                                                 "\\)" , "") ,
+                                                "\\(" , "")]
+        
+        mn_dat[ , species.1 := 
+                  case_when(
+                    species.1 == "tullibee_cisco" ~ "cisco",
+                    species.1 == "trout-perch" ~ "trout_perch",
+                    species.1 == "bowfin dogfish" ~ "bowfin",
+                    # unknown species
+                    species.1 == "no_particular_species" ~ "no_particular_species",
+                    species.1 == "unknown_fish_one" ~ "unknown_fish",
+                    species.1 == "walleye/sauger" ~ "walleye_x_sauger",
+                    TRUE ~ species.1
+                  )
+        ]
+        
+        #check work
+        print(mn_dat[ , .N , species.1][order(species.1)], nrow(mn_dat[ , .N , species.1])) 
+        
+        #still 1904 NAs here (nothing caught surveyXgears)
+        mn_dat[is.na(species.1) , .N , .(nothing_caught)  ]
+        
+        
+        #fill species codes
+        species_codes_mn
+        mn_dat[!is.na(species_abbrev), .N , .(species_abbrev,species.1) ]
+        species_codes_mn <- mn_dat[!is.na(species_abbrev), .N , .(species_abbrev,species.1) ]
+        
+        setnames(species_codes_mn, "species_abbrev", "fishcode")
+        
+        mn_dat[species_codes_mn, on = .(species.1), species_abbrev_fix := fishcode ]
+        
+        mn_dat[, species_abbrev := species_abbrev_fix]
+        
+        #check work
+        print(mn_dat[ , .N , .(species.1,species_abbrev)], nrow(mn_dat[ , .N , .(species.1,species_abbrev)]))
+        
+        mn_dat[ , species_abbrev_fix := NULL]
+
+        
+# fix state
+       #what cols are have species in name?
+    mn_dat[ , .N ,  .(state, state_effort, state_indivfish) ]
+    
+    #collapse all
+    mn_dat[ , `:=` (state = "Minnesota", state_effort = NULL, state_indivfish = NULL) , ]
+    
+
+# fix unit names for length and age
+    #formats the length unit for clarity
+    mn_dat[ , .N , length_unit.1 ]
+    mn_dat[ , .N , weight_unit.1]
+    
+    mn_dat[!is.na(length_unit.1), length_unit.1 := "mm" ,]
+    mn_dat[!is.na(weight_unit.1), weight_unit.1 := "g" ,]
+
+# target species
+    #targeted species - needs cleaning, has species codes (clean up with the species code table generated above)
+    mn_dat[ , .N , target_species ]
+    mn_dat[ , c("T1","T2", "T3", "T4", "T5")  :=   tstrsplit(target_species, split = ", "), ]
+    
+    setnames(species_codes_mn, "species.1", "commonname")
+    
+    mn_dat[species_codes_mn, on = .(T1=fishcode) , target_species_1 := commonname ]
+    mn_dat[species_codes_mn, on = .(T2=fishcode) , target_species_2 := commonname ]
+    mn_dat[species_codes_mn, on = .(T3=fishcode) , target_species_3 := commonname ]
+    mn_dat[species_codes_mn, on = .(T4=fishcode) , target_species_4 := commonname ]
+    mn_dat[species_codes_mn, on = .(T5=fishcode) , target_species_5 := commonname ]
+    
+    mn_dat[ !is.na(target_species), unique(paste(target_species_1,target_species_2, target_species_3, target_species_4,target_species_5))]
+    
+    mn_dat[ , target_species := str_remove_all(paste(target_species_1,target_species_2, target_species_3, target_species_4,target_species_5, sep = ", "),
+                                               ", NA"),]
+    
+    mn_dat[ , c("T1","T2", "T3", "T4", "T5",
+                "target_species_1","target_species_2", "target_species_3", "target_species_4", "target_species_5") := NULL]
+    
+# effort needs attention. Currently we have a negative effort and no units (nab code to add units from Holly based on gear type)
+    #effort
+    mn_dat %>% 
+      select(contains("effort"))
+    #total_effort_1.1
+    
+    gear_table_mn[order(sampling_method_abbrev)]
+    
+    mn_dat[ !is.na(total_effort_1.1), .(mean = mean(total_effort_1.1), min =min(total_effort_1.1), max = max(total_effort_1.1)) , ]
+    #no effort units, we have a negative effort? 
+    
+    # we can get units for these effort data from here (p45ish):
+    # https://files.dnr.state.mn.us/publications/fisheries/special_reports/180.pdf
+    #manually added the units for AOW, TMF, and GFM -- assuming same as similar gear categories
+    effort_table <- data.table( CODE = c(c("AIF", "TOU", "ATL", "STL", "EXT", "XXX", "MT", "SA", "ZO", "AOW"),#NONE
+                                 c("TR" , "STR", "SEF", "EFB", "EW", "EF"), #HOUR 
+                                 c("SSE", "SE", "S18", "S58"), #HAUL
+                                 c("GN", "GDE", "GSH", "GSM", "GST", "GSU", "GNP", "FCI", "TML", "SGN", "GNA", "VGN", "TN", "LTN", "DTN", "TQU", "T38", "THA", "T34", "T1", "STN", "GFM", "TMF")),#SET  
+                        effort_unit = c(rep("no_unit", 10), rep("hours", 6), rep("haul", 4), rep("set", 23)))
+    
+    #add effort units to gear tbale       
+    gear_table_mn[effort_table, on = .(sampling_method_abbrev=CODE), total_effort_unit := effort_unit]
+    #and push those over to the main df
+    mn_dat[gear_table_mn, on = .(sampling_method_abbrev), total_effort_unit := total_effort_unit]
+    
+    #cleanup and checkwork
+    rm(effort_table)
+    mn_dat[ , .N , .(sampling_method, total_effort_unit)]
+    
+    mn_dat[ total_effort_1.1 < 0 ] #weird, but not diagnosable/fixable IMO.
+    mn_dat[ total_effort_1.1 < 0, flag := "effort value questionable" ]
+    
+#survey_id 
+    mn_dat %>%
+      select(contains("survey_"))
+    
+    mn_dat[ ,  .N, .(survey_id == survey_id_effort)]
+    
+    #something looks wonky in these survey Ids but the MNDNR says they're not useful anyways... see Minnnesota_README (https://docs.google.com/document/d/1sXag9RDvbKN0pUB6uRlADz36-kFNqRPwHVGlkJgyWTM/edit)
+    
+    mn_dat[ , survey_id := NULL , ]
+    
+    
+    
+   # borrowed this code from county, and it the numbers match. both county and survey ID are cases where we should just consolidate all three cols (no disagreement, outisde of NAs)
+          mn_dat %>% 
+            mutate(same_survID_eff_fish = ifelse(survey_id_effort == survey_id_indivfish, "Same", "Different")) %>% 
+            mutate(same_survID_eff_catch = ifelse(survey_id_effort == survey_id, "Same", "Different")) %>% 
+            mutate(same_survID_catch_fish = ifelse(survey_id == survey_id_indivfish, "Same", "Different")) %>% 
+            group_by(same_survID_eff_fish,same_survID_eff_catch,same_survID_catch_fish) %>% 
+            count()
+          #no conflicting rows between effort and fish, but data might be missing from one or the other
+          
+          mn_dat[, .N, .(catchisNA = is.na(survey_id),
+                                                                effortisNA = is.na(survey_id_effort),
+                                                                fishisNA = is.na(survey_id_indivfish))
+                 ]
+          
+          #collapse:
+          mn_dat[ , survey_id := ifelse(is.na(survey_id_effort), survey_id_indivfish, survey_id_effort) , ]
+          mn_dat[ , county    := ifelse(is.na(county_effort), county_indivfish, county_effort )]
+          
+          mn_dat[ , c("survey_id_indivfish", "survey_id_effort", "county_effort", "county_indivfish") := NULL ,]
+          
+          mn_dat[ , .N, gsub(".", "", as.character(survey_id))]
+          
+          
+          
+
+#lake_name
+              mn_dat[, .N, .(catchisNA = is.na(lake_name.1),
+                                                                effortisNA = is.na(lake_name.1_effort),
+                                                                fishisNA = is.na(lake_name.1_indivfish))
+                 ]
+            mn_dat %>% 
+            mutate(same_survID_eff_fish = ifelse(lake_name.1_effort == lake_name.1_indivfish, "Same", "Different")) %>% 
+            mutate(same_survID_eff_catch = ifelse(lake_name.1_effort == lake_name.1, "Same", "Different")) %>% 
+            mutate(same_survID_catch_fish = ifelse(lake_name.1 == lake_name.1_indivfish, "Same", "Different")) %>% 
+            group_by(same_survID_eff_fish,same_survID_eff_catch,same_survID_catch_fish) %>% 
+            count()
+          
+            mn_dat[is.na(lake_name.1), lake_name.1 := ifelse(is.na(lake_name.1_effort), lake_name.1_indivfish, lake_name.1_effort)]
+              mn_dat[ , c("lake_name.1_effort","lake_name.1_indivfish") := NULL]
+              
+#date
+              mn_dat[ , .N , is.na(date_clean)]
+              setnames(mn_dat, "date.1", "date.1_histcatch")
+              
+              #dump all extra dates:
+              mn_dat[ , c("date.1_effort", "date.2_effort", "end_date", "date.2_indivfish", "date.1_indivfish", "date.1_histcatch") := NULL, ]
+              
+              
+# add an effort_ident column "lake_id", "date_clean" , "sampling_method_abbrev", "survey_type.1"effort_ident := .GRP
+    setnames(mn_dat, "total_effort_unit", "effort_units.1")
+        mn_dat[ , .N ,.(lake_id, date_clean, survey_type.1, sampling_method_abbrev  #survey 
+                                                        ) ]  
+    #outstanding issue here: we've got total_effort mismatched within some surveys
+        mn_dat[ , length(unique(total_effort_1.1)),.( lake_id, date_clean, survey_type.1, #survey 
+                        sampling_method_abbrev 
+                                                        ) ][V1>1] #the offenders
+        
+        #view one of these:
+        a <- mn_dat[date_clean == "1984-08-30" & lake_id == 35000300,  , ]
+
+        #looks to me like those multi-efforts are true to the data. I suppose we have to assume that the data were recorded as each of those implementations of same gear being separate... Not actually sure that matters. but even so the problem exists in 22 surveyXgears of 64040... so prob not a big deal.  
+        
+        
+        mn_dat[ , .N ,.( lake_id, date_clean, survey_type.1, #survey 
+                        sampling_method_abbrev, total_effort_1.1, effort_units.1, nothing_caught 
+                                                        ) ] 
+        #adds in our effort_ident field
+        mn_dat[ , effort_ident := .GRP ,.( lake_id, date_clean, survey_type.1, #survey 
+                        sampling_method_abbrev, total_effort_1.1, effort_units.1, nothing_caught 
+                                                        ) ] 
+    
+    
+#use mwlaxeref to fetch NHDIDs
+  local_to_nhdhr(mn_dat[,.(lake_id = fixlakeid(lake_id))], from_colname = "lake_id", state = "mn")[,2]
+  
+  mn_dat[ , nhdhr.id := local_to_nhdhr(mn_dat[,.(lake_id = fixlakeid(lake_id))], from_colname = "lake_id", state = "mn")[,2] , ]
+    
+
+  #remaining unmatched lakes:
+  mn_dat[is.na(nhdhr.id), .N , lake_id ]
+  
+
+    
+#get the original file names named correctly and check coverage of sources with them:
+  setnames(mn_dat, "original_file_name.1", "original_file_name.1_histcatch")
+  mn_dat[ , .N, .(catchNA = is.na(original_file_name.1_histcatch),
+                  fishlengthNA = is.na(original_file_name.1_indivfish),
+                  effortNA = is.na(original_file_name.1_effort))]
+  
+
+
+#   This block was used to reload the data after a pause on the work 
+#   mn_dat <- mn_data %>% 
+# +     select(
+# +         state, county, lake_name.1, lake_id, nhdhr.id, 
+# +         date_clean, date.1_effort, date.2_effort, end_date, date.2_indivfish, date.1_indivfish, date.1_histcatch,
+# +         survey_type.1, survey_id, 
+# +         sampling_method, sampling_method_abbrev, total_effort_1.1, effort_units.1, nothing_caught, target_species, effort_ident,
+# +         species.1, species_abbrev, length.1, length_unit.1,weight.1, weight_unit.1, sample_id.1, age, aging_structure, young_of_year, sex,
+# +         original_file_name.1_effort,original_file_name.1_indivfish, original_file_name.1_histcatch, flag
+# +     ) %>%
+# +     collect() %>% 
+# +     setDT()#set as data.table
+#   
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+```
+
+
+# Save Parquet
+
+```{r}
+
+
+
+
+
+
+write_dataset(dataset = mn_dat, path = "Data_and_Scripts/Data/output/mn_file_arrow")
+
+mn_data <- open_dataset("Data_and_Scripts/Data/output/mn_file_arrow/")
+
+glimpse(mn_data)
+
+```
+
+# send some data to chris
+
+```{r}
+
+library(arrow)
+mn_data <- open_dataset("Data_and_Scripts/Data/output/mn_file_arrow/")
+glimpse(mn_data)
+
+#add more gears from this list if desired
 mn_data %>% 
-  group_by(sampling_method_abbrev, sampling_method) %>% 
+  group_by(sampling_method_abbrev,sampling_method) %>% 
+  count() %>% 
+  compute()
+
+mn_data %>% 
+  filter(sampling_method_abbrev %in% c("GN", #gill nets common type
+                                "TN" # trap nets common type
+                                )) %>% 
+  compute()
+
+
+#mccarrons lake fish
+
+mn_data %>% 
+  filter(lake_id == 62005400) %>% 
+  group_by(species.1, year(date_clean), sampling_method) %>% 
   summarize(n = n()) %>% 
   collect() %>% 
   print(n = nrow(.))
 
-gear_table_mn <- mn_data %>% 
-  filter(!is.na(sampling_method)) %>%
-  select( sampling_method_abbrev, sampling_method) %>% 
-  unique() %>% 
-  compute() %>% 
-  collect() %>% 
-  print(n = nrow(.))
+#paul F reprex
 
 
-mn_data %>% 
-  select(!sampling_method) %>% 
-  inner_join(. , gear_table_mn, by = "sampling_method_abbrev") %>% 
-  group_by(sampling_method_abbrev, sampling_method) %>% 
-  summarize(n = n()) %>% 
-  collect() %>% 
-  print(n = nrow(.))
+data <- data.frame(dow = c(1000100, 10000200),
+                   dow_chr = c("01000100", "10000200"))
+
+mwlaxeref::lake_id_xref %>% filter(state == "mn", local.id %in% c("01000100" , "10000200"))
+
+local_to_nhdhr(data, from_colname = "dow", state = "mn")
+local_to_nhdhr(data, from_colname = "dow_chr", state = "mn")
+
+
+
 
 
 ```

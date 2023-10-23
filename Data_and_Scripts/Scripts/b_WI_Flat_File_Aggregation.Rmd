@@ -33,6 +33,7 @@ library(janitor)
 library(tidyr)
 library(lubridate)
 library(ggplot2)
+library(mwlaxeref)
 
 options(scipen = 999)
 ```
@@ -902,7 +903,6 @@ wi_data %>%
 wi_data %>% 
   group_by(species.1) %>% 
   summarise( n = n()) %>% 
-  arrange( n) %>% 
   collect() %>% 
   print(n = nrow(.))
 
@@ -1033,7 +1033,21 @@ wi_data %>%
   arrange(n) %>% 
   print( n = nrow(.))  
 
+wi_data %>% 
+  filter(sampling_method == "vertical_gill_net") %>% 
+  group_by(species.1) %>% 
+  summarise(n = n()) %>% 
+  collect()
 
+<<<<<<< HEAD
+=======
+wi_data %>% 
+  filter(sampling_method == "vertical_gill_net") %>% 
+  group_by(survey_id, date.1, lake_name.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% print(n = nrow(.))
+
+>>>>>>> c9d89e87d9b681c173d3c70766c535719c79af71
 #target species
 wi_data %>% 
   group_by(target_species_indivfish) %>% 

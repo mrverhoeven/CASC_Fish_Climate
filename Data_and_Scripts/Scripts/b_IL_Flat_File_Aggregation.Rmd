@@ -3,6 +3,8 @@ title: "IL_Flat_File_Aggregation"
 author: "Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 # Preamble
 
@@ -59,7 +61,8 @@ flag - this column contains a character string with issues describing each row, 
 
 
 
-
+things do discuss:
+ 1. I did not use the lake info, effort, or age files
 
 
 
@@ -87,7 +90,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -100,7 +103,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -190,66 +193,97 @@ for(i in 1:n) {
 # consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
 
 
-#effort:
-mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
+#aged fish
+glimpse(il_aged_fish_surveys_28Dec2022)
 
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1] # lake ids not unique (they *should* be though)
+#any na lengths? 
+il_aged_fish_surveys_28Dec2022 %>% 
+  filter(is.na(length.1)) %>% 
+  group_by(survey_id) %>% 
+  count()
 
-#which lakes have multiple names for a single ID?
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id]
-mi_statustrends_effort_16Mar2021[lake_id %in% 
-                                   mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id], , ]
-# it appears here that a full survey (all gears were deployed in each part of these lakes. For that reason, My vote is that we keep them separate and use lake_id + lake_name for our key. 
+#do the catch and aged data match for the surveys?
+il_aged_fish_surveys_28Dec2022 %>% 
+  group_by(year, survey_id, lake_name.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#only clinton and rend lake from 1985 - 2003
 
-# view each data level for a single survey
-mi_statustrends_effort_16Mar2021[survey_id ==2446]
-mi_statustrends_catch_16Mar2021[survey_id == 2446]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, ]
-mi_statustrends_lenage_20May2021[survey_id == 2446, ]
+il_catch_age_effort_17Jan22 %>% 
+  filter(lake_name.1 == "Clinton Lake" | lake_name.1 == "Rend Lake") %>% 
+  group_by(survey_id, year) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#they aren't going to jive
 
-# do the counts match across all levels?
-mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count)]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, sum(total_count)]
-nrow(mi_statustrends_lenage_20May2021[survey_id == 2446, ])
+#only two surveys, 8 fish have na lengths - total count in these is 0?
 
-#no. not even close. I suspect this is bc of a species seletion that happened in the catch data:
-mi_statustrends_catch_16Mar2021[survey_id == 2446, length(unique(species.1))]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, length(unique(species.1))]
-mi_statustrends_lenage_20May2021[survey_id == 2446, length(unique(species.1)) ]
-#view species lists:
-mi_statustrends_catch_16Mar2021[survey_id == 2446,sum(total_count) , species.1]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446,sum(total_count) , species.1]
-mi_statustrends_lenage_20May2021[survey_id == 2446, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
-#view species lists:
-mi_statustrends_catch_16Mar2021[survey_id == 4079,sum(total_count) , species.1]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 4079,sum(total_count) , species.1]
-mi_statustrends_lenage_20May2021[survey_id == 4079, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
+#catch age effort
+glimpse(il_catch_age_effort_17Jan22)
 
+il_catch_age_effort_17Jan22 %>% 
+  filter(!is.na(age)) %>% 
+  glimpse()
 
+il_catch_age_effort_17Jan22 %>% 
+  filter(total_count.1 < 1) %>% 
+  group_by(survey_id) %>% 
+  count()
 
-# not exactly clear WHY the numbers still don't jive between the inch grp file and the catch file, BUT the catch file seems to have problems with the n per species X gear where there are zeros in an inchgroup (see survey 2446)
+il_catch_age_effort_17Jan22 <- il_catch_age_effort_17Jan22 %>% 
+  uncount(total_count.1)
 
+multieffort.fish <- il_catch_age_effort_17Jan22 %>% 
+  group_by(survey_id) %>% 
+  summarise(n = n(), unique(total_effort_2)) 
+#variable for sub-survey level effort ID
 
-#survey_ids matched across all surveys?
-mi_statustrends_effort_16Mar2021[ , .( effort_nrows = .N) , survey_id]
-mi_statustrends_catch_16Mar2021[ , .( catch_nrows = .N) , survey_id]
-mi_statustrends_catchlengthclass_03July2023[ , .( catchlen_nrows = .N) , survey_id ]
-mi_statustrends_lenage_20May2021[ , .( lenage_nrows = .N) , survey_id] 
-
-#data summary by surveys
-data_coverage <- 
-merge(
-  merge(
-  merge(
-    merge(mi_statustrends_effort_16Mar2021[ , .( effort_nrows = .N) , survey_id], 
-          mi_statustrends_catch_16Mar2021[ , .( catch_nrows = .N) , survey_id], all = T),
-    mi_statustrends_catchlengthclass_03July2023[ , .( catchlen_nrows = .N) , survey_id ], all = T), 
-  mi_statustrends_lenage_20May2021[ , .( lenage_nrows = .N) , survey_id], all = T),
-  mi_survey_id_crosswalk_23May2023[,.(crosswalk_nrows = .N) , Survey_Number ],by.x = "survey_id", by.y = "Survey_Number", all = T)
+multieffort.fish <- il_catch_age_effort_17Jan22 %>% 
+  group_by(survey_id) %>% 
+  summarise(n = n(), unique(total_effort_1))
   
+#effort
+glimpse(il_effort_17Jan22)
+#efforts associated with lake/survey/date
+#two efforts
+#survey id matches with the catch file but not the aged fish surveys 
 
+il_effort_17Jan22 %>% 
+  filter(survey_id == "Survey_15") %>% 
+  glimpse()
 
+multieffort.effort <- il_effort_17Jan22 %>% 
+  group_by(survey_id) %>% 
+  summarise(n = n(), unique(total_effort_2)) %>%  
+  filter(n >1)
+#total effort 2 is a sub-survey level id for effort
 
+multieffort.effort <- il_effort_17Jan22 %>% 
+  group_by(survey_id) %>% 
+  summarise(n = n(), unique(total_effort_1)) %>%  
+  filter(n >1)
+
+#lake info 
+glimpse(il_lake_info_17Jan22)
+#only has lake info (location, size, id)
+
+#do survey ids match?
+#do survey IDs match effort?
+il_aged_fish_surveys_28Dec2022 %>% 
+  group_by(lake_name.1, survey_id) %>% 
+  summarise(n = n())
+il_effort_17Jan22 %>% 
+  group_by(lake_name.1, survey_id) %>% 
+  summarise() %>% 
+  print(n = 20)
+il_catch_age_effort_17Jan22 %>% 
+  group_by(lake_name.1, survey_id) %>% 
+  summarise() %>% 
+  print(n = 20)
+il_catch_age_effort_17Jan22 %>%
+  anti_join(il_effort_17Jan22, by = c("lake_name.1", "survey_id")) %>% 
+   group_by(lake_name.1, survey_id) %>% 
+   summarise(n = n())
 ```
 
 
@@ -257,305 +291,205 @@ merge(
 ```{r}
 #in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
 
+#merging age data to fish data
+age.fish <- left_join(il_catch_age_effort_17Jan22, 
+                      il_aged_fish_surveys_28Dec2022,
+                      by = c("lake_id", 
+                             "year", 
+                             "date.1",
+                             "sampling_method",
+                             "length.1",
+                             "weight.1"))
+
+#collapsing effort from the obs level file 
+survey.effort <- il_catch_age_effort_17Jan22 %>% 
+  group_by(survey_id, year, date.1, sampling_method, total_effort_2, total_effort_1) %>% 
+  count() %>% 
+  group_by(survey_id, year, sampling_method) %>% 
+  mutate(survey_effort = sum(total_effort_1),
+         survey_effort_id = cur_group_id())
+
+#are there any surveys that have more than one survey level effort?
+survey.effort %>% 
+  group_by(survey_id, sampling_method, survey_effort) %>% 
+  count() %>% 
+  group_by(survey_id, sampling_method) %>% 
+  count() %>% 
+  filter(n >1)
+
+#all of the duplicates have multiple years associated with the same effort so it wont be a problem
+check <- survey.effort %>% 
+  filter(survey_id == c("Survey_880"))
+#surveys 1324, 525, and 880 have two efforts for the survey id but they are in different years
+#this does not hinder us with the join, but date/year will need to be included when counting
 
 
-#Start with a merge of catch and catch-length?
-
-        #file prep
-                #dates
-                        # mi_statustrends_effort_16Mar2021[ , unique(date.1) , ]
-                        mi_statustrends_effort_16Mar2021[ , date.1 := as.character(date.1) , ]
-                        # mi_statustrends_catch_16Mar2021[ , unique(date.1) , ]
-                        mi_statustrends_catch_16Mar2021[ , date.1 := as.character(as.IDate(date.1, format = "%m/%d/%Y")) , ]
-                #species        
-                        #species is empty in effort
-                        mi_statustrends_effort_16Mar2021[ , .N , species.1 ]
-                        mi_statustrends_effort_16Mar2021[ , species.1 := NULL ,]
-                        
-                        #view species lists:
-                        mi_statustrends_catch_16Mar2021[ ,sum(total_count) , species.1]
-                        mi_statustrends_catchlengthclass_03July2023[ ,sum(total_count) , species.1]
-                        mi_statustrends_lenage_20May2021[ , .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
-                        
-                        #dump the species not of interest to us here:
-                        mi_statustrends_catchlengthclass_03July2023 <- mi_statustrends_catchlengthclass_03July2023[species.1 %in% mi_statustrends_catch_16Mar2021[ , unique(species.1)]]
-                        
-                        #column name diffs
-                        colnames(mi_statustrends_catchlengthclass_03July2023)[colnames(mi_statustrends_catchlengthclass_03July2023)== "sampling_method" ] <- "sampling_method_abbrev"
-                        
-                        #add lake_id to lengthclass file:
-                        mi_statustrends_catchlengthclass_03July2023[mi_statustrends_effort_16Mar2021[ ,.N , .(lake_id, lake_name.1, survey_id)], on = c("lake_name.1", "survey_id"), lake_id := lake_id ] 
-                        mi_statustrends_catchlengthclass_03July2023[is.na(lake_id), .N , .(lake_name.1, survey_id)]#still missing names
-                        
-                        #any more available in catch file? NOPE
-                        mi_statustrends_catchlengthclass_03July2023[is.na(lake_id), .N , .(lake_name.1, survey_id)][,survey_id]%in%
-                        mi_statustrends_catch_16Mar2021[ ,.N , .(lake_id, lake_name.1, survey_id)][ , survey_id]
-                        
-                        #if drawn from effort sans survey ID (Risky, ambiguous join) can we get a 1:1 for lake name? or is there multi lakes for each name?
-                        mi_statustrends_effort_16Mar2021[ lake_name.1 %in%
-                                                            mi_statustrends_catchlengthclass_03July2023[is.na(lake_id), .N , .(lake_name.1, survey_id)][,lake_name.1] , .N ,
-                                                          .(lake_id, county, lake_name.1, year, survey_id, survey_type.1) ]
-                        #if drawn from catch sans survey ID (Risky, ambiguous join) can we get a 1:1 for lake name? or is there multi lakes for each name?
-                        mi_statustrends_catch_16Mar2021[ lake_name.1 %in%
-                                                           mi_statustrends_catchlengthclass_03July2023[is.na(lake_id), .N , .(lake_name.1, survey_id)][,lake_name.1] , .N ,
-                                                         .(lake_id, county, lake_name.1, year, survey_id, survey_type.1) ]
-                        
-                        #Conclusion-- don't do that. only grab the full keyed lake IDs from effort:
-                        mi_statustrends_catchlengthclass_03July2023[mi_statustrends_catch_16Mar2021[ ,.N , .(lake_id, lake_name.1, survey_id)], on = c("lake_name.1", "survey_id"), lake_id := lake_id ]
-        #uncount catch
-                        #uncount the catch files into an indiv-as-row format:
-                        #with lengths scope
-                        mi_statustrends_catchlengthclass_03July2023[ ,summary(total_count) , ]
-                        mi_statustrends_catchlengthclass_03July2023[ , .N , total_count == 0] #do we lose anything if we drop these?
-                        
-                        #here we check if the surveyXsample methods are all covere in the >0 total_count data (same dataset)
-                        mi_statustrends_catchlengthclass_03July2023[total_count == 0 , .N , .(survey_id, sampling_method_abbrev)]
-                        sum(!mi_statustrends_catchlengthclass_03July2023[total_count == 0 , paste(survey_id, sampling_method_abbrev)] %in% mi_statustrends_catchlengthclass_03July2023[total_count>0, paste(survey_id,sampling_method_abbrev)])
-                        #how about in the effort data? There's no effort data that we would lose if we drop those zeros. 
-                        sum(!mi_statustrends_catchlengthclass_03July2023[total_count == 0 , paste(survey_id, sampling_method_abbrev)] %in% mi_statustrends_effort_16Mar2021[, paste(survey_id,sampling_method_abbrev)])
-                        
-                        #execute the uncount, dropping those zero total counts in the mix (This line is generating a warning in the next line)
-                        mi_statustrends_catchlengthclass_03July2023_uncount <- 
-                                       uncount(mi_statustrends_catchlengthclass_03July2023[total_count!=0], total_count, .remove = T, .id = "ident_l")
-                        
-                        #add a surveyxgear ident for indiv fish
-                        mi_statustrends_catchlengthclass_03July2023_uncount[ , ident := seq_len(.N) , .(lake_name.1, lake_id, survey_id, sampling_method_abbrev, species.1) ]
-                        
-                        #no lengths scope          
-                        mi_statustrends_catch_16Mar2021[ , summary(total_count)]
-                        #execute
-                        mi_statustrends_catch_16Mar2021_uncount <- 
-                          uncount(mi_statustrends_catch_16Mar2021, total_count, .remove = T, .id = "ident")
-
-        
-                        
-          #how many length data cover unknown surveys in catch data?
-                        
-                        #here we check if the surveyXsample methods are all covered in the simple catch data
-                        mi_statustrends_catchlengthclass_03July2023_uncount[ , .N , .(survey_id, sampling_method_abbrev)]
-                        sum(!mi_statustrends_catchlengthclass_03July2023_uncount[ , unique(paste(survey_id, sampling_method_abbrev))] %in% mi_statustrends_catch_16Mar2021_uncount[, unique(paste(survey_id,sampling_method_abbrev))])
-                        
-                        #how about in the effort data? There's no effort data that we would lose if we drop those zeros, but we do have 3 surveyXgears unique to the inchclass data. 
-                        sum(!mi_statustrends_catchlengthclass_03July2023_uncount[ , unique(paste(survey_id, sampling_method_abbrev))] %in% mi_statustrends_effort_16Mar2021[, paste(survey_id,sampling_method_abbrev)])
-                        
-                        # we can see that 3 surveys in inchclass data are not represented in catch or effort data
-                        mi_statustrends_catchlengthclass_03July2023_uncount[ , unique(paste(survey_id, sampling_method_abbrev))][!mi_statustrends_catchlengthclass_03July2023_uncount[ , unique(paste(survey_id, sampling_method_abbrev))] %in% mi_statustrends_effort_16Mar2021[, paste(survey_id,sampling_method_abbrev)]]
-                        
-                        mi_statustrends_effort_16Mar2021[survey_id == 4042]
-                        
-                        mi_statustrends_catchlengthclass_03July2023_uncount[ survey_id == 4042, .N , .(species.1, sampling_method_abbrev) ]
-                        
-        #are there any surveys without any catch? Yes, 120 of them. (can we assume catch = zero there? Likely yes )
-                        sum(!
-                              mi_statustrends_effort_16Mar2021[ , 
-                                                                unique(paste(survey_id, sampling_method_abbrev))
-                                                                ] %in%
-                              mi_statustrends_catch_16Mar2021_uncount[ ,
-                                                                       unique(paste(survey_id, sampling_method_abbrev)) ,
-                                                                       ]
-                            )
-                        
-                        mi_statustrends_catch_16Mar2021[ , summary(total_count) ,]
-        
-        # and how many surveyX gears are not shown in the effort file? ZERO!                
-                        sum(!mi_statustrends_catch_16Mar2021_uncount[ ,
-                                                                       unique(paste(survey_id, sampling_method_abbrev)) ,
-                                                                       ] %in%
-                              mi_statustrends_effort_16Mar2021[ , 
-                                                                unique(paste(survey_id, sampling_method_abbrev))
-                                                                ]
-                              
-                            )
-                       #this tells us we can skip expansion here. These no catch are already captured in the effort file
-                        
-         #merge catch files:                
-                        names(mi_statustrends_catch_16Mar2021_uncount)
-                        colnames(mi_statustrends_catchlengthclass_03July2023_uncount)
-                        
-                        
-                        #set key columns
-                        keycols <- c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev", "species.1", "ident")
-                        setkeyv(mi_statustrends_catch_16Mar2021_uncount, keycols )
-                        setkeyv(mi_statustrends_catchlengthclass_03July2023_uncount, keycols )
-                        
-                        #merge together all catch data
-                        mi_catch_merge <- merge(mi_statustrends_catch_16Mar2021_uncount, mi_statustrends_catchlengthclass_03July2023_uncount, by = keycols, all = T, suffixes = c("_catch", "_catchlengths"))
-                        
-
-          #add ages where we've got em' (ambiguous gears means we can't tie these to catch-- they're going to go into the mi flat file without gear assigned)
-                        # #add an ident
-                        # mi_statustrends_lenage_20May2021[ , ident := seq_len(.N) , .(lake_id, survey_id, sampling_method_abbrev, species.1) ]
-                        # #set key columns
-                        # keycols <- c("lake_id", "survey_id", "sampling_method_abbrev", "species.1", "ident")
-                        # setkeyv(mi_statustrends_catch_16Mar2021_uncount, keycols )
-                        # setkeyv(mi_statustrends_catchlengthclass_03July2023_uncount, keycols )
-                        # 
-                        # #merge together all catch data
-                        # mi_catch_merge <- merge(mi_statustrends_catch_16Mar2021_uncount, mi_statustrends_catchlengthclass_03July2023_uncount, by = keycols, all = T, suffixes = c("_catch", "_catchlengths"))
-                        
-                                       
-          #merge effort into this
-                        
-                        #set key columns
-                        keycols <- c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")
-                        setkeyv(mi_catch_merge, keycols )
-                        setkeyv(mi_statustrends_effort_16Mar2021, keycols )
-                        
-                        #drop survey level info that will otherwise get duplicated upon  merge() (DONT DO THIS HERE, WILL LOSE DATA-- SEE data_coverage table)
-                        data_coverage[ ,.N , .("effortNA" = is.na(effort_nrows), "catchlenNA" = is.na(catchlen_nrows))]
-                        data_coverage[ ,.N , .("effortNA" = is.na(effort_nrows), "catchNA" = is.na(catch_nrows))]
-                        
-                        
-                        #do merge
-                        mi_catch_eff_merge <- merge(mi_catch_merge, mi_statustrends_effort_16Mar2021, by = keycols, all = T, suffixes = c("_mergedcatch", "_effort"))
-                        
+il_data <- left_join(il_catch_age_effort_17Jan22, survey.effort, by = c("survey_id", 
+                                                                              "year", 
+                                                                              "date.1", 
+                                                                              "sampling_method", 
+                                                                              "total_effort_2", 
+                                                                              "total_effort_1")) %>% 
+  select(-n)
 ``` 
           
           
           
 # Data tidying                        
 ```{r}                       
-### dataset cleanup and tidying. MI work left here as an idea of a previous state's work
+glimpse(il_data)
 
+il_data %>% 
+  group_by(state) %>% 
+  count()
 
+il_data %>% 
+  group_by(county) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#might have to fix St.? do we spell it out?
 
-                                               
-                        #check the product:
-                        colnames(mi_catch_eff_merge)
-                        
-                       mi_catch_eff_merge[ str_detect(lake_name.1, "ike" ), .(count = .N, missinglengths = sum(is.na(length.1)), meanL = mean(length.1)), .(lake_name.1, lake_id, date.1_effort, date.1_mergedcatch, survey_id, sampling_method_abbrev, species.1) ]
+il_data %>% 
+  group_by(lake_name.1, lake_id) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#seems to be a problem with Pistakee Lake - several repeated rows
+###most likely it is 4225 - the id with the most obs
 
-            
-                        #did we retain all of the surveys? Looks like 498 unique survey IDs, and both the product and input reflect this:
-                        mi_catch_eff_merge[ , .N , .(survey_id)]
-                        merge(merge(mi_statustrends_effort_16Mar2021[ , .( effort_nrows = .N) , survey_id], 
-                                    mi_statustrends_catch_16Mar2021[ , .( catch_nrows = .N) , survey_id], all = T),
-                              mi_statustrends_catchlengthclass_03July2023[ , .( catchlen_nrows = .N) , survey_id ], all = T)
-                       
-                       
-                        #here's all of our effort:
-                        mi_catch_eff_merge[ , .N ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
-                        #no catch data exist (or matched) for these data:
-                        mi_catch_eff_merge[ is.na(species.1)  , .N ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
-                        #no_taxa_found
-                        mi_catch_eff_merge[   , nothing_caught  := is.na(species.1) ,  ]
-                        
-                        
-                        #no effort data were submitted for these fish:
-                        mi_catch_eff_merge[ is.na(date.1_effort)  , .N ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
+il_data %>% 
+  filter(lake_name.1 == "Pistakee Lake") %>% 
+  group_by(lake_name.1, lake_id, survey_id, date.1, total_effort_1, survey_effort) %>% 
+  count() %>% 
+  print(n = nrow(.))
 
-                        
-       #clean up the column names and tidy the data table up a bit                 
-       
-              sort(colnames(mi_catch_eff_merge))                 
-              
-              #county     
-              mi_catch_eff_merge[ is.na(county_mergedcatch)|is.na(county_effort) , .N ,   ]
-              mi_catch_eff_merge[ !(is.na(county_mergedcatch)&is.na(county_effort)) & county_mergedcatch != county_effort  , .N ,   ]# no cases where the county doesn't match
-              mi_catch_eff_merge[  , .N , .(is.na(county_mergedcatch), is.na(county_effort))  ]#there are some cases where we haven't got a county at all, otherwise the effort county covers all. 
-              mi_catch_eff_merge[  , county_mergedcatch := NULL]
-              setnames(mi_catch_eff_merge, "county_effort", "county")
-              
-              #data_type
-              setnames(mi_catch_eff_merge, "data_type", "data_type_effort")
-                   
-              #date.1
-              mi_catch_eff_merge[ is.na(date.1_mergedcatch)|is.na(date.1_effort) , .N ,   ]
-              mi_catch_eff_merge[ !(is.na(date.1_mergedcatch)&is.na(date.1_effort)) & date.1_mergedcatch != date.1_effort  , .N ,   ]# no cases where the dates don't match
-              mi_catch_eff_merge[  , .N , .(is.na(date.1_mergedcatch), is.na(date.1_effort))  ]#there are some cases where we haven't got a date at all, otherwise the effort info covers all. 
-              mi_catch_eff_merge[  , date.1_mergedcatch := NULL]
-              setnames(mi_catch_eff_merge, "date.1_effort", "date.1")
-              
-              #date recieved
-              setnames(mi_catch_eff_merge, "date_recieved", "date_recieved_effort")
-              
-              #effort units
-              mi_catch_eff_merge[ is.na(effort_units.1_mergedcatch)|is.na(effort_units.1_effort) , .N ,   ]
-              mi_catch_eff_merge[ !(is.na(effort_units.1_mergedcatch)&is.na(effort_units.1_effort)) & effort_units.1_mergedcatch != effort_units.1_effort  , .N ,   ]# no cases where the units don't match
-              mi_catch_eff_merge[  , .N , .(is.na(effort_units.1_mergedcatch), is.na(effort_units.1_effort))  ]#we have efforts for all. slide into single column. 
-              
-              mi_catch_eff_merge[is.na(effort_units.1_effort), .N , ]
-              mi_catch_eff_merge[is.na(effort_units.1_effort) , effort_units.1_effort := effort_units.1_mergedcatch , ]
-              mi_catch_eff_merge[ , effort_units.1_mergedcatch := NULL , ]
-               setnames(mi_catch_eff_merge, "effort_units.1_effort", "effort_units.1")
-              
-              #filenumber
-              setnames(mi_catch_eff_merge, "file_number", "file_number_effort")
-              
-              #state
-              mi_catch_eff_merge[ ,state := "Michigan"  ] 
-              mi_catch_eff_merge[ , `:=` (state_catch = NULL, state_catchlengths = NULL)  , ]
-              
-              #total effort
-              mi_catch_eff_merge[total_effort_1.1_effort != total_effort_1.1_mergedcatch, .N,  ]
-              plot(total_effort_1.1_effort ~ total_effort_1.1_mergedcatch, data = mi_catch_eff_merge  )
-              abline(1,0)
-              
-              #effort vals
-              mi_catch_eff_merge[ total_effort_1.1_effort != total_effort_1.1_mergedcatch , .N , .(total_effort_1.1_mergedcatch, total_effort_1.1_effort)]
-              #I think that the merged catch values were assigned to indiv fish (like "this fish was caught in ONE net lift") and the effort file has survey X gear total efforts
-              mi_statustrends_catchlengthclass_03July2023[ , summary(total_effort_1.1) , ] 
-                mi_statustrends_catchlengthclass_03July2023[total_effort_1.1 > 1 , summary(total_count), sampling_method_abbrev]
-              # mi_statustrends_catch_16Mar2021[ , summary(total_effort_1.1) , ]    #this won run b/c no col for effort in that       
-              mi_statustrends_effort_16Mar2021[ , summary(total_effort_1.1) ,]          
-              # well--- I don't know what to make of all this, but for now I'll be keeping both of these "total_effort" variables, and leaning on the one originating in the effort file
-              
-              
-              
-              #year
-              
-              mi_catch_eff_merge[ year_effort != year_mergedcatch , ,]
-              mi_catch_eff_merge[ , .N , .(is.na(year_effort), is.na(year_mergedcatch))]
-              mi_catch_eff_merge[is.na(year_effort), year_effort := year_mergedcatch , ]
-              mi_catch_eff_merge[ ,  year_mergedcatch := NULL , ]
-              setnames(mi_catch_eff_merge, "year_effort", "year")
-              
-              
-              # most of this is waste-of-time junk. Let's move the big ones left and leave this mess hang out there to the right.
-              notgarbage <-  c("county","lake_id", "lake_name.1", "date.1", "year", "survey_id",  #survey 
-                               "sampling_method_abbrev", "total_effort_1.1_effort", "effort_units.1", "nothing_caught",  #gear
-                               "species.1", "ident", "length.1", "length_unit.1", "ident_l" #fish
-                               )
-              
-              setcolorder(mi_catch_eff_merge, notgarbage)
-               
-              
-        #expand these data to cover all interested species in each surveyXgear
-                        
-                        #check behavior now:
-                        mi_catch_eff_merge[ species.1 == "WAE" , .N  , c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
-                        #we can see that to gen a catch or CPUE dataset we can cast wide (like we did in MN)
-        
-        #generate a species obs matrix
-                        #clean dates:
-                        mi_catch_eff_merge[ , unique(date.1) , ]
-                        
-                        #execute
-                        mi_catch_eff_merge[ , date_clean := as.IDate(date.1) ,]
-                        mi_catch_eff_merge[ , summary(date_clean) , ]
-                        mi_catch_eff_merge[ is.na(date_clean) , .N , .(survey_id, lake_name.1)] #missing effort data here, thus the gap
-                        
-                        
-                        #tag codes with "taxon"
-                        mi_catch_eff_merge[ , species.1 := paste("taxon_",species.1, sep = "")  ,]
-                        
-                        #we called this "wide complete" in MN
-                        wide_complete <- dcast(mi_catch_eff_merge[ ,.N , by = c("county","lake_id", "lake_name.1", "date.1", "year", "survey_id",  #survey 
-                                                                           "sampling_method_abbrev", "total_effort_1.1_effort", "effort_units.1", "nothing_caught", 
-                                                                           "species.1"
-                                                                           )] , ... ~ species.1 , value.var = "N", fill = 0)
-                        
-                        wide_complete[ , c("county","lake_id", "lake_name.1", "date.1", "year", "survey_id",  #survey 
-                                                                           "sampling_method_abbrev", "total_effort_1.1_effort", "effort_units.1", "taxon_WAE") , ]
-                        
-                        wide_complete[taxon_NA >0]
-                        
-                        
-          # saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts/Data/output/mi_flat_effort_indivfish_merge.rds")                
-                        
-                        
-                        
-                        
+il_data %>% 
+  group_by(date.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(survey_type.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#they are all impoundment surveys?
+
+il_data %>% 
+  group_by(sampling_method) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#sampling method seems to be more sampling method agg
+
+il_data %>% 
+  group_by(gear_data_notes.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#gear notes 1 is more of the sampling method
+
+il_data %>% 
+  group_by(total_effort_2) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#this column needs to be renamed to sub-survey level effort id (net/shocking period)
+
+il_data %>% 
+  group_by(gear_data_notes.2) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(garbage_bin_notes.4) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#garbage bin 4 gives us a general survey purpose 
+
+il_data %>% 
+  group_by(garbage_bin_notes.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#gives subsample times - not clear to me what this is
+
+il_data %>% 
+  mutate(species.1 = str_to_lower(species.1),
+         species.1 = str_replace_all(species.1, " ", "_")) %>% 
+  group_by(species.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(species.1) %>% 
+  filter(!is.na(length.1)) %>% 
+  summarise(min = min(length.1), mean = mean(length.1), max = max(length.1))
+
+il_data %>% 
+  group_by(weight_unit.1) %>% 
+  filter(!is.na(weight.1)) %>% 
+  summarise(min = min(weight.1), mean = mean(weight.1), max = max(weight.1))
+
+il_data %>% 
+   mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
+                                   TRUE ~ NA)) %>% 
+  group_by(weight_unit.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(sex) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#no sex data
+
+il_data %>% 
+  group_by(reproductive_condition_notes) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#no maturity - useless column
+
+il_data %>% 
+  group_by(aging_structure.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#no aging structure data
+
+il_data %>% 
+  group_by(age) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#hardly any age data
+
+il_data %>% 
+  group_by(survey_id, total_effort_2, total_effort_1) %>% 
+  count(survey_effort) %>% 
+  print(n = nrow(.))
+
+#####################final tidy#########################################
+il_data %>% 
+  #lower case with no spaces for species name
+  mutate(species.1 = str_to_lower(species.1),
+         species.1 = str_replace_all(species.1, " ", "_")) %>% 
+  #shorten unit to just g
+  mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
+                                   TRUE ~ NA)) %>%
+  #drop survey type and replace with garbage bin notes 4 for survey type
+  select(-survey_type.1) %>% 
+  rename(survey_type.1 = garbage_bin_notes.4) %>% 
+  mutate(survey_type.1 = gsub("Sample Type:", "", survey_type.1)) %>%  #cleans up column name
+  #adding in length units
+  #no units were specified within data but general assumption is mm
+  mutate(length_unit.1 = "mm") %>% 
+  #obvious typo of lake id Pistakee
+  mutate(lake_id = case_when(lake_name.1 == "Pistakee Lake" ~ 4225,
+                             TRUE ~ lake_id)) %>% 
+  #renaming sampling hierarchy
+  rename(sampling_method.1 = sampling_method) %>% 
+  rename(sampling_method.2 = gear_data_notes.1) %>% 
+  mutate(sampling_method.2 = gsub("Gear Used:", "", sampling_method.2)) %>% 
+  #renaming effort hierarchy
+  #this renames the survey level effort as total_effort_1 with the effort grouping noted by survey_effort_1_id
+  #sub-survey level effort is named total_effort_2 with sub-survey ids as survey_effort_2_id
+  rename(total_effort_2_id = total_effort_2) %>% 
+  rename(total_effort_1_id = survey_effort_id) %>% 
+  rename(total_effort_2 = total_effort_1) %>% 
+  rename(total_effort_1 = survey_effort)
 ```                        
                         
  

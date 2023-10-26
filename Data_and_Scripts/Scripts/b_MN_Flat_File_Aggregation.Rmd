@@ -3,6 +3,8 @@ title: "MN_Flat_File_Aggregation"
 author: "Holly Kundel & Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 # Preamble
 
@@ -525,7 +527,8 @@ flatfish <- readRDS("Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_me
 
 write_dataset(dataset = flatfish, path = "Data_and_Scripts/Data/output/mn_file_arrow")
 
-mn_data <- open_dataset("Data_and_Scripts/Data/output/mn_file_arrow/")
+mn_data <- open_dataset(sources = "Data_and_Scripts/Data/output/mn_file_arrow/")
+mn_data <- open_dataset(sources = "Data_and_Scripts\\Data\\output\\mn_file_arrow\\")
 
 glimpse(mn_data)
 
@@ -1101,6 +1104,7 @@ mwlaxeref::lake_id_xref %>% filter(state == "mn", local.id %in% c("01000100" , "
 
 local_to_nhdhr(data, from_colname = "dow", state = "mn")
 local_to_nhdhr(data, from_colname = "dow_chr", state = "mn")
+
 
 
 

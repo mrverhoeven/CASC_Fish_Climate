@@ -61,10 +61,6 @@ flag - this column contains a character string with issues describing each row, 
 
 
 
-things do discuss:
- 1. I did not use the lake info, effort, or age files
-
-
 
 
 
@@ -216,8 +212,6 @@ il_catch_age_effort_17Jan22 %>%
   print(n = nrow(.))
 #they aren't going to jive
 
-#only two surveys, 8 fish have na lengths - total count in these is 0?
-
 #catch age effort
 glimpse(il_catch_age_effort_17Jan22)
 
@@ -230,15 +224,12 @@ il_catch_age_effort_17Jan22 %>%
   group_by(survey_id) %>% 
   count()
 
-il_catch_age_effort_17Jan22 <- il_catch_age_effort_17Jan22 %>% 
-  uncount(total_count.1)
-
-multieffort.fish <- il_catch_age_effort_17Jan22 %>% 
+il_catch_age_effort_17Jan22 %>% 
   group_by(survey_id) %>% 
   summarise(n = n(), unique(total_effort_2)) 
 #variable for sub-survey level effort ID
 
-multieffort.fish <- il_catch_age_effort_17Jan22 %>% 
+il_catch_age_effort_17Jan22 %>% 
   group_by(survey_id) %>% 
   summarise(n = n(), unique(total_effort_1))
   
@@ -284,31 +275,35 @@ il_catch_age_effort_17Jan22 %>%
   anti_join(il_effort_17Jan22, by = c("lake_name.1", "survey_id")) %>% 
    group_by(lake_name.1, survey_id) %>% 
    summarise(n = n())
+
+#from this exploration, aged fish, lake info are of no use
+#the effort file is not needed because the effort for each survey is already in the catch file
+#in order to use the effort from the catch file we must:
+##1. find a survey level grouping that lumps all sub-survey levels (survey_id, year, sampling method)
+##2.sum the sub-survey level effort (EF runs/number of nets)
+##3. create a survey level identifier that lumps the sub-survey levels appropriately 
 ```
 
 
 # Effort Merge
 ```{r}
-#in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
-
-#merging age data to fish data
-age.fish <- left_join(il_catch_age_effort_17Jan22, 
-                      il_aged_fish_surveys_28Dec2022,
-                      by = c("lake_id", 
-                             "year", 
-                             "date.1",
-                             "sampling_method",
-                             "length.1",
-                             "weight.1"))
+#uncounting batch fish 
+#makes fish per row from batch counted fish
+il_catch_age_effort_17Jan22 <- il_catch_age_effort_17Jan22 %>% 
+  uncount(total_count.1)
 
 #collapsing effort from the obs level file 
 survey.effort <- il_catch_age_effort_17Jan22 %>% 
+  #groups all sub-survey level effort into the larger survey
   group_by(survey_id, year, date.1, sampling_method, total_effort_2, total_effort_1) %>% 
+  #count of obs in each survey grouping
   count() %>% 
+  #grouping by the survey id, year, and method to get survey level effort from sub-survey level 
   group_by(survey_id, year, sampling_method) %>% 
   mutate(survey_effort = sum(total_effort_1),
-         survey_effort_id = cur_group_id())
+         survey_effort_id = cur_group_id()) #gives a unique ident to this grouping
 
+#quick gut check on survey-effort aggregation 
 #are there any surveys that have more than one survey level effort?
 survey.effort %>% 
   group_by(survey_id, sampling_method, survey_effort) %>% 
@@ -317,13 +312,14 @@ survey.effort %>%
   count() %>% 
   filter(n >1)
 
+survey.effort %>% 
+  filter(survey_id %in% c("Survey_880", "Survey_1324", "Survey_525"))
 #all of the duplicates have multiple years associated with the same effort so it wont be a problem
-check <- survey.effort %>% 
-  filter(survey_id == c("Survey_880"))
 #surveys 1324, 525, and 880 have two efforts for the survey id but they are in different years
-#this does not hinder us with the join, but date/year will need to be included when counting
+#this does not hinder the join as date/year will be included
 
-
+#joining the survey level effort with the individual fish obs
+#this join adds the survey level effort and survey effort ident for each grouping
 il_data <- left_join(il_catch_age_effort_17Jan22, survey.effort, by = c("survey_id", 
                                                                               "year", 
                                                                               "date.1", 
@@ -462,13 +458,15 @@ il_data %>%
   print(n = nrow(.))
 
 #####################final tidy#########################################
-il_data %>% 
+il_data <- il_data %>% 
   #lower case with no spaces for species name
   mutate(species.1 = str_to_lower(species.1),
          species.1 = str_replace_all(species.1, " ", "_")) %>% 
   #shorten unit to just g
   mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
                                    TRUE ~ NA)) %>%
+  #effort units
+  mutate(effort_units_1 = "minutes") %>% 
   #drop survey type and replace with garbage bin notes 4 for survey type
   select(-survey_type.1) %>% 
   rename(survey_type.1 = garbage_bin_notes.4) %>% 
@@ -485,11 +483,33 @@ il_data %>%
   mutate(sampling_method.2 = gsub("Gear Used:", "", sampling_method.2)) %>% 
   #renaming effort hierarchy
   #this renames the survey level effort as total_effort_1 with the effort grouping noted by survey_effort_1_id
-  #sub-survey level effort is named total_effort_2 with sub-survey ids as survey_effort_2_id
-  rename(total_effort_2_id = total_effort_2) %>% 
+  #sub-survey level effort is named sub_effort_1 with sub-survey ids as sub_effort_1_id
+  rename(sub_effort_1_id = total_effort_2) %>% 
   rename(total_effort_1_id = survey_effort_id) %>% 
-  rename(total_effort_2 = total_effort_1) %>% 
-  rename(total_effort_1 = survey_effort)
+  rename(sub_effort_1 = total_effort_1) %>% 
+  rename(total_effort_1 = survey_effort) %>% 
+  select(state, 
+         county, 
+         lake_name.1,
+         lake_id,
+         date.1,
+         survey_type.1,
+         sampling_method.1,
+         sampling_method.2,
+         total_effort_1_id,
+         total_effort_1,
+         sub_effort_1_id,
+         sub_effort_1,
+         effort_units_1,
+         species.1,
+         length.1,
+         length_unit.1,
+         weight.1,
+         weight_unit.1,
+         age,
+         aging_structure.1,
+         sex,
+         original_file_name.1)
 ```                        
                         
  
@@ -499,76 +519,28 @@ il_data %>%
 ```{r}
 #here I do some very basic checks on what the data structure and general outputs look like (i.e., s this thing behaving like the obs-level file I think it is?). MI work left here as an idea of a previous state's work. In my opinion, it is not our job to QC the actual observations at this point (like, is a WAE really going to be 500mm at age zero), but instead to use this QC as a check on the operations performed in this script.  
 
+glimpse(il_data)
+#all the columns appear to be present that we need
+#need to clean up column naming (underscores/periods)
 
-
-                        #effort per surveyXgear?
-                        mi_catch_eff_merge[ , .(effort = first(total_effort_1.1_effort), units = first(effort_units.1)) ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")]
-                        
-                        #effort per survey type?
-                        mi_catch_eff_merge[!is.na(total_effort_1.1_effort) , .(effort = first(total_effort_1.1_effort), units = first(effort_units.1), number = .N) ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")][ ,.(effort = sum(effort), counts = sum(number), grandCPUE = sum(number)/sum(effort)) , .(sampling_method_abbrev, units)]
-                        
-                        #effort per survey type (Walleye ONLY)?
-                        mi_catch_eff_merge[!is.na(total_effort_1.1_effort) & species.1=="walleye" , .(effort = first(total_effort_1.1_effort), units = first(effort_units.1), number = .N) ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev")][ ,.(effort = sum(effort), counts = sum(number), grandCPUE = sum(number)/sum(effort)) , .(sampling_method_abbrev, units)]
-                        
-                        
-                        
-                        #how many Walleye in surveys where we had effort data?
-                        mi_catch_eff_merge[ species.1== "walleye"  , .("n_fish" = .N) , .(sampling_method_abbrev) ][, sum(n_fish)]
-                        mi_catch_eff_merge[ , .N , species.1]
-                        
-                        
-                        #whats the effort look like?
-                        mi_catch_eff_merge[ ,.N, total_effort_1.1_effort ]
-                        
-                        # data coverage
-                        # how many surveys were we missing effort data for? One survey, 3 gears. Survey 4042 on Twin Lake
-                        mi_catch_eff_merge[ is.na(total_effort_1.1_effort), .N , ]
-                        mi_catch_eff_merge[ is.na(total_effort_1.1_effort), c("numberofspp" = length(unique(species.1))) , c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
-                        
-                        
-                        # how many surveys were we missing catch data from?
-                        # how many surveys missing catchlength for?
-                        mi_catch_eff_merge[ , .N, is.na(original_file_name.1_catch)]
-                        mi_catch_eff_merge[ , .N, .(catchNA = is.na(original_file_name.1_catch),
-                                                    catchlengthNA = is.na(original_file_name.1_catchlengths),
-                                                    effortNA = is.na(original_file_name.1_effort))]
-                        mi_catch_eff_merge[is.na(original_file_name.1_catch)]
-                        
-                        
-                        
-                        glimpse(mi_catch_eff_merge)
-                        
-                        
-                        #Naming scheme updated to match overall approach:
-                        
-                      
-                        
-
+il_data <- il_data %>% 
+  clean_names() %>% 
+  glimpse()
 ```
 
 
 # Import/Export files
 
 ```{r}
+str(il_data)
 
+il_data <- as_arrow_table(il_data)
 
-#save to disk:
+write_dataset(dataset = il_data, path = "Data_and_Scripts/Data/output/il_file_arrow")
 
-# saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
-# mi_catch_eff_merge <- readRDS(file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
+il_data <- open_dataset("Data_and_Scripts/Data/output/il_file_arrow")
 
-
-str(mi_catch_eff_merge)
-
-
-mi_catch_eff_merge <- as_arrow_table(mi_catch_eff_merge)
-
-write_dataset(dataset = mi_catch_eff_merge, path = "Data_and_Scripts/Data/output/mi_file_arrow")
-
-mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
-
-glimpse(mi_data)
-
+glimpse(il_data)
 ```
 
 

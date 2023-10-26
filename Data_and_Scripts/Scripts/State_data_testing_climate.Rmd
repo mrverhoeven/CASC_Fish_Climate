@@ -1,0 +1,3659 @@
+---
+title: "state_data_testing"
+author: "Denver Link"
+date: "2023-09-15"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+#Library
+```{r}
+library(tidyverse)
+library(knitr)
+library(data.table)
+library(sharpshootR)
+library(stringr)
+library(sf)
+library(arrow)
+library(readr)
+library(stringr)
+library(janitor)
+library(tidyr)
+library(lubridate)
+library(ggplot2)
+options(scipen = 999)
+```
+
+#Data
+```{r}
+#Michigan
+mi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "mi_file_arrow"))
+
+#Wisconsin
+wi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "wi_file_arrow"))
+
+#Minnesota
+mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "mn_file_arrow"))
+```
+
+#Column Tidy
+```{r}
+#####################Michigan#################################
+
+#changing species names to standard format                       
+mi_data <- mi_data %>% 
+  #agency species code updated with common name
+  mutate(species.1 = case_when(species.abbrev == "taxon_BCR" ~ "black_crappie",
+                             species.abbrev == "taxon_BLG" ~ "bluegill",
+                             species.abbrev == "taxon_CIS" ~ "cisco",
+                             species.abbrev == "taxon_LMB" ~ "largemouth_bass",
+                             species.abbrev == "taxon_NOP" ~ "northern_pike",
+                             species.abbrev == "taxon_SMB" ~ "smallmouth_bass",
+                             species.abbrev == "taxon_WAE" ~ "walleye",
+                             species.abbrev == "taxon_YEP" ~ "yellow_perch",
+                             TRUE ~ species.abbrev)) %>% 
+  #Gear type code updated with spelled-out common name
+  mutate(sampling_method = case_when(sampling_method_abbrev == "BOOMSHK" ~ "boomshocking",
+                                            sampling_method_abbrev == "GLGNET" ~ "great_lakes_gill_net",
+                                            sampling_method_abbrev == "IGNET" ~ "inland_gill_net",
+                                            sampling_method_abbrev == "LMFYKE" ~ "large_mesh_fyke_net",
+                                            sampling_method_abbrev == "SEINE" ~ "seine",
+                                            sampling_method_abbrev == "SMFYKE" ~ "small_mesh_fyke_net",
+                                            sampling_method_abbrev == "TRAPNET" ~ "trap_net")) %>% 
+  #unit length 
+  mutate(length_unit.1 = case_when(length_unit.1 == "col_name_Inch_group" ~ "inch_group",
+                                   TRUE ~ length_unit.1)) %>% 
+  #effort unit 
+  mutate(effort_units.1 = case_when(effort_units.1 == "HAULS" ~ "hauls",
+                                    effort_units.1 == "MINUT" ~ "minute",
+                                    effort_units.1 == "LIFTS" ~ "lifts")) %>%
+  #selects for columns to be used during analysis - limits memory usage and allows creates more clarity
+  #effort files for survey type, lat/long, and target species contained more data than the merged catch files
+  select(state, county, lake_id, lake_name.1, date.1, year, survey_type.1_effort, survey_id, lat_unspec_effort, lon_unspec_effort, sampling_method, sampling_method_abbrev, target_species_effort, species.1, species.abbrev, length.1, length_unit.1, total_effort_1.1_effort, effort_units.1)
+
+###################Minnesota##########################################
+mn_data %>% 
+  #This chunk cleans codes and names within the species column
+  mutate(species.new = case_when(species.1 == "LMB" ~ "largemouth_bass",
+                                 species.1 == "SMB" ~ "smallmouth_bass",
+                                 species.1 == "WAE" ~ "walleye", 
+                                 species.1 == "WTS" ~ "white_sucker",
+                                 species.1 == "BLC" ~ "black_crappie",
+                                 species.1 == "YEP" ~ "yellow_perch",
+                                 species.1 == "BLG" ~ "bluegill",
+                                 species.1 == "NOP" ~ "northern_pike",
+                                 species.1 == "PMK" ~ "pumpkinseed", 
+                                 species.1 == "RKB" ~ "rock_bass",
+                                 species.1 == "BKF" ~ "banded_killifish",
+                                 species.1 == "IOD" ~ "iowa_darter",
+                                 species.1 == "BCS" ~ "blackchin_shiner",
+                                 species.1 == "BLB" ~ "black_bullhead",
+                                 species.1 == "JND" ~ "johnny_darter",
+                                 species.1 == "GOS" ~ "golden_shiner",
+                                 species.1 == "YEB" ~ "yellow_bullhead",
+                                 species.1 == "BRB" ~ "brown_bullhead",
+                                 species.1 == "CNM" ~ "central_mudminnow",
+                                 species.1 == "NRD" ~ "northern_redbelly_dace",
+                                 species.1 == "CSH" ~ "chinook_salmon",
+                                 species.1 == "MTS" ~ "mottled_sculpin",
+                                 species.1 == "TPM" ~ "tadpole_madtom",
+                                 species.1 == "SHR" ~ "shorthead_redhorse",
+                                 species.1 == "HSF" ~ "hybrid_sunfish",
+                                 species.1 == "BOF" ~ "bowfin",
+                                 species.1 == "WDS" ~ "weed_shiner",
+                                 species.1 == "BNM" ~ "bluntnose_minnow",
+                                 species.1 == "BND" ~ "blacknose_dace",
+                                 species.1 == "OTM" ~ "minnows",
+                                 species.1 == "FHM" ~ "fathead_minnow",
+                                 species.1 == "FND" ~ "finescale_dace",
+                                 species.1 == "SDM" ~ "slender_madtom",
+                                 species.1 == "SPO" ~ "spottail_shiner",
+                                 species.1 == "BNS" ~ "blacknose_shiner",
+                                 species.1 == "BKT" ~ "brook_trout",
+                                 species.1 == "SPT" ~ "splake",
+                                 species.1 == "RBT" ~ "rainbow_trout",
+                                 species.1 == "BNT" ~ "brown_trout",
+                                 species.1 == "BUB" ~ "burbot",
+                                 species.1 == "BIB" ~ "bigmouth_buffalo",
+                                 species.1 == "BLH" ~ "bullheads",
+                                 species.1 == "TLC" ~ "cisco",
+                                 species.1 == "CCF" ~ "channel_catfish",
+                                 species.1 == "BSD" ~ "blackside_darter",
+                                 species.1 == "BKS" ~ "brook_silverside",
+                                 species.1 == "LED" ~ "least_darter",
+                                 species.1 == "LGP" ~ "logperch",
+                                 species.1 == "SLR" ~ "silver_redhorse",
+                                 species.1 == "HHC" ~ "hornyhead_chub",
+                                 species.1 == "MUE" ~ "muskellunge",
+                                 species.1 == "TRP" ~ "trout_perch",
+                                 species.1 == "RHS" ~ "redhorse",
+                                 species.1 == "CAP" ~ "common_carp",
+                                 species.1 == "MMS" ~ "mimic_shiner",
+                                 species.1 == "EMS" ~ "emerald_shiner",
+                                 species.1 == "SUN" ~ "sunfish",
+                                 species.1 == "CRC" ~ "creek_chub",
+                                 species.1 == "GSF" ~ "green_sunfish",
+                                 species.1 == "SFS" ~ "spotfin_shiner",
+                                 species.1 == "SHI" ~ "shiners",
+                                 species.1 == "BST" ~ "brook_stickleback",
+                                 species.1 == "CSR" ~ "central_stoneroller",
+                                 species.1 == "SDS" ~ "sand_shiner",
+                                 species.1 == "GRR" ~ "greater_redhorse",
+                                 species.1 == "PGS" ~ "pugnose_shiner",
+                                 species.1 == "SMS" ~ "slimy_sculpin",
+                                 species.1 == "LND" ~ "longnose_dace",
+                                 species.1 == "FRD" ~ "freshwater_drum",
+                                 species.1 == "WHC" ~ "white_crappie",
+                                 species.1 == "DAR" ~ "darters",
+                                 species.1 == "SAR" ~ "sauger",
+                                 species.1 == "FCF" ~ "flathead_catfish",
+                                 species.1 == "BMS" ~ "bigmouth_shiner",
+                                 species.1 == "LKS" ~ "lake_sturgeon",
+                                 species.1 == "LKW" ~ "lake_whitefish",
+                                 species.1 == "BRM" ~ "brassy_minnow",
+                                 species.1 == "SLM" ~ "mississippi_silvery_minnow",
+                                 species.1 == "GLR" ~ "golden_redhorse",
+                                 species.1 == "OTS" ~ "suckers",
+                                 species.1 == "NST" ~ "ninespine_stickleback",
+                                 species.1 == "GOE" ~ "goldeye",
+                                 species.1 == "QBS" ~ "quillback",
+                                 species.1 == "RVS" ~ "river_shiner",
+                                 species.1 == "LES" ~ "longear_sunfish",
+                                 species.1 == "CHL" ~ "chestnut_lamprey",
+                                 species.1 == "RRH" ~ "river_redhorse",
+                                 species.1 == "WHB" ~ "white_bass",
+                                 species.1 == "OSS" ~ "orangespotted_sunfish",
+                                 species.1 == "STC" ~ "stonecat",
+                                 species.1 == "SNG" ~ "shortnose_gar",
+                                 species.1 == "RFS" ~ "rosyface_shiner",
+                                 species.1 == "CMS" ~ "carmine_shiner",
+                                 species.1 == "SAB" ~ "smallmouth_buffalo",
+                                 species.1 == "GIS" ~ "gizzard_shad",
+                                 species.1 == "LNG" ~ "longnose_gar",
+                                 species.1 == "RCS" ~ "river_carpsucker",
+                                 species.1 == "SLS" ~ "shovelnose_sturgeon",
+                                 species.1 == "LAT" ~ "lake_trout",
+                                 species.1 == "TME" ~ "tiger_muskellunge",
+                                 species.1 == "PRD" ~ "pearl_dace",
+                                 species.1 == "PLS" ~ "pallid_shiner",
+                                 species.1 == "RBS" ~ "rainbow_smelt",
+                                 species.1 == "RBD" ~ "rainbow_darter",
+                                 species.1 == "LNS" ~ "longnose_sucker",
+                                 species.1 == "SJC" ~ "shortjaw_cisco",
+                                 species.1 == "DWS" ~ "deepwater_sculpin",
+                                 species.1 == "SHS" ~ "spoonhead_sculpin",
+                                 species.1 == "BDD" ~ "banded_darter",
+                                 species.1 == "MOE" ~ "mooneye",
+                                 species.1 == "BLS" ~ "blue_sucker",
+                                 species.1 == "SLC" ~ "silver_chub",
+                                 species.1 == "HFS" ~ "highfin_carpsucker",
+                                 species.1 == "MCP" ~ "mirror_carp",
+                                 species.1 == "WAS" ~ "walleye/sauger",
+                                 species.1 == "AME" ~ "american_eel",
+                                 species.1 == "GOF" ~ "goldfish",
+                                 species.1 == "SPS" ~ "spotted_sucker",
+                                 species.1 == "PAH" ~ "paddlefish",
+                                 species.1 == "RVD" ~ "river_darter",
+                                 species.1 == "NHS" ~ "northern_hog_sucker",
+                                 species.1 == "BHM" ~ "bullhead_minnow",
+                                 species.1 == "WSD" ~ "western_sand_darter",
+                                 species.1 == "MDD" ~ "mud_darter",
+                                 species.1 == "SIL" ~ "silver_lamprey",
+                                 species.1 == "SKJ" ~ "skipjack_herring",
+                                 species.1 == "PGM" ~ "pugnose_minnow",
+                                 species.1 == "BKB" ~ "black_buffalo",
+                                 species.1 == "FTD" ~ "fantail_darter",
+                                 species.1 == "YLB" ~ "yellow_bass",
+                                 species.1 == "PRP" ~ "pirate_perch",
+                                 species.1 == "LKC" ~ "lake_chub",
+                                 species.1 == "RIR" ~ "river_ruffe",
+                                 species.1 == "WHP" ~ "white_perch",
+                                 species.1 == "ALW" ~ "alewife",
+                                 species.1 == "SEL" ~ "sea_lamprey",
+                                 species.1 == "BHC" ~ "bighead_carp",
+                                 species.1 == "GLD" ~ "gilt_darter",
+                                 species.1 == "CRD" ~ "crystal_darter",
+                                 species.1 == "SMT" ~ "speckled_madtom",
+                                 species.1 == "RDS" ~ "red_shiner",
+                                 species.1 == "WAM" ~ "warmouth",
+                                 #above are fish codes converted, below are name corrections
+                                 species.1 == "tullibee (cisco)" ~ "cisco",
+                                 species.1 == "trout-perch" ~ "trout_perch",
+                                 species.1 == "bowfin (dogfish)" ~ "bowfin",
+                                 #listing unknown taxa
+                                 species.1 == "unknown fish one" ~ "taxa_unknown",
+                                 species.1 == "LXB" ~ "taxa_unknown",
+                                 species.1 == "UK2" ~ "taxa_unknown",
+                                 species.1 == "UK1" ~ "taxa_unknown",
+                                 species.1 == "SIP" ~ "taxa_unknown",
+                                 species.1 == "SHD" ~ "taxa_unknown",
+                                 species.1 == "SCU" ~ "taxa_unknown",
+                                 species.1 == "no particular species" ~ "taxa_unknown",
+                                 species.1 == "HCR" ~ "taxa_unknown",
+                                 species.1 == "CRP" ~ "taxa_unknown",
+                                 species.1 == "CPS" ~ "taxa_unknown",
+                                 species.1 == "CIS" ~ "taxa_unknown",
+                                 is.na(species.1) ~ "taxa_unknown",
+                                 TRUE ~ species.1)) %>%
+  #adds _ instead of spaces within species name
+  mutate(species.new = str_replace_all(species.new, " ", "_")) %>% 
+  #makes sure everything is lower case in the species column
+  mutate(species.new = tolower(species.new)) %>% 
+  #makes sure all observations have Minnesota in the state column
+  mutate(state = "Minnesota") %>% 
+  #formats the length unit for clarity
+  mutate(length_unit.1 = case_when(length_unit.1 == "col_name_LEN_MM" ~ "mm",
+                                   TRUE ~ length_unit.1)) %>% 
+  #formats the weight unit for clarity
+  mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_WT_G 25943716" ~ "g",
+                                   TRUE ~ weight_unit.1)) %>% 
+  select(state, county_indivfish, lake_id, lake_name.1, date_clean, survey_type.1, survey_id_effort, sampling_method, target_species, species.1, species.new, length.1, length_unit.1, weight.1, weight_unit.1, total_effort_1.1)
+
+##########################Wisconsin####################################
+wi_data %>% 
+  select(state, county, lake_id, lake_name.1, date.1, year, survey_type.1_effort, survey_type.2_effort, survey_id, sampling_method, target_species_effort, species.1, species.abbrev, length.1, length_unit.1, weight.1, weight_unit.1, effort, total.effort.1, total.effort.2, effort_units, total.effort.1.units, total.effort.2.units)
+
+########################Illinois#####################################
+il_data %>% 
+  mutate(species.1 = str_to_lower(species.1),
+         species.1 = str_replace_all(species.1, " ", "_")) %>% 
+  mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
+                                   TRUE ~ NA))
+```
+
+#Michigan - exploration
+```{r}
+#testing year with species
+mi_data %>% 
+  group_by(species.1, year) %>% 
+  count() %>% 
+  ggplot() +
+  geom_smooth(aes(year, n)) +
+  facet_wrap(~species.1)
+
+#NA values in date column
+mi_data %>% 
+  filter(is.na(date.1)) %>% 
+  group_by(survey_id) %>% 
+  summarise(n = n())
+
+#gear type
+mi_data %>% 
+  group_by(sampling_method_abbrev) %>% 
+  count()
+  
+#looking at length in the data
+mi_data %>% 
+  ggplot() +
+  geom_violin(aes(year, length.1)) +
+  facet_wrap(~species.1, scales = "free")
+mi_data %>% 
+  group_by(length_unit.1) %>% 
+  count()
+mi_data %>% 
+  group_by(length_unit.1, species.1) %>% 
+  summarise(n = n(), max = max(length.1), min = min(length.1))
+mi_data %>% 
+  filter(is.na(length_unit.1)) %>% 
+  group_by(species.1) %>% 
+  summarise(mean = mean(length.1))
+
+mi_data[ , .N , .(na_unit = is.na(length_unit.1), na_length = is.na(length.1)) ]
+#length and unit length work together with NAs
+
+  
+#target species
+mi_data %>% 
+  group_by(target_species_effort) %>% 
+  count()
+mi_data %>% 
+  filter(is.na(target_species_effort)) %>% 
+  count(sampling_method_abbrev)
+
+#Effort
+mi_data %>% 
+  group_by(effort_units.1, sampling_method_abbrev) %>% 
+  count()
+mi_data %>% 
+  group_by(effort_units.1) %>% 
+  filter(!is.na(total_effort_1.1_effort)) %>% 
+  summarise(mean = mean(total_effort_1.1_effort), max = max(total_effort_1.1_effort), min = min(total_effort_1.1_effort))
+mi_data %>% 
+  ggplot() +
+  geom_boxplot(aes(sampling_method_abbrev, total_effort_1.1_effort)) +
+  facet_wrap(~effort_units.1,  scales = "free")
+mi_data %>% 
+  filter(is.na(total_effort_1.1_effort)) %>% 
+  group_by(survey_id) %>% 
+  count()
+
+mi_data %>% 
+  ggplot() +
+  geom_boxplot(aes(sampling_method_abbrev, total_effort_1.1_mergedcatch)) +
+  facet_wrap(~effort_units.1,  scales = "free")
+
+#lat/long
+mi_data %>%
+  mutate(same_latitudes = ifelse(lat_unspec_mergedcatch == lat_unspec_effort, "Same", "Different")) %>% 
+  group_by(same_latitudes) %>% 
+  count()
+
+na.effort <- mi_data %>% 
+  filter(is.na(lat_unspec_effort)) %>% 
+  group_by(survey_id) %>% 
+  count() #only one survey 4042
+
+na.merge <- mi_data %>% 
+  filter(is.na(lat_unspec_mergedcatch)) %>% 
+  group_by(survey_id) %>% 
+  count() #115 surveys
+
+mi_data[ , .N , .(na_lat_mc = is.na(lat_unspec_mergedcatch), na_lat_eff = is.na(lat_unspec_effort)) ]
+
+mi_data %>% 
+  filter(!is.na(lat_unspec_mergedcatch)) %>% 
+  filter(!is.na(lat_unspec_effort)) %>% 
+  mutate(same_latitudes = ifelse(lat_unspec_mergedcatch == lat_unspec_effort, "Same", "Different")) %>% 
+  group_by(same_latitudes) %>% 
+  count()
+
+#survey type
+mi_data %>% 
+  mutate(same_type = ifelse(survey_type.1_effort == survey_type.1_mergedcatch, "Same", "Different")) %>% 
+  group_by(same_type) %>% 
+  count()
+
+mi_data[ , .N , .(na_type_mc = is.na(survey_type.1_mergedcatch), na_type_eff = is.na(survey_type.1_effort)) ]
+
+#target catch
+mi_data[ , .N , .(na_tg_mc = is.na(target_species_mergedcatch), na_tg_eff = is.na(target_species_effort)) ]
+```
+
+#Wisconsin - exploration
+```{r}
+#print all column names
+wi_data %>%
+  names() %>%
+  sort()
+
+
+#species column
+#cols containing "species" (skipping pipe to names includes a format report from arrow)
+wi_data %>% 
+  select(contains("species"))
+  # %>%
+  # names()
+#view unique names of species:
+wi_data %>% 
+  select(species.1) %>% 
+  unique() %>%
+  arrange(species.1) %>%
+  collect() %>%
+  print(n = nrow(.))
+
+wi_data %>% 
+  group_by(species.1) %>% 
+  summarise( n = n()) %>% 
+  arrange( n) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+wi_data %>% 
+  filter(is.na(species.1)) %>%
+  select(survey_id, sampling_method, site_id.1, site_id.2, site_id.3, site_id.4, date.1) %>% 
+  collect() %>% 
+  {species_NA_surveys <<- . }
+
+
+wi_data %>% 
+  inner_join(species_NA_surveys) %>% 
+  compute()
+
+
+#location columns
+#lake_id & lake_name
+wi_data %>%
+  select(contains("lake"))%>%
+  unique()%>%
+  collect()
+
+#all lake loc data:
+#here I review glimpse(wi_data) and call only the location-ey fields
+wi_data %>% 
+  select(lake_id, lake_name.1, state, county, location_notes.1, location_notes.2, location_notes.3, site_id.1, site_id.2, site_id.3, site_id.4 )%>%
+  unique() %>%
+  compute()
+
+# I suspect the site IDs are winnebago specific
+wi_data %>% 
+  filter( !is.na(site_id.1)) %>% 
+  select(lake_name.1) %>% 
+  unique() %>% 
+  collect()
+# it is. drop that from the location data, above
+
+#here I review glimpse(wi_data) and call only the location-ey fields
+wi_data %>% 
+  select(lake_id, lake_name.1, state, county, location_notes.1, location_notes.2, location_notes.3 )%>%
+  unique() %>%
+  compute()
+
+#now check these fields one at a time (lake_name and id are done)
+wi_data %>% 
+  select(state) %>% 
+  unique() %>%
+  collect()
+#view unique names of counties:
+wi_data %>% 
+  group_by(county) %>% 
+  summarize( n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+# NA counties are a diverse set of waterbodies:
+wi_data %>% 
+  filter( !is.na(county)) %>% 
+  select(lake_name.1) %>% 
+  unique() %>% 
+  collect() %>% 
+  print( n = 100)
+
+#lat/long
+wi_data %>%
+  select(contains("lat"))
+#only lat and long columns are start and end?
+
+wi_data %>% 
+  mutate(same_loc = ifelse(lat_start == lat_end, "Same", "Different")) %>% 
+  group_by(same_loc) %>% 
+  count() %>% 
+  collect()
+
+660944/16534323 #prop that have lat/log
+
+
+wi_data %>% 
+  filter(is.na(lat_start)) %>% 
+  group_by(lat_start) %>% 
+  summarise(n = n()) %>% 
+  collect()
+#15567010 nas
+
+wi_data %>% 
+  filter(is.na(lat_end)) %>% 
+  group_by(lat_end) %>% 
+  summarise(n = n()) %>% 
+  collect()
+#15861264 - end has more obs but still a lot missing
+
+#now review the date columns
+#fields with "date"
+wi_data %>%
+  select(contains("date"))
+#date.1 is the only useful column here:
+
+#any NAs in date? NO!
+wi_data %>%
+  filter(is.na(date.1))%>%
+  compute()
+
+wi_data %>%
+  select(date.1)%>%
+  compute() 
+
+wi_data %>%
+  select(date.1)%>%
+  collect() %>% 
+  summary() 
+
+# seems unlikely that there are fish data from 1899...
+wi_data %>%
+  filter(date.1 < "1940-1-1")%>%
+  select(date.1) %>% 
+  collect()
+
+wi_data %>% 
+  filter(lake_id == 99999) %>% 
+  select(lake_name.1) %>% 
+  unique() %>% 
+  collect()
+#definitely odd, but I don't know that we have any way of determining the true date in these. Let's flag those dates as questionable
+
+wi_data %>%
+  # filter(date.1 < "1940-1-1") %>% 
+  mutate(FLAGGED_date_questionable = date.1 < "1930-1-1") %>% 
+  select(FLAGGED_date_questionable ) %>% 
+  compute()
+#in order to amend the parquet file, I'd need to load it into R, add that column then re-write to disk. 
+
+
+#gear
+wi_data %>% 
+  select(sampling_method) %>% 
+  unique() %>% 
+  compute() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+wi_data %>% 
+  group_by(sampling_method) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(n) %>% 
+  print( n = nrow(.))  
+#gear looks good 
+
+
+#target species
+wi_data %>% 
+  group_by(target_species_indivfish) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(n) %>% 
+  print(n = nrow(.))
+
+wi_data %>% 
+  group_by(target_species_effort) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(n) %>% 
+  print(n = nrow(.))
+#counts are different for fish and effort
+
+wi_data %>% 
+  mutate(same_target = ifelse(target_species_effort == target_species_indivfish, "Same", "Different")) %>% 
+  group_by(same_target) %>% 
+  count() %>% 
+  collect()
+#no conflicting rows between effort and fish, but data might be missing from one or the other
+
+wi_data %>% 
+  filter(is.na(target_species_effort) & !is.na(target_species_indivfish)) %>% 
+  count(species.1) %>% 
+  collect()
+#only one case where effort is na but fish is not
+
+wi_data %>% 
+  filter(!is.na(target_species_effort) & is.na(target_species_indivfish)) %>% 
+  count(species.1) %>% 
+  collect()
+#33657 cases where fish is na but effort is not - ironically the species is also na 
+
+wi_data %>% 
+  filter(is.na(target_species_effort) & is.na(target_species_indivfish)) %>% 
+  summarise(n = n()) %>% 
+  collect()
+#this tells us that the effort column should be used for the targeted data - there is only one case where indivfish has data and effort doesn't. All other cases are na for both
+
+
+#length
+wi_data %>% 
+  group_by(species.1) %>% 
+  summarise(mean = mean(length.1, na.rm = T), min = min(length.1, na.rm = T), max = max(length.1, na.rm = T)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#big walleye and pike?
+wi_data %>% 
+  filter(length.1 > 75) %>% 
+  group_by(length_unit.1, species.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#how many fish do we suspect are in the wrong unit
+#I used a cut off of 50 as we would likely not see many 75 inch fish 
+#this doesn't seem to be a big issue
+
+wi_data %>% 
+  group_by(length_unit.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(n) %>% 
+  print(n = nrow(.))
+#units are in inches, 4153536 obs that are na for length unit
+
+#Are the cases of na length unit when length is na?
+wi_data %>% 
+  filter(is.na(length.1) & is.na(length_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#3928844 are missing both length and length unit
+
+#cases where there are lengths without any length units
+wi_data %>% 
+  filter(!is.na(length.1) & is.na(length_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#224692 have a length but are missing the unit
+#these two cases above make up all cases for when length is na
+
+#weight
+wi_data %>%
+  select(contains("weight"))
+
+wi_data %>% 
+  group_by(species.1) %>% 
+  summarise(mean = mean(weight.1, na.rm = T), min = min(weight.1, na.rm = T), max = max(weight.1, na.rm = T)) %>% 
+  collect() %>% 
+  filter(!is.na(mean)) %>% 
+  print(n = nrow(.))
+#we have weights for 15 species, weights of 0? Appears like there is a spread in units
+
+wi_data %>% 
+  group_by(weight_unit.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#units say lbs or NA
+
+#are there any unlikely lbs weights with that unit?
+wi_data %>% 
+  filter(weight.1 > 50) %>% 
+  group_by(weight_unit.1, species.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#there are seemingly a lot of perch over 50 pounds... I'm taking those lake numbers and going fishing
+
+#are the yellow perch from the same survey?
+wi_data %>% 
+  filter(species.1 == "yellow_perch") %>% 
+  filter(weight.1 > 50) %>%
+  group_by(weight_unit.1, survey_id) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#the unlikely weights for yellow perch come from two survey ids
+
+#Are the cases of na weight unit when length is na?
+wi_data %>% 
+  filter(is.na(weight.1) & is.na(weight_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#4153536 are missing both weight and weight unit - making up all of the na values for weight unit
+
+#cases where there are weights without any weight units
+wi_data %>% 
+  filter(!is.na(weight.1) & is.na(weight_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#no fish have a weight but are missing the unit
+
+#age years
+wi_data %>%
+  select(contains("age"))
+#doesn't look like there is any age year data
+
+#effort 
+wi_data %>%
+  select(contains("effort"))
+
+wi_data %>% 
+  group_by(effort) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#effort is currently in a string?
+wi_data %>% 
+  group_by(effort) %>% 
+  summarise(mean = mean(effort, na.rm = T), min = min(effort, na.rm = T), max = max(effort, na.rm = T)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#total effort 1 - string?
+wi_data %>% 
+  group_by(total.effort.1) %>% 
+  summarise(mean = mean(effort, na.rm = T), min = min(effort, na.rm = T), max = max(effort, na.rm = T)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#total effort 2 - string?
+wi_data %>% 
+  group_by(effort_units) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#total effort 1 units
+wi_data %>% 
+  group_by(total.effort.1.units) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#total effort 2 units
+wi_data %>% 
+  group_by(total.effort.2.units) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#survey type
+wi_data %>% 
+  group_by(survey_type.1_effort) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+wi_data %>% 
+  group_by(survey_type.2_effort) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#sex column
+wi_data %>% 
+  group_by(sex) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+##########################ready for combination#############################
+wi_data %>% 
+  select(state, county, lake_id, lake_name.1, date.1, year, survey_type.1_effort, survey_type.2_effort, survey_id, sampling_method, sampling_method_abbrev, target_species_effort, species.1, species.abbrev, length.1, length_unit.1, weight.1, weight_unit.1)
+#things to check on:
+##what type of effort should be kept - effort? effort.1, effort.2?
+##lat/long - mostly nas
+##survey_type kept for effort?
+##other columsn to keep? sex, yoy, sample_id.1
+
+```
+
+#Minnesota - exploration
+```{r}
+
+
+#Overall cleaning code for Minnesota starts here, below this chuck explores within each column
+mn_data %>% 
+  #This chunk cleans codes and names within the species column
+  mutate(species.new = case_when(species.1 == "LMB" ~ "largemouth_bass",
+                                 species.1 == "SMB" ~ "smallmouth_bass",
+                                 species.1 == "WAE" ~ "walleye", 
+                                 species.1 == "WTS" ~ "white_sucker",
+                                 species.1 == "BLC" ~ "black_crappie",
+                                 species.1 == "YEP" ~ "yellow_perch",
+                                 species.1 == "BLG" ~ "bluegill",
+                                 species.1 == "NOP" ~ "northern_pike",
+                                 species.1 == "PMK" ~ "pumpkinseed", 
+                                 species.1 == "RKB" ~ "rock_bass",
+                                 species.1 == "BKF" ~ "banded_killifish",
+                                 species.1 == "IOD" ~ "iowa_darter",
+                                 species.1 == "BCS" ~ "blackchin_shiner",
+                                 species.1 == "BLB" ~ "black_bullhead",
+                                 species.1 == "JND" ~ "johnny_darter",
+                                 species.1 == "GOS" ~ "golden_shiner",
+                                 species.1 == "YEB" ~ "yellow_bullhead",
+                                 species.1 == "BRB" ~ "brown_bullhead",
+                                 species.1 == "CNM" ~ "central_mudminnow",
+                                 species.1 == "NRD" ~ "northern_redbelly_dace",
+                                 species.1 == "CSH" ~ "chinook_salmon",
+                                 species.1 == "MTS" ~ "mottled_sculpin",
+                                 species.1 == "TPM" ~ "tadpole_madtom",
+                                 species.1 == "SHR" ~ "shorthead_redhorse",
+                                 species.1 == "HSF" ~ "hybrid_sunfish",
+                                 species.1 == "BOF" ~ "bowfin",
+                                 species.1 == "WDS" ~ "weed_shiner",
+                                 species.1 == "BNM" ~ "bluntnose_minnow",
+                                 species.1 == "BND" ~ "blacknose_dace",
+                                 species.1 == "OTM" ~ "minnows",
+                                 species.1 == "FHM" ~ "fathead_minnow",
+                                 species.1 == "FND" ~ "finescale_dace",
+                                 species.1 == "SDM" ~ "slender_madtom",
+                                 species.1 == "SPO" ~ "spottail_shiner",
+                                 species.1 == "BNS" ~ "blacknose_shiner",
+                                 species.1 == "BKT" ~ "brook_trout",
+                                 species.1 == "SPT" ~ "splake",
+                                 species.1 == "RBT" ~ "rainbow_trout",
+                                 species.1 == "BNT" ~ "brown_trout",
+                                 species.1 == "BUB" ~ "burbot",
+                                 species.1 == "BIB" ~ "bigmouth_buffalo",
+                                 species.1 == "BLH" ~ "bullheads",
+                                 species.1 == "TLC" ~ "cisco",
+                                 species.1 == "CCF" ~ "channel_catfish",
+                                 species.1 == "BSD" ~ "blackside_darter",
+                                 species.1 == "BKS" ~ "brook_silverside",
+                                 species.1 == "LED" ~ "least_darter",
+                                 species.1 == "LGP" ~ "logperch",
+                                 species.1 == "SLR" ~ "silver_redhorse",
+                                 species.1 == "HHC" ~ "hornyhead_chub",
+                                 species.1 == "MUE" ~ "muskellunge",
+                                 species.1 == "TRP" ~ "trout_perch",
+                                 species.1 == "RHS" ~ "redhorse",
+                                 species.1 == "CAP" ~ "common_carp",
+                                 species.1 == "MMS" ~ "mimic_shiner",
+                                 species.1 == "EMS" ~ "emerald_shiner",
+                                 species.1 == "SUN" ~ "sunfish",
+                                 species.1 == "CRC" ~ "creek_chub",
+                                 species.1 == "GSF" ~ "green_sunfish",
+                                 species.1 == "SFS" ~ "spotfin_shiner",
+                                 species.1 == "SHI" ~ "shiners",
+                                 species.1 == "BST" ~ "brook_stickleback",
+                                 species.1 == "CSR" ~ "central_stoneroller",
+                                 species.1 == "SDS" ~ "sand_shiner",
+                                 species.1 == "GRR" ~ "greater_redhorse",
+                                 species.1 == "PGS" ~ "pugnose_shiner",
+                                 species.1 == "SMS" ~ "slimy_sculpin",
+                                 species.1 == "LND" ~ "longnose_dace",
+                                 species.1 == "FRD" ~ "freshwater_drum",
+                                 species.1 == "WHC" ~ "white_crappie",
+                                 species.1 == "DAR" ~ "darters",
+                                 species.1 == "SAR" ~ "sauger",
+                                 species.1 == "FCF" ~ "flathead_catfish",
+                                 species.1 == "BMS" ~ "bigmouth_shiner",
+                                 species.1 == "LKS" ~ "lake_sturgeon",
+                                 species.1 == "LKW" ~ "lake_whitefish",
+                                 species.1 == "BRM" ~ "brassy_minnow",
+                                 species.1 == "SLM" ~ "mississippi_silvery_minnow",
+                                 species.1 == "GLR" ~ "golden_redhorse",
+                                 species.1 == "OTS" ~ "suckers",
+                                 species.1 == "NST" ~ "ninespine_stickleback",
+                                 species.1 == "GOE" ~ "goldeye",
+                                 species.1 == "QBS" ~ "quillback",
+                                 species.1 == "RVS" ~ "river_shiner",
+                                 species.1 == "LES" ~ "longear_sunfish",
+                                 species.1 == "CHL" ~ "chestnut_lamprey",
+                                 species.1 == "RRH" ~ "river_redhorse",
+                                 species.1 == "WHB" ~ "white_bass",
+                                 species.1 == "OSS" ~ "orangespotted_sunfish",
+                                 species.1 == "STC" ~ "stonecat",
+                                 species.1 == "SNG" ~ "shortnose_gar",
+                                 species.1 == "RFS" ~ "rosyface_shiner",
+                                 species.1 == "CMS" ~ "carmine_shiner",
+                                 species.1 == "SAB" ~ "smallmouth_buffalo",
+                                 species.1 == "GIS" ~ "gizzard_shad",
+                                 species.1 == "LNG" ~ "longnose_gar",
+                                 species.1 == "RCS" ~ "river_carpsucker",
+                                 species.1 == "SLS" ~ "shovelnose_sturgeon",
+                                 species.1 == "LAT" ~ "lake_trout",
+                                 species.1 == "TME" ~ "tiger_muskellunge",
+                                 species.1 == "PRD" ~ "pearl_dace",
+                                 species.1 == "PLS" ~ "pallid_shiner",
+                                 species.1 == "RBS" ~ "rainbow_smelt",
+                                 species.1 == "RBD" ~ "rainbow_darter",
+                                 species.1 == "LNS" ~ "longnose_sucker",
+                                 species.1 == "SJC" ~ "shortjaw_cisco",
+                                 species.1 == "DWS" ~ "deepwater_sculpin",
+                                 species.1 == "SHS" ~ "spoonhead_sculpin",
+                                 species.1 == "BDD" ~ "banded_darter",
+                                 species.1 == "MOE" ~ "mooneye",
+                                 species.1 == "BLS" ~ "blue_sucker",
+                                 species.1 == "SLC" ~ "silver_chub",
+                                 species.1 == "HFS" ~ "highfin_carpsucker",
+                                 species.1 == "MCP" ~ "mirror_carp",
+                                 species.1 == "WAS" ~ "walleye/sauger",
+                                 species.1 == "AME" ~ "american_eel",
+                                 species.1 == "GOF" ~ "goldfish",
+                                 species.1 == "SPS" ~ "spotted_sucker",
+                                 species.1 == "PAH" ~ "paddlefish",
+                                 species.1 == "RVD" ~ "river_darter",
+                                 species.1 == "NHS" ~ "northern_hog_sucker",
+                                 species.1 == "BHM" ~ "bullhead_minnow",
+                                 species.1 == "WSD" ~ "western_sand_darter",
+                                 species.1 == "MDD" ~ "mud_darter",
+                                 species.1 == "SIL" ~ "silver_lamprey",
+                                 species.1 == "SKJ" ~ "skipjack_herring",
+                                 species.1 == "PGM" ~ "pugnose_minnow",
+                                 species.1 == "BKB" ~ "black_buffalo",
+                                 species.1 == "FTD" ~ "fantail_darter",
+                                 species.1 == "YLB" ~ "yellow_bass",
+                                 species.1 == "PRP" ~ "pirate_perch",
+                                 species.1 == "LKC" ~ "lake_chub",
+                                 species.1 == "RIR" ~ "river_ruffe",
+                                 species.1 == "WHP" ~ "white_perch",
+                                 species.1 == "ALW" ~ "alewife",
+                                 species.1 == "SEL" ~ "sea_lamprey",
+                                 species.1 == "BHC" ~ "bighead_carp",
+                                 species.1 == "GLD" ~ "gilt_darter",
+                                 species.1 == "CRD" ~ "crystal_darter",
+                                 species.1 == "SMT" ~ "speckled_madtom",
+                                 species.1 == "RDS" ~ "red_shiner",
+                                 species.1 == "WAM" ~ "warmouth",
+                                 #above are fish codes converted, below are name corrections
+                                 species.1 == "tullibee (cisco)" ~ "cisco",
+                                 species.1 == "trout-perch" ~ "trout_perch",
+                                 species.1 == "bowfin (dogfish)" ~ "bowfin",
+                                 #listing unknown taxa
+                                 species.1 == "unknown fish one" ~ "taxa_unknown",
+                                 species.1 == "LXB" ~ "taxa_unknown",
+                                 species.1 == "UK2" ~ "taxa_unknown",
+                                 species.1 == "UK1" ~ "taxa_unknown",
+                                 species.1 == "SIP" ~ "taxa_unknown",
+                                 species.1 == "SHD" ~ "taxa_unknown",
+                                 species.1 == "SCU" ~ "taxa_unknown",
+                                 species.1 == "no particular species" ~ "taxa_unknown",
+                                 species.1 == "HCR" ~ "taxa_unknown",
+                                 species.1 == "CRP" ~ "taxa_unknown",
+                                 species.1 == "CPS" ~ "taxa_unknown",
+                                 species.1 == "CIS" ~ "taxa_unknown",
+                                 is.na(species.1) ~ "taxa_unknown",
+                                 TRUE ~ species.1)) %>%
+  #adds _ instead of spaces within species name
+  mutate(species.new = str_replace_all(species.new, " ", "_")) %>% 
+  #makes sure everything is lower case in the species column
+  mutate(species.new = tolower(species.new)) %>% 
+  #makes sure all observations have Minnesota in the state column
+  mutate(state = "Minnesota") %>% 
+  #formats the length unit for clarity
+  mutate(length_unit.1 = case_when(length_unit.1 == "col_name_LEN_MM" ~ "mm",
+                                   TRUE ~ length_unit.1)) %>% 
+  #formats the weight unit for clarity
+  mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_WT_G 25943716" ~ "g",
+                                   TRUE ~ weight_unit.1)) 
+  
+
+#species
+mn_data %>%
+  select(contains("species"))
+
+mn_data %>% 
+  group_by(species.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+mn_data %>% 
+  mutate(species.new = case_when(species.1 == "LMB" ~ "largemouth_bass",
+                                 species.1 == "SMB" ~ "smallmouth_bass",
+                                 species.1 == "WAE" ~ "walleye", 
+                                 species.1 == "WTS" ~ "white_sucker",
+                                 species.1 == "BLC" ~ "black_crappie",
+                                 species.1 == "YEP" ~ "yellow_perch",
+                                 species.1 == "BLG" ~ "bluegill",
+                                 species.1 == "NOP" ~ "northern_pike",
+                                 species.1 == "PMK" ~ "pumpkinseed", 
+                                 species.1 == "RKB" ~ "rock_bass",
+                                 species.1 == "BKF" ~ "banded_killifish",
+                                 species.1 == "IOD" ~ "iowa_darter",
+                                 species.1 == "BCS" ~ "blackchin_shiner",
+                                 species.1 == "BLB" ~ "black_bullhead",
+                                 species.1 == "JND" ~ "johnny_darter",
+                                 species.1 == "GOS" ~ "golden_shiner",
+                                 species.1 == "YEB" ~ "yellow_bullhead",
+                                 species.1 == "BRB" ~ "brown_bullhead",
+                                 species.1 == "CNM" ~ "central_mudminnow",
+                                 species.1 == "NRD" ~ "northern_redbelly_dace",
+                                 species.1 == "CSH" ~ "chinook_salmon",
+                                 species.1 == "MTS" ~ "mottled_sculpin",
+                                 species.1 == "TPM" ~ "tadpole_madtom",
+                                 species.1 == "SHR" ~ "shorthead_redhorse",
+                                 species.1 == "HSF" ~ "hybrid_sunfish",
+                                 species.1 == "BOF" ~ "bowfin",
+                                 species.1 == "WDS" ~ "weed_shiner",
+                                 species.1 == "BNM" ~ "bluntnose_minnow",
+                                 species.1 == "BND" ~ "blacknose_dace",
+                                 species.1 == "OTM" ~ "minnows",
+                                 species.1 == "FHM" ~ "fathead_minnow",
+                                 species.1 == "FND" ~ "finescale_dace",
+                                 species.1 == "SDM" ~ "slender_madtom",
+                                 species.1 == "SPO" ~ "spottail_shiner",
+                                 species.1 == "BNS" ~ "blacknose_shiner",
+                                 species.1 == "BKT" ~ "brook_trout",
+                                 species.1 == "SPT" ~ "splake",
+                                 species.1 == "RBT" ~ "rainbow_trout",
+                                 species.1 == "BNT" ~ "brown_trout",
+                                 species.1 == "BUB" ~ "burbot",
+                                 species.1 == "BIB" ~ "bigmouth_buffalo",
+                                 species.1 == "BLH" ~ "bullheads",
+                                 species.1 == "TLC" ~ "cisco",
+                                 species.1 == "CCF" ~ "channel_catfish",
+                                 species.1 == "BSD" ~ "blackside_darter",
+                                 species.1 == "BKS" ~ "brook_silverside",
+                                 species.1 == "LED" ~ "least_darter",
+                                 species.1 == "LGP" ~ "logperch",
+                                 species.1 == "SLR" ~ "silver_redhorse",
+                                 species.1 == "HHC" ~ "hornyhead_chub",
+                                 species.1 == "MUE" ~ "muskellunge",
+                                 species.1 == "TRP" ~ "trout_perch",
+                                 species.1 == "RHS" ~ "redhorse",
+                                 species.1 == "CAP" ~ "common_carp",
+                                 species.1 == "MMS" ~ "mimic_shiner",
+                                 species.1 == "EMS" ~ "emerald_shiner",
+                                 species.1 == "SUN" ~ "sunfish",
+                                 species.1 == "CRC" ~ "creek_chub",
+                                 species.1 == "GSF" ~ "green_sunfish",
+                                 species.1 == "SFS" ~ "spotfin_shiner",
+                                 species.1 == "SHI" ~ "shiners",
+                                 species.1 == "BST" ~ "brook_stickleback",
+                                 species.1 == "CSR" ~ "central_stoneroller",
+                                 species.1 == "SDS" ~ "sand_shiner",
+                                 species.1 == "GRR" ~ "greater_redhorse",
+                                 species.1 == "PGS" ~ "pugnose_shiner",
+                                 species.1 == "SMS" ~ "slimy_sculpin",
+                                 species.1 == "LND" ~ "longnose_dace",
+                                 species.1 == "FRD" ~ "freshwater_drum",
+                                 species.1 == "WHC" ~ "white_crappie",
+                                 species.1 == "DAR" ~ "darters",
+                                 species.1 == "SAR" ~ "sauger",
+                                 species.1 == "FCF" ~ "flathead_catfish",
+                                 species.1 == "BMS" ~ "bigmouth_shiner",
+                                 species.1 == "LKS" ~ "lake_sturgeon",
+                                 species.1 == "LKW" ~ "lake_whitefish",
+                                 species.1 == "BRM" ~ "brassy_minnow",
+                                 species.1 == "SLM" ~ "mississippi_silvery_minnow",
+                                 species.1 == "GLR" ~ "golden_redhorse",
+                                 species.1 == "OTS" ~ "suckers",
+                                 species.1 == "NST" ~ "ninespine_stickleback",
+                                 species.1 == "GOE" ~ "goldeye",
+                                 species.1 == "QBS" ~ "quillback",
+                                 species.1 == "RVS" ~ "river_shiner",
+                                 species.1 == "LES" ~ "longear_sunfish",
+                                 species.1 == "CHL" ~ "chestnut_lamprey",
+                                 species.1 == "RRH" ~ "river_redhorse",
+                                 species.1 == "WHB" ~ "white_bass",
+                                 species.1 == "OSS" ~ "orangespotted_sunfish",
+                                 species.1 == "STC" ~ "stonecat",
+                                 species.1 == "SNG" ~ "shortnose_gar",
+                                 species.1 == "RFS" ~ "rosyface_shiner",
+                                 species.1 == "CMS" ~ "carmine_shiner",
+                                 species.1 == "SAB" ~ "smallmouth_buffalo",
+                                 species.1 == "GIS" ~ "gizzard_shad",
+                                 species.1 == "LNG" ~ "longnose_gar",
+                                 species.1 == "RCS" ~ "river_carpsucker",
+                                 species.1 == "SLS" ~ "shovelnose_sturgeon",
+                                 species.1 == "LAT" ~ "lake_trout",
+                                 species.1 == "TME" ~ "tiger_muskellunge",
+                                 species.1 == "PRD" ~ "pearl_dace",
+                                 species.1 == "PLS" ~ "pallid_shiner",
+                                 species.1 == "RBS" ~ "rainbow_smelt",
+                                 species.1 == "RBD" ~ "rainbow_darter",
+                                 species.1 == "LNS" ~ "longnose_sucker",
+                                 species.1 == "SJC" ~ "shortjaw_cisco",
+                                 species.1 == "DWS" ~ "deepwater_sculpin",
+                                 species.1 == "SHS" ~ "spoonhead_sculpin",
+                                 species.1 == "BDD" ~ "banded_darter",
+                                 species.1 == "MOE" ~ "mooneye",
+                                 species.1 == "BLS" ~ "blue_sucker",
+                                 species.1 == "SLC" ~ "silver_chub",
+                                 species.1 == "HFS" ~ "highfin_carpsucker",
+                                 species.1 == "MCP" ~ "mirror_carp",
+                                 species.1 == "WAS" ~ "walleye/sauger",
+                                 species.1 == "AME" ~ "american_eel",
+                                 species.1 == "GOF" ~ "goldfish",
+                                 species.1 == "SPS" ~ "spotted_sucker",
+                                 species.1 == "PAH" ~ "paddlefish",
+                                 species.1 == "RVD" ~ "river_darter",
+                                 species.1 == "NHS" ~ "northern_hog_sucker",
+                                 species.1 == "BHM" ~ "bullhead_minnow",
+                                 species.1 == "WSD" ~ "western_sand_darter",
+                                 species.1 == "MDD" ~ "mud_darter",
+                                 species.1 == "SIL" ~ "silver_lamprey",
+                                 species.1 == "SKJ" ~ "skipjack_herring",
+                                 species.1 == "PGM" ~ "pugnose_minnow",
+                                 species.1 == "BKB" ~ "black_buffalo",
+                                 species.1 == "FTD" ~ "fantail_darter",
+                                 species.1 == "YLB" ~ "yellow_bass",
+                                 species.1 == "PRP" ~ "pirate_perch",
+                                 species.1 == "LKC" ~ "lake_chub",
+                                 species.1 == "RIR" ~ "river_ruffe",
+                                 species.1 == "WHP" ~ "white_perch",
+                                 species.1 == "ALW" ~ "alewife",
+                                 species.1 == "SEL" ~ "sea_lamprey",
+                                 species.1 == "BHC" ~ "bighead_carp",
+                                 species.1 == "GLD" ~ "gilt_darter",
+                                 species.1 == "CRD" ~ "crystal_darter",
+                                 species.1 == "SMT" ~ "speckled_madtom",
+                                 species.1 == "RDS" ~ "red_shiner",
+                                 species.1 == "WAM" ~ "warmouth",
+                                 #above are fish codes converted, below are name corrections
+                                 species.1 == "tullibee (cisco)" ~ "cisco",
+                                 species.1 == "trout-perch" ~ "trout_perch",
+                                 species.1 == "bowfin (dogfish)" ~ "bowfin",
+                                 #listing unknown taxa
+                                 species.1 == "unknown fish one" ~ "taxa_unknown",
+                                 species.1 == "LXB" ~ "taxa_unknown",
+                                 species.1 == "UK2" ~ "taxa_unknown",
+                                 species.1 == "UK1" ~ "taxa_unknown",
+                                 species.1 == "SIP" ~ "taxa_unknown",
+                                 species.1 == "SHD" ~ "taxa_unknown",
+                                 species.1 == "SCU" ~ "taxa_unknown",
+                                 species.1 == "no particular species" ~ "taxa_unknown",
+                                 species.1 == "HCR" ~ "taxa_unknown",
+                                 species.1 == "CRP" ~ "taxa_unknown",
+                                 species.1 == "CPS" ~ "taxa_unknown",
+                                 species.1 == "CIS" ~ "taxa_unknown",
+                                 is.na(species.1) ~ "taxa_unknown",
+                                 TRUE ~ species.1)) %>%
+  mutate(species.new = str_replace_all(species.new, " ", "_")) %>% 
+  mutate(species.new = tolower(species.new)) %>% 
+  group_by(species.new) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(desc(species.new)) %>% 
+  print(n = nrow(.))
+
+#state
+mn_data %>%
+  select(contains("state"))
+
+mn_data %>% 
+  group_by(state) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+mn_data %>% 
+  mutate(state = "Minnesota") %>% 
+  group_by(state) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+#county - based on info below for county in indivfish
+mn_data %>%
+  select(contains("county"))
+
+mn_data %>% 
+  mutate(same_county = ifelse(county_effort == county_indivfish, "Same", "Different")) %>% 
+  group_by(same_county) %>% 
+  count() %>% 
+  collect()
+#no conflicting rows between effort and fish, but data might be missing from one or the other
+
+mn_data %>% 
+  filter(is.na(county_effort) & !is.na(county_indivfish)) %>% 
+  count() %>% 
+  collect()
+#76246 - obs when effort is na but fish is not
+
+mn_data %>% 
+  filter(!is.na(county_effort) & is.na(county_indivfish)) %>% 
+  count() %>% 
+  collect()
+#1904 - obs when county effort is not na but fish is
+#fish has more coverage than county
+
+
+
+#lake_ID
+mn_data %>% 
+  group_by(lake_id) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  mutate(check = ifelse(grepl("^\\d{7,8}$", lake_id), "good", "bad")) %>% 
+  group_by(check) %>% 
+  summarise(n = n())
+#all lake ids are in the same format and look good
+
+#how many lakes? - 4148
+mn_data %>% 
+  summarise(unique = n_distinct(lake_id)) %>%  
+  collect()
+
+#lake_name
+mn_data %>% 
+  group_by(lake_name.1) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+mn_data %>% 
+  summarise(unique = n_distinct(lake_name.1)) %>%  
+  collect()
+#2436 unique lake names 
+
+mn_data %>% 
+  select(lake_name.1) %>% 
+  unique() %>% 
+  collect() %>% 
+  print( n = 100)
+
+#lat/long
+mn_data %>% 
+  select(contains("lat"))
+mn_data %>% 
+  select(contains("long"))
+#no lat or long column?
+
+#date
+mn_data %>%
+  select(contains("date"))
+
+#any NAs in date? 
+mn_data %>%
+  filter(is.na(date_clean))%>%
+  summarise(n = n()) %>% 
+  collect()
+
+mn_data %>%
+  select(date_clean)%>%
+  collect() %>% 
+  summary() 
+#NAs and seems legit
+
+#gear 
+mn_data %>% 
+  group_by(sampling_method) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#over 7 million NAs? 
+
+mn_data %>% 
+  filter(is.na(sampling_method)) %>% 
+  group_by(lake_id) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+#targeted species - needs cleaning, has species codes
+mn_data %>% 
+  group_by(target_species) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#how many targeted vs non-targeted?
+mn_data %>% 
+  mutate(target.survey = case_when(target_species == "" ~ "untargeted",
+                                   TRUE ~ "targeted")) %>% 
+  group_by(target.survey) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#roughly 30% are targeted
+
+#length and weight ranges
+mn_data %>% 
+  mutate(species.new = case_when(species.1 == "LMB" ~ "largemouth_bass",
+                                 species.1 == "SMB" ~ "smallmouth_bass",
+                                 species.1 == "WAE" ~ "walleye", 
+                                 species.1 == "WTS" ~ "white_sucker",
+                                 species.1 == "BLC" ~ "black_crappie",
+                                 species.1 == "YEP" ~ "yellow_perch",
+                                 species.1 == "BLG" ~ "bluegill",
+                                 species.1 == "NOP" ~ "northern_pike",
+                                 species.1 == "PMK" ~ "pumpkinseed", 
+                                 species.1 == "RKB" ~ "rock_bass",
+                                 species.1 == "BKF" ~ "banded_killifish",
+                                 species.1 == "IOD" ~ "iowa_darter",
+                                 species.1 == "BCS" ~ "blackchin_shiner",
+                                 species.1 == "BLB" ~ "black_bullhead",
+                                 species.1 == "JND" ~ "johnny_darter",
+                                 species.1 == "GOS" ~ "golden_shiner",
+                                 species.1 == "YEB" ~ "yellow_bullhead",
+                                 species.1 == "BRB" ~ "brown_bullhead",
+                                 species.1 == "CNM" ~ "central_mudminnow",
+                                 species.1 == "NRD" ~ "northern_redbelly_dace",
+                                 species.1 == "CSH" ~ "chinook_salmon",
+                                 species.1 == "MTS" ~ "mottled_sculpin",
+                                 species.1 == "TPM" ~ "tadpole_madtom",
+                                 species.1 == "SHR" ~ "shorthead_redhorse",
+                                 species.1 == "HSF" ~ "hybrid_sunfish",
+                                 species.1 == "BOF" ~ "bowfin",
+                                 species.1 == "WDS" ~ "weed_shiner",
+                                 species.1 == "BNM" ~ "bluntnose_minnow",
+                                 species.1 == "BND" ~ "blacknose_dace",
+                                 species.1 == "OTM" ~ "minnows",
+                                 species.1 == "FHM" ~ "fathead_minnow",
+                                 species.1 == "FND" ~ "finescale_dace",
+                                 species.1 == "SDM" ~ "slender_madtom",
+                                 species.1 == "SPO" ~ "spottail_shiner",
+                                 species.1 == "BNS" ~ "blacknose_shiner",
+                                 species.1 == "BKT" ~ "brook_trout",
+                                 species.1 == "SPT" ~ "splake",
+                                 species.1 == "RBT" ~ "rainbow_trout",
+                                 species.1 == "BNT" ~ "brown_trout",
+                                 species.1 == "BUB" ~ "burbot",
+                                 species.1 == "BIB" ~ "bigmouth_buffalo",
+                                 species.1 == "BLH" ~ "bullheads",
+                                 species.1 == "TLC" ~ "cisco",
+                                 species.1 == "CCF" ~ "channel_catfish",
+                                 species.1 == "BSD" ~ "blackside_darter",
+                                 species.1 == "BKS" ~ "brook_silverside",
+                                 species.1 == "LED" ~ "least_darter",
+                                 species.1 == "LGP" ~ "logperch",
+                                 species.1 == "SLR" ~ "silver_redhorse",
+                                 species.1 == "HHC" ~ "hornyhead_chub",
+                                 species.1 == "MUE" ~ "muskellunge",
+                                 species.1 == "TRP" ~ "trout_perch",
+                                 species.1 == "RHS" ~ "redhorse",
+                                 species.1 == "CAP" ~ "common_carp",
+                                 species.1 == "MMS" ~ "mimic_shiner",
+                                 species.1 == "EMS" ~ "emerald_shiner",
+                                 species.1 == "SUN" ~ "sunfish",
+                                 species.1 == "CRC" ~ "creek_chub",
+                                 species.1 == "GSF" ~ "green_sunfish",
+                                 species.1 == "SFS" ~ "spotfin_shiner",
+                                 species.1 == "SHI" ~ "shiners",
+                                 species.1 == "BST" ~ "brook_stickleback",
+                                 species.1 == "CSR" ~ "central_stoneroller",
+                                 species.1 == "SDS" ~ "sand_shiner",
+                                 species.1 == "GRR" ~ "greater_redhorse",
+                                 species.1 == "PGS" ~ "pugnose_shiner",
+                                 species.1 == "SMS" ~ "slimy_sculpin",
+                                 species.1 == "LND" ~ "longnose_dace",
+                                 species.1 == "FRD" ~ "freshwater_drum",
+                                 species.1 == "WHC" ~ "white_crappie",
+                                 species.1 == "DAR" ~ "darters",
+                                 species.1 == "SAR" ~ "sauger",
+                                 species.1 == "FCF" ~ "flathead_catfish",
+                                 species.1 == "BMS" ~ "bigmouth_shiner",
+                                 species.1 == "LKS" ~ "lake_sturgeon",
+                                 species.1 == "LKW" ~ "lake_whitefish",
+                                 species.1 == "BRM" ~ "brassy_minnow",
+                                 species.1 == "SLM" ~ "mississippi_silvery_minnow",
+                                 species.1 == "GLR" ~ "golden_redhorse",
+                                 species.1 == "OTS" ~ "suckers",
+                                 species.1 == "NST" ~ "ninespine_stickleback",
+                                 species.1 == "GOE" ~ "goldeye",
+                                 species.1 == "QBS" ~ "quillback",
+                                 species.1 == "RVS" ~ "river_shiner",
+                                 species.1 == "LES" ~ "longear_sunfish",
+                                 species.1 == "CHL" ~ "chestnut_lamprey",
+                                 species.1 == "RRH" ~ "river_redhorse",
+                                 species.1 == "WHB" ~ "white_bass",
+                                 species.1 == "OSS" ~ "orangespotted_sunfish",
+                                 species.1 == "STC" ~ "stonecat",
+                                 species.1 == "SNG" ~ "shortnose_gar",
+                                 species.1 == "RFS" ~ "rosyface_shiner",
+                                 species.1 == "CMS" ~ "carmine_shiner",
+                                 species.1 == "SAB" ~ "smallmouth_buffalo",
+                                 species.1 == "GIS" ~ "gizzard_shad",
+                                 species.1 == "LNG" ~ "longnose_gar",
+                                 species.1 == "RCS" ~ "river_carpsucker",
+                                 species.1 == "SLS" ~ "shovelnose_sturgeon",
+                                 species.1 == "LAT" ~ "lake_trout",
+                                 species.1 == "TME" ~ "tiger_muskellunge",
+                                 species.1 == "PRD" ~ "pearl_dace",
+                                 species.1 == "PLS" ~ "pallid_shiner",
+                                 species.1 == "RBS" ~ "rainbow_smelt",
+                                 species.1 == "RBD" ~ "rainbow_darter",
+                                 species.1 == "LNS" ~ "longnose_sucker",
+                                 species.1 == "SJC" ~ "shortjaw_cisco",
+                                 species.1 == "DWS" ~ "deepwater_sculpin",
+                                 species.1 == "SHS" ~ "spoonhead_sculpin",
+                                 species.1 == "BDD" ~ "banded_darter",
+                                 species.1 == "MOE" ~ "mooneye",
+                                 species.1 == "BLS" ~ "blue_sucker",
+                                 species.1 == "SLC" ~ "silver_chub",
+                                 species.1 == "HFS" ~ "highfin_carpsucker",
+                                 species.1 == "MCP" ~ "mirror_carp",
+                                 species.1 == "WAS" ~ "walleye/sauger",
+                                 species.1 == "AME" ~ "american_eel",
+                                 species.1 == "GOF" ~ "goldfish",
+                                 species.1 == "SPS" ~ "spotted_sucker",
+                                 species.1 == "PAH" ~ "paddlefish",
+                                 species.1 == "RVD" ~ "river_darter",
+                                 species.1 == "NHS" ~ "northern_hog_sucker",
+                                 species.1 == "BHM" ~ "bullhead_minnow",
+                                 species.1 == "WSD" ~ "western_sand_darter",
+                                 species.1 == "MDD" ~ "mud_darter",
+                                 species.1 == "SIL" ~ "silver_lamprey",
+                                 species.1 == "SKJ" ~ "skipjack_herring",
+                                 species.1 == "PGM" ~ "pugnose_minnow",
+                                 species.1 == "BKB" ~ "black_buffalo",
+                                 species.1 == "FTD" ~ "fantail_darter",
+                                 species.1 == "YLB" ~ "yellow_bass",
+                                 species.1 == "PRP" ~ "pirate_perch",
+                                 species.1 == "LKC" ~ "lake_chub",
+                                 species.1 == "RIR" ~ "river_ruffe",
+                                 species.1 == "WHP" ~ "white_perch",
+                                 species.1 == "ALW" ~ "alewife",
+                                 species.1 == "SEL" ~ "sea_lamprey",
+                                 species.1 == "BHC" ~ "bighead_carp",
+                                 species.1 == "GLD" ~ "gilt_darter",
+                                 species.1 == "CRD" ~ "crystal_darter",
+                                 species.1 == "SMT" ~ "speckled_madtom",
+                                 species.1 == "RDS" ~ "red_shiner",
+                                 species.1 == "WAM" ~ "warmouth",
+                                 species.1 == "tullibee (cisco)" ~ "cisco",
+                                 species.1 == "trout-perch" ~ "trout_perch",
+                                 species.1 == "bowfin (dogfish)" ~ "bowfin",
+                                 TRUE ~ species.1)) %>%
+  mutate(species.new = str_replace_all(species.new, " ", "_")) %>% 
+  mutate(species.new = tolower(species.new)) %>% 
+  group_by(species.new) %>% 
+  summarise(mean.length = mean(length.1, na.rm = T), min.length = min(length.1, na.rm = T), max.length = max(length.1, na.rm = T), mean.weight = mean(weight.1, na.rm = T), min.weight = min(weight.1, na.rm = T), max.weight = max(weight.1, na.rm = T)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#length unit
+mn_data %>% 
+  group_by(length_unit.1) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+#Are the cases of na length unit when length is na?
+mn_data %>% 
+  filter(is.na(length.1) & is.na(length_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#7867520 are missing both length and length unit
+
+#cases where there are lengths without any length units
+mn_data %>% 
+  filter(!is.na(length.1) & is.na(length_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#weight units
+mn_data %>% 
+  group_by(weight_unit.1) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+#weight nas
+mn_data %>% 
+  filter(is.na(weight.1) & is.na(weight_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+#cases where there are weights without any length units
+mn_data %>% 
+  filter(!is.na(weight.1) & is.na(weight_unit.1)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+####there are no cases of a weight missing a unit
+
+#age yrs
+mn_data %>% 
+  select(contains("age"))
+#column for age
+
+#how many nas?
+mn_data %>% 
+  filter(!is.na(age)) %>% 
+  summarise(n = n()) %>% 
+  collect()
+#1273674 cases with ages
+
+#age by species?
+mn_data %>% 
+  mutate(species.new = case_when(species.1 == "LMB" ~ "largemouth_bass",
+                                 species.1 == "SMB" ~ "smallmouth_bass",
+                                 species.1 == "WAE" ~ "walleye", 
+                                 species.1 == "WTS" ~ "white_sucker",
+                                 species.1 == "BLC" ~ "black_crappie",
+                                 species.1 == "YEP" ~ "yellow_perch",
+                                 species.1 == "BLG" ~ "bluegill",
+                                 species.1 == "NOP" ~ "northern_pike",
+                                 species.1 == "PMK" ~ "pumpkinseed", 
+                                 species.1 == "RKB" ~ "rock_bass",
+                                 species.1 == "BKF" ~ "banded_killifish",
+                                 species.1 == "IOD" ~ "iowa_darter",
+                                 species.1 == "BCS" ~ "blackchin_shiner",
+                                 species.1 == "BLB" ~ "black_bullhead",
+                                 species.1 == "JND" ~ "johnny_darter",
+                                 species.1 == "GOS" ~ "golden_shiner",
+                                 species.1 == "YEB" ~ "yellow_bullhead",
+                                 species.1 == "BRB" ~ "brown_bullhead",
+                                 species.1 == "CNM" ~ "central_mudminnow",
+                                 species.1 == "NRD" ~ "northern_redbelly_dace",
+                                 species.1 == "CSH" ~ "chinook_salmon",
+                                 species.1 == "MTS" ~ "mottled_sculpin",
+                                 species.1 == "TPM" ~ "tadpole_madtom",
+                                 species.1 == "SHR" ~ "shorthead_redhorse",
+                                 species.1 == "HSF" ~ "hybrid_sunfish",
+                                 species.1 == "BOF" ~ "bowfin",
+                                 species.1 == "WDS" ~ "weed_shiner",
+                                 species.1 == "BNM" ~ "bluntnose_minnow",
+                                 species.1 == "BND" ~ "blacknose_dace",
+                                 species.1 == "OTM" ~ "minnows",
+                                 species.1 == "FHM" ~ "fathead_minnow",
+                                 species.1 == "FND" ~ "finescale_dace",
+                                 species.1 == "SDM" ~ "slender_madtom",
+                                 species.1 == "SPO" ~ "spottail_shiner",
+                                 species.1 == "BNS" ~ "blacknose_shiner",
+                                 species.1 == "BKT" ~ "brook_trout",
+                                 species.1 == "SPT" ~ "splake",
+                                 species.1 == "RBT" ~ "rainbow_trout",
+                                 species.1 == "BNT" ~ "brown_trout",
+                                 species.1 == "BUB" ~ "burbot",
+                                 species.1 == "BIB" ~ "bigmouth_buffalo",
+                                 species.1 == "BLH" ~ "bullheads",
+                                 species.1 == "TLC" ~ "cisco",
+                                 species.1 == "CCF" ~ "channel_catfish",
+                                 species.1 == "BSD" ~ "blackside_darter",
+                                 species.1 == "BKS" ~ "brook_silverside",
+                                 species.1 == "LED" ~ "least_darter",
+                                 species.1 == "LGP" ~ "logperch",
+                                 species.1 == "SLR" ~ "silver_redhorse",
+                                 species.1 == "HHC" ~ "hornyhead_chub",
+                                 species.1 == "MUE" ~ "muskellunge",
+                                 species.1 == "TRP" ~ "trout_perch",
+                                 species.1 == "RHS" ~ "redhorse",
+                                 species.1 == "CAP" ~ "common_carp",
+                                 species.1 == "MMS" ~ "mimic_shiner",
+                                 species.1 == "EMS" ~ "emerald_shiner",
+                                 species.1 == "SUN" ~ "sunfish",
+                                 species.1 == "CRC" ~ "creek_chub",
+                                 species.1 == "GSF" ~ "green_sunfish",
+                                 species.1 == "SFS" ~ "spotfin_shiner",
+                                 species.1 == "SHI" ~ "shiners",
+                                 species.1 == "BST" ~ "brook_stickleback",
+                                 species.1 == "CSR" ~ "central_stoneroller",
+                                 species.1 == "SDS" ~ "sand_shiner",
+                                 species.1 == "GRR" ~ "greater_redhorse",
+                                 species.1 == "PGS" ~ "pugnose_shiner",
+                                 species.1 == "SMS" ~ "slimy_sculpin",
+                                 species.1 == "LND" ~ "longnose_dace",
+                                 species.1 == "FRD" ~ "freshwater_drum",
+                                 species.1 == "WHC" ~ "white_crappie",
+                                 species.1 == "DAR" ~ "darters",
+                                 species.1 == "SAR" ~ "sauger",
+                                 species.1 == "FCF" ~ "flathead_catfish",
+                                 species.1 == "BMS" ~ "bigmouth_shiner",
+                                 species.1 == "LKS" ~ "lake_sturgeon",
+                                 species.1 == "LKW" ~ "lake_whitefish",
+                                 species.1 == "BRM" ~ "brassy_minnow",
+                                 species.1 == "SLM" ~ "mississippi_silvery_minnow",
+                                 species.1 == "GLR" ~ "golden_redhorse",
+                                 species.1 == "OTS" ~ "suckers",
+                                 species.1 == "NST" ~ "ninespine_stickleback",
+                                 species.1 == "GOE" ~ "goldeye",
+                                 species.1 == "QBS" ~ "quillback",
+                                 species.1 == "RVS" ~ "river_shiner",
+                                 species.1 == "LES" ~ "longear_sunfish",
+                                 species.1 == "CHL" ~ "chestnut_lamprey",
+                                 species.1 == "RRH" ~ "river_redhorse",
+                                 species.1 == "WHB" ~ "white_bass",
+                                 species.1 == "OSS" ~ "orangespotted_sunfish",
+                                 species.1 == "STC" ~ "stonecat",
+                                 species.1 == "SNG" ~ "shortnose_gar",
+                                 species.1 == "RFS" ~ "rosyface_shiner",
+                                 species.1 == "CMS" ~ "carmine_shiner",
+                                 species.1 == "SAB" ~ "smallmouth_buffalo",
+                                 species.1 == "GIS" ~ "gizzard_shad",
+                                 species.1 == "LNG" ~ "longnose_gar",
+                                 species.1 == "RCS" ~ "river_carpsucker",
+                                 species.1 == "SLS" ~ "shovelnose_sturgeon",
+                                 species.1 == "LAT" ~ "lake_trout",
+                                 species.1 == "TME" ~ "tiger_muskellunge",
+                                 species.1 == "PRD" ~ "pearl_dace",
+                                 species.1 == "PLS" ~ "pallid_shiner",
+                                 species.1 == "RBS" ~ "rainbow_smelt",
+                                 species.1 == "RBD" ~ "rainbow_darter",
+                                 species.1 == "LNS" ~ "longnose_sucker",
+                                 species.1 == "SJC" ~ "shortjaw_cisco",
+                                 species.1 == "DWS" ~ "deepwater_sculpin",
+                                 species.1 == "SHS" ~ "spoonhead_sculpin",
+                                 species.1 == "BDD" ~ "banded_darter",
+                                 species.1 == "MOE" ~ "mooneye",
+                                 species.1 == "BLS" ~ "blue_sucker",
+                                 species.1 == "SLC" ~ "silver_chub",
+                                 species.1 == "HFS" ~ "highfin_carpsucker",
+                                 species.1 == "MCP" ~ "mirror_carp",
+                                 species.1 == "WAS" ~ "walleye/sauger",
+                                 species.1 == "AME" ~ "american_eel",
+                                 species.1 == "GOF" ~ "goldfish",
+                                 species.1 == "SPS" ~ "spotted_sucker",
+                                 species.1 == "PAH" ~ "paddlefish",
+                                 species.1 == "RVD" ~ "river_darter",
+                                 species.1 == "NHS" ~ "northern_hog_sucker",
+                                 species.1 == "BHM" ~ "bullhead_minnow",
+                                 species.1 == "WSD" ~ "western_sand_darter",
+                                 species.1 == "MDD" ~ "mud_darter",
+                                 species.1 == "SIL" ~ "silver_lamprey",
+                                 species.1 == "SKJ" ~ "skipjack_herring",
+                                 species.1 == "PGM" ~ "pugnose_minnow",
+                                 species.1 == "BKB" ~ "black_buffalo",
+                                 species.1 == "FTD" ~ "fantail_darter",
+                                 species.1 == "YLB" ~ "yellow_bass",
+                                 species.1 == "PRP" ~ "pirate_perch",
+                                 species.1 == "LKC" ~ "lake_chub",
+                                 species.1 == "RIR" ~ "river_ruffe",
+                                 species.1 == "WHP" ~ "white_perch",
+                                 species.1 == "ALW" ~ "alewife",
+                                 species.1 == "SEL" ~ "sea_lamprey",
+                                 species.1 == "BHC" ~ "bighead_carp",
+                                 species.1 == "GLD" ~ "gilt_darter",
+                                 species.1 == "CRD" ~ "crystal_darter",
+                                 species.1 == "SMT" ~ "speckled_madtom",
+                                 species.1 == "RDS" ~ "red_shiner",
+                                 species.1 == "WAM" ~ "warmouth",
+                                 species.1 == "tullibee (cisco)" ~ "cisco",
+                                 species.1 == "trout-perch" ~ "trout_perch",
+                                 species.1 == "bowfin (dogfish)" ~ "bowfin",
+                                 TRUE ~ species.1)) %>%
+  mutate(species.new = str_replace_all(species.new, " ", "_")) %>% 
+  mutate(species.new = tolower(species.new)) %>% 
+  filter(!is.na(age)) %>% 
+  group_by(species.new) %>%
+  summarise(median = median(age), min = min (age), max = max(age), n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#ages 382 and 116 for walleye and northern pike seem unreasonable
+
+#effort
+mn_data %>% 
+  select(contains("effort"))
+#total_effort_1.1
+
+mn_data %>% 
+  filter(!is.na(total_effort_1.1)) %>% 
+  summarise(mean = mean(total_effort_1.1), min =min(total_effort_1.1), max = max(total_effort_1.1)) %>% 
+  collect()
+#no effort units, we have a negative effort? 
+
+#survey id
+mn_data %>% 
+  group_by(survey_id) %>% 
+  summarise(n = n()) %>% 
+  collect()
+```
+
+#JDM Team
+```{r}
+#######################Michigan#####################################
+#sampling method
+#what sampling methods do we have and how many?
+mi_data %>% 
+  group_by(sampling_method) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+mi_data %>% 
+  count(is.na(length.1))
+
+#survey type 
+mi_data %>% 
+  group_by(survey_type.1_effort) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+#how many surveys have na survey types?
+#just one - 4042
+mi_data %>% 
+  filter(is.na(survey_type.1_effort)) %>% 
+  group_by(survey_id) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+mi_data %>% 
+  filter(is.na(survey_type.1_effort)) %>% 
+  group_by(sampling_method, species.1) %>% 
+  summarise(mean = mean(length.1), min = min (length.1), max = max(length.1), n = n()) %>% 
+  print(n = nrow(.))
+
+#visualizing sampling methods by sampling gear and species 
+#can we lump all fyke net/trap nets together, same thing for gill nets?
+
+#all inclusive
+mi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("large_mesh_fyke_net", "small_mesh_fyke_net", "trap_net") ~ "fyke_net",
+                                         sampling_method %in% c("great_lakes_gill_net", "inland_gill_net") ~ "gill_net",
+                                         sampling_method == "boomshocking" ~ "boat_electrofishing",
+                                         sampling_method == "seine" ~ "seine")) %>% 
+  ggplot() +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(species.1~sampling_method_agg, scales = "free")
+
+#only fyke net
+mi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("large_mesh_fyke_net", "small_mesh_fyke_net", "trap_net") ~ "fyke_net",
+                                         sampling_method %in% c("great_lakes_gill_net", "inland_gill_net") ~ "gill_net",
+                                         sampling_method == "boomshocking" ~ "boat_electrofishing",
+                                         sampling_method == "seine" ~ "seine")) %>% 
+  filter(sampling_method_agg == "fyke_net") %>% 
+  filter(species.1 != "taxon_NA") %>%
+  ggplot() +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+#small mesh fyke sets look fairly different for largemouth bass and yellow perch
+
+#remove small mesh fyke
+mi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("large_mesh_fyke_net", "small_mesh_fyke_net", "trap_net") ~ "fyke_net",
+                                         sampling_method %in% c("great_lakes_gill_net", "inland_gill_net") ~ "gill_net",
+                                         sampling_method == "boomshocking" ~ "boat_electrofishing",
+                                         sampling_method == "seine" ~ "seine")) %>% 
+  filter(sampling_method_agg == "fyke_net") %>% 
+  filter(species.1 != "taxon_NA") %>%
+  filter(sampling_method != "small_mesh_fyke_net") %>% 
+  mutate(species.1 = case_when(species.1 == "blue_gill" ~ "bluegill",
+                               TRUE ~ species.1)) %>% 
+  ggplot() +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15)) +
+  ggtitle("Michigan Fyke/Trap Nets")
+ggsave("MI_Fyke.png", width = 7, height = 5)
+
+
+#only gill net
+mi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("large_mesh_fyke_net", "small_mesh_fyke_net", "trap_net") ~ "fyke_net",
+                                         sampling_method %in% c("great_lakes_gill_net", "inland_gill_net") ~ "gill_net",
+                                         sampling_method == "boomshocking" ~ "boat_electrofishing",
+                                         sampling_method == "seine" ~ "seine")) %>% 
+  filter(sampling_method_agg == "gill_net") %>% 
+  filter(species.1 != "taxon_NA") %>% 
+  ggplot() +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+#great lake gill nets only caught cisco, smallmouth bass, northern pike, and yellow perch
+#size recruited to the net looks different for northern pike and smallmouth bass
+
+#removing great lakes gill net
+mi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("large_mesh_fyke_net", "small_mesh_fyke_net", "trap_net") ~ "fyke_net",
+                                         sampling_method %in% c("great_lakes_gill_net", "inland_gill_net") ~ "gill_net",
+                                         sampling_method == "boomshocking" ~ "boat_electrofishing",
+                                         sampling_method == "seine" ~ "seine")) %>% 
+  filter(sampling_method_agg == "gill_net") %>% 
+  filter(species.1 != "taxon_NA") %>% 
+  filter(sampling_method != "great_lakes_gill_net") %>% 
+  ggplot() +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+
+#Quartiles fish length  by species and state
+mi_data %>%
+  filter(!is.na(length.1)) %>% 
+  group_by(species.1, sampling_method) %>%
+  summarise(q1 = quantile(length.1, probs = 0.20),
+    median = quantile(length.1, probs = 0.50),
+    q3 = quantile(length.1, probs = 0.80)) %>% 
+  print(n = nrow(.))
+
+####################Wisconsin##############################
+#sampling method
+#what sampling methods do we have and how many?
+wi_data %>% 
+  group_by(sampling_method) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(n) %>% 
+  print( n = nrow(.)) 
+
+#hoop nets?
+wi_data %>% 
+  filter(sampling_method == "hoop_net") %>% 
+  group_by(lake_name.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+wi_data %>% 
+  filter(sampling_method == "hoop_trap") %>% 
+  group_by(lake_name.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+wi_data %>% 
+  filter(sampling_method == "hoop_net") %>% 
+  summarise(n = n()) %>% 
+  collect() 
+
+
+#visualizing sampling methods by sampling gear and species 
+#can we lump all fyke net/trap nets together, same thing for gill nets?
+
+#all inclusive
+glimpse(wi_data)
+
+#survey type
+wi_data %>% 
+  group_by(survey_type.2_indivfish) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(desc(n)) %>%
+  print(n = nrow(.))
+
+#selecting for representative survey types
+#original survey types
+wi_data %>% 
+  group_by(survey_type.1_indivfish) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(desc(n)) %>% 
+  print(n = nrow(.))
+
+#selecting for representative survey types
+wi_data %>% 
+  filter(is.na(survey_type.1_indivfish) |
+        !(survey_type.1_indivfish == "special_study" |
+         survey_type.1_indivfish == "fisheries_assessments_rivers" |
+         survey_type.1_indivfish == "fisheries_assessments_stream_smallmouth_bass" |
+         survey_type.1_indivfish == "winterkill_investigation" |
+         survey_type.1_indivfish == "non_dnr_cooperator_study"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_rotation"|
+         survey_type.1_indivfish == "fisheries_assessments_trout_trend"|
+         survey_type.1_indivfish == "habitat_improvement_evaluation"|
+         survey_type.1_indivfish =="research_project"|
+         survey_type.1_indivfish == "fish_kill_investigation"|
+         survey_type.1_indivfish == "epa_national_stream_river_assessment"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_potential"|
+         survey_type.1_indivfish =="severely_impacted"|
+         survey_type.1_indivfish =="fish_passage_study"|
+         survey_type.1_indivfish == "use_designation"|
+         survey_type.1_indivfish == "creel,_access_point"|
+         survey_type.1_indivfish == "treaty_fisheries_assessment"|
+         str_detect(survey_type.1_indivfish, "watershed"))) %>% 
+  group_by(survey_type.1_indivfish) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(desc(n)) %>%
+  print(n = nrow(.))
+
+#are these survey types capturing all populations?
+wi_data %>% 
+  filter(is.na(survey_type.1_indivfish) |
+        !(survey_type.1_indivfish == "special_study" |
+         survey_type.1_indivfish == "fisheries_assessments_rivers" |
+         survey_type.1_indivfish == "fisheries_assessments_stream_smallmouth_bass" |
+         survey_type.1_indivfish == "winterkill_investigation" |
+         survey_type.1_indivfish == "non_dnr_cooperator_study"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_rotation"|
+         survey_type.1_indivfish == "fisheries_assessments_trout_trend"|
+         survey_type.1_indivfish == "habitat_improvement_evaluation"|
+         survey_type.1_indivfish == "fish_kill_investigation"|
+         survey_type.1_indivfish == "epa_national_stream_river_assessment"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_potential"|
+         survey_type.1_indivfish =="research_project"|
+         survey_type.1_indivfish =="severely_impacted"|
+         survey_type.1_indivfish =="fish_passage_study"|
+         survey_type.1_indivfish == "use_designation"|
+         survey_type.1_indivfish == "creel,_access_point"|
+         survey_type.1_indivfish == "treaty_fisheries_assessment"|
+         str_detect(survey_type.1_indivfish, "watershed"))) %>% 
+  select(length.1, species.1, survey_type.1_indivfish) %>% 
+  collect() %>% 
+  filter(length.1 < 100) %>% 
+  ggplot() +
+  geom_density(aes(length.1, fill = species.1, alpha = .5)) +
+  facet_wrap(~survey_type.1_indivfish, scales = "free") +
+  theme(legend.position = "none")
+
+#table for selected survey types
+wi_data %>% 
+  filter(is.na(survey_type.1_indivfish) |
+        !(survey_type.1_indivfish == "special_study" |
+         survey_type.1_indivfish == "fisheries_assessments_rivers" |
+         survey_type.1_indivfish == "fisheries_assessments_stream_smallmouth_bass" |
+         survey_type.1_indivfish == "winterkill_investigation" |
+         survey_type.1_indivfish == "non_dnr_cooperator_study"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_rotation"|
+         survey_type.1_indivfish == "fisheries_assessments_trout_trend"|
+         survey_type.1_indivfish == "habitat_improvement_evaluation"|
+         survey_type.1_indivfish == "fish_kill_investigation"|
+         survey_type.1_indivfish == "epa_national_stream_river_assessment"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_potential"|
+         survey_type.1_indivfish =="research_project"|
+         survey_type.1_indivfish =="severely_impacted"|
+         survey_type.1_indivfish =="fish_passage_study"|
+         survey_type.1_indivfish == "use_designation"|
+         survey_type.1_indivfish == "creel,_access_point"|
+         survey_type.1_indivfish == "treaty_fisheries_assessment"|
+         str_detect(survey_type.1_indivfish, "watershed"))) %>% 
+  group_by(survey_type.1_indivfish, species.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(survey_type.1_indivfish, desc(n)) %>% 
+  print(n = nrow(.))
+
+#table of excluded survey types
+wi_data %>% 
+  filter(survey_type.1_indivfish == "special_study" |
+         survey_type.1_indivfish == "fisheries_assessments_rivers" |
+         survey_type.1_indivfish == "fisheries_assessments_stream_smallmouth_bass" |
+         survey_type.1_indivfish == "winterkill_investigation" |
+         survey_type.1_indivfish == "non_dnr_cooperator_study"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_rotation"|
+         survey_type.1_indivfish == "fisheries_assessments_trout_trend"|
+         survey_type.1_indivfish == "habitat_improvement_evaluation"|
+         survey_type.1_indivfish == "fish_kill_investigation"|
+         survey_type.1_indivfish == "epa_national_stream_river_assessment"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_potential"|
+         survey_type.1_indivfish =="research_project"|
+         survey_type.1_indivfish =="severely_impacted"|
+         survey_type.1_indivfish =="fish_passage_study"|
+         survey_type.1_indivfish == "use_designation"|
+         survey_type.1_indivfish == "creel,_access_point"|
+         survey_type.1_indivfish == "treaty_fisheries_assessment"|
+         str_detect(survey_type.1_indivfish, "watershed")) %>% 
+  group_by(survey_type.1_indivfish, species.1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(survey_type.1_indivfish, desc(n)) %>% 
+  print(n = nrow(.))
+
+#what about the other survey types?
+wi_data %>% 
+  group_by(survey_type.1_effort) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.)) 
+
+wi_data %>% 
+  group_by(survey_type.2_effort) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#effort column does not look very helpful?
+
+wi_data %>% 
+  group_by(survey_type.2_indivfish) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.)) 
+
+wi_data %>% 
+  filter(is.na(survey_type.1_indivfish) & !is.na(survey_type.2_indivfish)) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#there are no cases where survey type 2 would provide more information than 1
+
+#how are cisco being captured?
+wi_data %>% 
+  filter(species.1 == "cisco/lake_herring") %>% 
+  group_by(sampling_method) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+gear.plot.wi <- wi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("fyke_net", 
+                                                                "mini_fyke_net",
+                                                                "mini_fyke_net_with_turtle_exclusion", 
+                                                                "mini_fyke_net_without_turtle_exclusion",
+                                                                "mini_fyke_net_with_unknown_turtle_exclusion",
+                                                                "trap_net",
+                                                                "hoop_net", 
+                                                                "hoop_trap") ~ "fyke_net",
+                                         sampling_method %in% c("bottom_gill_net", 
+                                                                "gillnet", 
+                                                                "vertical_gill_net",
+                                                                "floating_gill_net",
+                                                                "trammel_net") ~ "gill_net",
+                                         sampling_method %in% c("boom_shocker", 
+                                                                "mini_boom_shocker",
+                                                                "mini-boom_shocker",
+                                                                "boom_shocker_or_mini-boom_shocker",
+                                                                "dc_boom_shocker") ~ "boat_electrofishing",
+                                         sampling_method %in% c("stream_shocker", 
+                                                                "backpack_shocker") ~ "backpack_electrofishing",
+                                         sampling_method %in% c("seine", 
+                                                                "small-mesh_seine", 
+                                                                "elec_seine") ~ "seine",
+                                         sampling_method %in% c("trawl",
+                                                                "bottom_trawl", 
+                                                                "surface_trawl",
+                                                                "mid-water_trawl") ~ "trawl",
+                                         sampling_method == "poison" ~ "poison",
+                                         sampling_method == "spearing" ~ "spear")) %>% 
+  select(state, species.1, sampling_method, sampling_method_agg, length.1, date.1, survey_id, survey_type.1_indivfish) %>% 
+  filter(!is.na(length.1)) %>% 
+  filter(species.1 %in% c("walleye", 
+                          "northern_pike",
+                          "largemouth_bass", 
+                          "smallmouth_bass", 
+                          "yellow_perch", 
+                          "black_crappie", 
+                          "bluegill", 
+                          "cisco/lake_herring")) %>% 
+  collect()
+
+#survey type
+
+
+#all together
+ggplot(gear.plot.wi) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(species.1~sampling_method_agg, scales = "free")
+
+#fyke net only 
+ggplot(gear.plot.wi %>% 
+         filter(sampling_method_agg == "fyke_net") %>% 
+         filter((length.1 < 15 & species.1 == "black_crappie") | 
+                (length.1 < 12 & species.1 == "bluegill") |
+                (length.1 < 30 & species.1 == "largemouth_bass") |
+                (length.1 < 50 & species.1 == "northern_pike") |
+                (length.1 < 25 & species.1 == "smallmouth_bass") |
+                (length.1 < 35 & species.1 == "walleye") |
+                (length.1 < 17 & species.1 == "yellow_perch"))) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+
+#remove minis (they do not capture adult fish)
+#remove hoop trap (not many observations and appear to be different for smallmouth)
+ggplot(gear.plot.wi %>% 
+         filter(sampling_method_agg == "fyke_net") %>% 
+         filter(!(sampling_method %in% c("mini_fyke_net", 
+                                         "mini_fyke_net_with_turtle_exclusion",
+                                         "mini_fyke_net_without_turtle_exclusion",
+                                         "mini_fyke_net_with_unknown_turtle_exclusion",
+                                         "hoop_trap",
+                                         "hoop_net"))) %>% 
+         filter((length.1 < 15 & species.1 == "black_crappie") | 
+                (length.1 < 12 & species.1 == "bluegill") |
+                (length.1 < 30 & species.1 == "largemouth_bass") |
+                (length.1 < 50 & species.1 == "northern_pike") |
+                (length.1 < 25 & species.1 == "smallmouth_bass") |
+                (length.1 < 35 & species.1 == "walleye") |
+                (length.1 < 17 & species.1 == "yellow_perch"))) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15)) +
+  ggtitle("Wisconsin Fyke/Trap")
+ggsave("WI_Fyke.png", width = 7, height = 5)
+
+
+#gill net only
+ggplot(gear.plot %>% 
+         filter(sampling_method_agg == "gill_net") %>% 
+         filter((length.1 < 15 & species.1 == "black_crappie") | 
+                (length.1 < 12 & species.1 == "bluegill") |
+                (length.1 < 40 & species.1 == "largemouth_bass") |
+                (length.1 < 60 & species.1 == "northern_pike") |
+                (length.1 < 40 & species.1 == "smallmouth_bass") |
+                (length.1 < 35 & species.1 == "walleye") |
+                (length.1 < 17 & species.1 == "yellow_perch") |
+                (length.1 < 20 & species.1 == "cisco/lake_herring"))) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+
+gear.plot %>% 
+  filter(sampling_method_agg == "gill_net") %>% 
+  group_by(sampling_method, species.1) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+#the only species with sizable obs from gill nets in wisconsin are cisco, walleye, northern pike, and yellow perch
+
+#electrofishing
+ggplot(gear.plot %>% 
+         filter(sampling_method_agg == "boat_electrofishing") %>% 
+         filter((length.1 < 25 & species.1 == "black_crappie") | 
+                (length.1 < 15 & species.1 == "bluegill") |
+                (length.1 < 30 & species.1 == "largemouth_bass") |
+                (length.1 < 50 & species.1 == "northern_pike") |
+                (length.1 < 40 & species.1 == "smallmouth_bass") |
+                (length.1 < 35 & species.1 == "walleye") |
+                (length.1 < 20 & species.1 == "yellow_perch"))) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+
+#trawl only
+ggplot(gear.plot %>% 
+         filter(sampling_method_agg == "trawl")) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(species.1~sampling_method_agg, scales = "free")
+
+#seine
+ggplot(gear.plot %>% 
+         filter(sampling_method_agg == "seine")) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(species.1~sampling_method_agg, scales = "free")
+
+#timing of gear types throughout the year
+gear.plot <- gear.plot %>% 
+  mutate(julian_day = format(date.1, "%j")) %>% 
+  mutate(julian_day = as.numeric(julian_day)) # have to make it numeric
+
+gear.plot %>% 
+  filter(sampling_method_agg %in% c("gill_net", "fyke_net")) %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = sampling_method_agg), alpha = 0.5) +
+  theme_classic() +
+  theme(legend.position = c(0.1, 0.6))
+
+#######################Minnesota##############################################
+gear.plot.mn <- mn_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets", 
+                                                                "1/4-in trap nets",
+                                                                "Special sampling with trap nets", 
+                                                                "Large-frame (5 x 6 ft) trap nets",
+                                                                "3/8-in trap nets",
+                                                                "3/4 inch single-frame trap net", 
+                                                                "Trap Net - Mini Fyke",
+                                                                "1-in trap nets",
+                                                                "Double-pot 3/4-in-mesh double frame trap nets") ~ "fyke_net",
+                                         sampling_method %in% c("Standard gill net sets", 
+                                                                "Special sampling with gill nets", 
+                                                                "Gill net fine mesh",
+                                                                "Small mesh gill nets, 3/8 and 1/2-in mesh, 200 x 6 ft",
+                                                                "Standard gill nets, set deep in stratified assessment",
+                                                                "Standard Vertical Gillnet",
+                                                                "Standard gill nets, set shallow in stratified assessment",
+                                                                "FCIN gill nets",
+                                                                "Monofilament gill nets, short-term sets",
+                                                                "Multifilament GN; 300 x 6; three 100 panels 1.5-2.0-2.5",
+                                                                "Standard gill nets, suspended sets",
+                                                                "Trammel Net; 100 X 6 multifilament",
+                                                                "Standard North American gill net") ~ "gill_net",
+                                         sampling_method %in% c("Fall electrofishing for walleye", 
+                                                                "Standard electrofishing",
+                                                                "Special sampling, electrofishing") ~ "boat_electrofishing",
+                                         sampling_method %in% c("Electrofishing, Backpack") ~ "backpack_electrofishing",
+                                         sampling_method %in% c("Standard shoreline seining", 
+                                                                "Seining, 50 foot 1/8 in Beach Seine for IBI", 
+                                                                "Seining, 15 foot 1/8 in Beach Seine for IBI",
+                                                                "Special sampling, seining") ~ "seine",
+                                         sampling_method %in% c("Standard trawling",
+                                                                "Special sampling, trawling") ~ "trawl")) %>% 
+  select(state, species.1, sampling_method, sampling_method_agg, length.1, date_clean, survey_id_effort, survey_type.1) %>%
+  filter(species.1 %in% c("WAE", 
+                          "walleye", 
+                          "LMB", 
+                          "largemouth bass", 
+                          "SMB", 
+                          "smallmouth bass", 
+                          "YEP", 
+                          "yellow perch", 
+                          "NOP", 
+                          "northern pike", 
+                          "BLG", 
+                          "bluegill", 
+                          "BLC", 
+                          "black crappie", 
+                          "TLC", 
+                          "tullibee (cisco)")) %>% 
+  filter(!is.na(length.1)) %>% 
+  collect() %>% 
+    mutate(species.1 = case_when(species.1 %in% c("WAE", "walleye") ~ "walleye",
+                               species.1 %in% c("LMB", "largemouth bass") ~ "largemouth_bass",
+                               species.1 %in% c("SMB", "smallmouth bass") ~ "smallmouth_bass",
+                               species.1 %in% c("YEP", "yellow perch") ~ "yellow_perch",
+                               species.1 %in% c("NOP", "northern pike") ~ "northern_pike",
+                               species.1 %in% c("BLG", "bluegill") ~ "bluegill",
+                               species.1 %in% c("BLC", "black crappie") ~ "black_crappie",
+                               species.1 %in% c("TLC", "tullibee (cisco)") ~ "cisco")) %>% 
+  rename(date.1 = date_clean)
+
+#quick fix for MN species 
+gear.plot %>% 
+  group_by(species.1) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+#mn sampling methods
+gear.plot.mn %>% 
+  group_by(sampling_method) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+#fyke net only 
+ggplot(gear.plot.mn %>% 
+         filter(sampling_method_agg == "fyke_net") %>% 
+         filter(!(species.1 == "black_crappie" & length.1>500))) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+
+#removing fyke net methods that are not consistent 
+ggplot(gear.plot.mn %>% 
+         filter(sampling_method_agg == "fyke_net") %>% 
+         filter(!(sampling_method %in% c("Trap Net - Mini Fyke",
+                                         "3/8-in trap nets",
+                                         "1/4-in trap nets",
+                                         "Double-pot 3/4-in-mesh double frame trap nets"))) %>% 
+         filter(!(species.1 == "black_crappie" & length.1>500))) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15),
+        legend.text = element_text(size = 8),    # Adjust the size of legend labels
+  legend.title = element_text(size = 10),  # Adjust the size of legend title
+  legend.key.size = unit(0.5, "lines")) +
+  ggtitle("Minnesota Fyke/Trap")
+ggsave("MN_Fyke.png", width = 7, height = 5)
+
+
+#gill net only
+ggplot(gear.plot.mn %>% 
+         filter(sampling_method_agg == "gill_net")) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+
+#removing gear nets that are not consistent 
+ggplot(gear.plot.mn %>% 
+         filter(sampling_method_agg == "gill_net") %>% 
+         filter(!(sampling_method %in% c("Small mesh gill nets, 3/8 and 1/2-in mesh, 200 x 6 ft",
+                                         "FCIN gill nets",
+                                         "Multifilament GN; 300 x 6; three 100 panels 1.5-2.0-2.5",
+                                         "Monofilament gill nets, short-term sets",
+                                         "Gill net fine mesh")))) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15),
+        legend.text = element_text(size = 8),    # Adjust the size of legend labels
+  legend.title = element_text(size = 10),  # Adjust the size of legend title
+  legend.key.size = unit(0.5, "lines")) +
+  ggtitle("Minnesota Gill Net")
+ggsave("MN_Gillnet.png", width = 7, height = 5)
+
+#trawl
+ggplot(gear.plot %>% 
+         filter(sampling_method_agg == "trawl")) +
+  geom_density(aes(length.1, fill = sampling_method), adjust = 3, alpha = .5) +
+  facet_wrap(~species.1, scales = "free") +
+  theme_classic() +
+  theme(legend.position = c(.8, .15))
+
+#types of surveys
+mn_data %>% 
+  group_by(survey_type.1) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+####################across states###############################
+#I did a quick cleaning within states for methods, but species specific might be needed within Minnesota and Wisconsin
+#cleaning Wisconsin
+gear.plot.wi <- gear.plot.wi %>% 
+         filter(sampling_method_agg == "fyke_net") %>% #no gill nets in WI
+         filter(!(sampling_method %in% c("mini_fyke_net", #excluding methods not representative of adult pop.
+                                         "mini_fyke_net_with_turtle_exclusion",
+                                         "mini_fyke_net_without_turtle_exclusion",
+                                         "mini_fyke_net_with_unknown_turtle_exclusion",
+                                         "hoop_trap",
+                                         "hoop_net"))) %>% 
+  mutate(species.1 = case_when(species.1 == "cisco/lake_herring" ~ "cisco", #making Cisco name consistent 
+                               TRUE ~ species.1)) %>% 
+  filter(is.na(survey_type.1_indivfish) | #excluding survey types that do not sample abundance evenly 
+        !(survey_type.1_indivfish == "special_study" |
+         survey_type.1_indivfish == "fisheries_assessments_rivers" |
+         survey_type.1_indivfish == "fisheries_assessments_stream_smallmouth_bass" |
+         survey_type.1_indivfish == "winterkill_investigation" |
+         survey_type.1_indivfish == "non_dnr_cooperator_study"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_rotation"|
+         survey_type.1_indivfish == "fisheries_assessments_trout_trend"|
+         survey_type.1_indivfish == "habitat_improvement_evaluation"|
+         survey_type.1_indivfish =="research_project"|
+         survey_type.1_indivfish == "fish_kill_investigation"|
+         survey_type.1_indivfish == "epa_national_stream_river_assessment"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_potential"|
+         survey_type.1_indivfish =="severely_impacted"|
+         survey_type.1_indivfish =="fish_passage_study"|
+         survey_type.1_indivfish == "use_designation"|
+         survey_type.1_indivfish == "creel,_access_point"|
+         survey_type.1_indivfish == "treaty_fisheries_assessment"|
+         str_detect(survey_type.1_indivfish, "watershed"))) %>% 
+  rename(survey_type = survey_type.1_indivfish)
+
+#cleaning mi
+gear.plot.mi <- mi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("large_mesh_fyke_net", "small_mesh_fyke_net", "trap_net") ~ "fyke_net",
+                                         sampling_method %in% c("great_lakes_gill_net", "inland_gill_net") ~ "gill_net",
+                                         sampling_method == "boomshocking" ~ "boat_electrofishing",
+                                         sampling_method == "seine" ~ "seine")) %>% #aggregating common sampling methods
+  filter(sampling_method_agg %in% c("fyke_net", "gill_net")) %>% #selecting fyke/trap nets and gill nets for abundance 
+  filter(species.1 != "taxon_NA") %>% #removing samples that do not have taxa
+  filter(!(sampling_method %in% c("small_mesh_fyke_net", 
+                                  "great_lakes_gill_net"))) %>% #removing gear types not representative of adult populations 
+  filter(!is.na(survey_type.1_effort)) %>% #excluding na survey types 
+  select(state, species.1, sampling_method, sampling_method_agg, length.1, date.1, survey_id, survey_type.1_effort) %>% 
+  mutate(date.1 = as.Date(date.1)) %>% 
+  mutate(length.1 = as.integer(length.1)) %>% 
+  mutate(species.1 = case_when(species.1 == "blue_gill" ~ "bluegill",
+                               TRUE ~ species.1)) %>% 
+  rename(survey_type = survey_type.1_effort) %>% 
+  mutate(state = "Michigan") %>% 
+  collect()
+
+#cleaning mn
+gear.plot.mn <- gear.plot.mn %>% 
+         filter(sampling_method_agg %in% c("fyke_net", "gill_net")) %>% 
+         filter(!(sampling_method %in% c("Trap Net - Mini Fyke", #removing gear types not representative of adult pop. or has specific timing of year
+                                         "3/8-in trap nets",
+                                         "1/4-in trap nets",
+                                         "Double-pot 3/4-in-mesh double frame trap nets",
+                                         "Small mesh gill nets, 3/8 and 1/2-in mesh, 200 x 6 ft",
+                                         "FCIN gill nets",
+                                         "Multifilament GN; 300 x 6; three 100 panels 1.5-2.0-2.5",
+                                         "Monofilament gill nets, short-term sets",
+                                         "Gill net fine mesh",
+                                         "Special sampling with gill nets",
+                                         "Special sampling with trap nets", 
+                                         "Standard gill nets, set deep in stratified assessment",
+                                         "Standard gill nets, set shallow in stratified assessment",
+                                         "Standard gill nets, suspended sets",
+                                         "Standard Vertical Gillnet",
+                                         "1-in trap nets", #mostly used in the spring 
+                                         "3/4 inch single-frame trap net",
+                                         "Large-frame (5 x 6 ft) trap nets"))) %>% 
+  filter(!(survey_type.1 %in% c("Winter Kill Assessment", 
+                                "External Management Survey", 
+                                "Subsurvey",
+                                "Natural Reproduction Check", 
+                                "Targeted Survey", 
+                                "Dissolved Oxygen Check"))) %>% #removing surveys not representative of abundance 
+  mutate(state = "Minnesota") %>% 
+  rename(survey_id = survey_id_effort) %>% 
+  rename(survey_type = survey_type.1)
+
+gear.plot <- rbind(gear.plot.mn, gear.plot.wi, gear.plot.mi)
+gear.plot <- gear.plot %>% 
+  mutate(julian_day = format(date.1, "%j")) %>% 
+  mutate(julian_day = as.numeric(julian_day))
+
+#survey level
+gear.plot.survey <- gear.plot %>% 
+  group_by(state, survey_id, sampling_method_agg) %>% 
+  summarise(julian_day = unique(julian_day)) 
+
+gear.plot.survey %>% 
+  group_by(state) %>% 
+  summarise(n = n())
+
+#fyke net
+gear.plot.survey %>%
+  filter(sampling_method_agg == "fyke_net") %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = state), alpha = 0.5) +
+  theme_classic() +
+  theme(legend.position = c(0.9, 0.3)) +
+  ggtitle("State Timing Fyke")
+ggsave("State_Timing_Fyke.png", width = 7, height = 5)
+
+#gill net
+gear.plot.survey %>%
+  filter(sampling_method_agg == "gill_net") %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = state), alpha = 0.5) +
+  theme_classic() +
+  theme(legend.position = c(0.9, 0.28)) +
+  ggtitle("State Timing Gill Net")
+ggsave("State_Timing_Gillnet.png", width = 7, height = 5)
+
+#within states timing of sampling
+#overall
+gear.plot %>% 
+  group_by(state, survey_id, sampling_method, sampling_method_agg) %>% 
+  summarise(julian_day = unique(julian_day)) %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = sampling_method), alpha = 0.5) +
+  facet_grid(state~sampling_method_agg, scales = "free") +
+  theme_classic() 
+
+#state by state
+gear.plot %>% 
+  filter(state == "Michigan") %>% 
+  group_by(state, survey_id, sampling_method, sampling_method_agg) %>% 
+  summarise(julian_day = unique(julian_day)) %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = sampling_method), alpha = 0.5) +
+  theme_classic()+
+  theme(legend.position = c(0.8, 0.28)) 
+ggsave("MI_sample_timing.png", width = 7, height = 5)
+
+gear.plot %>% 
+  filter(state == "Wisconsin") %>% 
+  group_by(state, survey_id, sampling_method, sampling_method_agg) %>% 
+  summarise(julian_day = unique(julian_day)) %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = sampling_method), alpha = 0.5) +
+  theme_classic() +
+  theme(legend.position = c(0.8, 0.28)) 
+ggsave("WI_sample_timing.png", width = 7, height = 5)
+
+gear.plot %>% 
+  filter(state == "Minnesota") %>% 
+  group_by(state, survey_id, sampling_method, sampling_method_agg) %>% 
+  summarise(julian_day = unique(julian_day)) %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = sampling_method), alpha = 0.5) +
+  theme_classic() +
+  theme(legend.position = c(0.25, 0.9),
+        legend.key.size = unit(.2, "cm"),
+        legend.text = element_text(size = 5)) 
+#after looking at this chart, non-standard trap nets were removed due to difference in deployment times
+ggsave("MN_sample_timing.png", width = 7, height = 5)
+
+#species time of year
+gear.plot %>% 
+  group_by(state, survey_id, species.1) %>% 
+  summarise(julian_day = unique(julian_day), catch = n()) %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = species.1), alpha = 0.5) +
+  theme_classic() +
+  theme(legend.position = c(0.2, 0.85)) +
+  facet_wrap(~state, scales = "free")
+```
+
+#Minimum effort exploration
+```{r}
+#################################################Minnesota#####################################################
+effort.mn <- mn_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets", 
+                                                                "1/4-in trap nets",
+                                                                "Special sampling with trap nets", 
+                                                                "Large-frame (5 x 6 ft) trap nets",
+                                                                "3/8-in trap nets",
+                                                                "3/4 inch single-frame trap net", 
+                                                                "Trap Net - Mini Fyke",
+                                                                "1-in trap nets",
+                                                                "Double-pot 3/4-in-mesh double frame trap nets") ~ "fyke_net",
+                                         sampling_method %in% c("Standard gill net sets", 
+                                                                "Special sampling with gill nets", 
+                                                                "Gill net fine mesh",
+                                                                "Small mesh gill nets, 3/8 and 1/2-in mesh, 200 x 6 ft",
+                                                                "Standard gill nets, set deep in stratified assessment",
+                                                                "Standard Vertical Gillnet",
+                                                                "Standard gill nets, set shallow in stratified assessment",
+                                                                "FCIN gill nets",
+                                                                "Monofilament gill nets, short-term sets",
+                                                                "Multifilament GN; 300 x 6; three 100 panels 1.5-2.0-2.5",
+                                                                "Standard gill nets, suspended sets",
+                                                                "Trammel Net; 100 X 6 multifilament",
+                                                                "Standard North American gill net") ~ "gill_net",
+                                         sampling_method %in% c("Fall electrofishing for walleye", 
+                                                                "Standard electrofishing",
+                                                                "Special sampling, electrofishing") ~ "boat_electrofishing",
+                                         sampling_method %in% c("Electrofishing, Backpack") ~ "backpack_electrofishing",
+                                         sampling_method %in% c("Standard shoreline seining", 
+                                                                "Seining, 50 foot 1/8 in Beach Seine for IBI", 
+                                                                "Seining, 15 foot 1/8 in Beach Seine for IBI",
+                                                                "Special sampling, seining") ~ "seine",
+                                         sampling_method %in% c("Standard trawling",
+                                                                "Special sampling, trawling") ~ "trawl")) %>% 
+  select(state, lake_id, species.1, sampling_method, sampling_method_agg, length.1, date_clean, survey_id_effort, survey_type.1, total_effort_1.1) %>%
+  filter(species.1 %in% c("WAE", 
+                          "walleye", 
+                          "LMB", 
+                          "largemouth bass", 
+                          "SMB", 
+                          "smallmouth bass", 
+                          "YEP", 
+                          "yellow perch", 
+                          "NOP", 
+                          "northern pike", 
+                          "BLG", 
+                          "bluegill", 
+                          "BLC", 
+                          "black crappie", 
+                          "TLC", 
+                          "tullibee (cisco)")) %>% 
+    filter(!is.na(length.1)) %>% 
+    mutate(species.1 = case_when(species.1 %in% c("WAE", "walleye") ~ "walleye",
+                               species.1 %in% c("LMB", "largemouth bass") ~ "largemouth_bass",
+                               species.1 %in% c("SMB", "smallmouth bass") ~ "smallmouth_bass",
+                               species.1 %in% c("YEP", "yellow perch") ~ "yellow_perch",
+                               species.1 %in% c("NOP", "northern pike") ~ "northern_pike",
+                               species.1 %in% c("BLG", "bluegill") ~ "bluegill",
+                               species.1 %in% c("BLC", "black crappie") ~ "black_crappie",
+                               species.1 %in% c("TLC", "tullibee (cisco)") ~ "cisco")) %>% 
+  rename(date.1 = date_clean) %>% 
+  #this is where the break was
+  filter(sampling_method_agg %in% c("fyke_net", "gill_net")) %>% 
+         filter(!(sampling_method %in% c("Trap Net - Mini Fyke", #removing gear types not representative of adult pop. or has specific timing of year
+                                         "3/8-in trap nets",
+                                         "1/4-in trap nets",
+                                         "Double-pot 3/4-in-mesh double frame trap nets",
+                                         "Small mesh gill nets, 3/8 and 1/2-in mesh, 200 x 6 ft",
+                                         "FCIN gill nets",
+                                         "Multifilament GN; 300 x 6; three 100 panels 1.5-2.0-2.5",
+                                         "Monofilament gill nets, short-term sets",
+                                         "Gill net fine mesh",
+                                         "Special sampling with gill nets",
+                                         "Special sampling with trap nets", 
+                                         "Standard gill nets, set deep in stratified assessment",
+                                         "Standard gill nets, set shallow in stratified assessment",
+                                         "Standard gill nets, suspended sets",
+                                         "Standard Vertical Gillnet",
+                                         "1-in trap nets", #mostly used in the spring 
+                                         "3/4 inch single-frame trap net",
+                                         "Large-frame (5 x 6 ft) trap nets"))) %>% 
+  filter(!(survey_type.1 %in% c("Winter Kill Assessment", 
+                                "External Management Survey", 
+                                "Subsurvey",
+                                "Natural Reproduction Check", 
+                                "Targeted Survey", 
+                                "Dissolved Oxygen Check"))) %>% #removing surveys not representative of abundance 
+  mutate(state = "Minnesota") %>% 
+  rename(survey_id = survey_id_effort) %>% 
+  rename(survey_type = survey_type.1) %>% 
+  collect()
+
+effort.mn %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(total_effort_1.1), median = median(total_effort_1.1), max(total_effort_1.1), n = n())
+
+effort.mn %>% 
+  group_by(survey_id, sampling_method) %>% 
+  summarise(effort = unique(total_effort_1.1)) %>% 
+  filter(!(effort >25)) %>% 
+  ggplot()+
+  geom_density(aes(effort, fill = sampling_method), alpha = .5) +
+  theme_classic() +
+  theme(legend.position = c(.7,.7))
+
+#large amounts of effort?
+effort.mn %>% 
+  group_by(lake_id, survey_id, sampling_method) %>% 
+  summarise(effort = unique(total_effort_1.1)) %>% 
+  filter(effort >100)
+
+#what does catch and cupe look like in MN?
+gillnet.effort <- effort.mn %>% 
+  filter(sampling_method_agg == "gill_net") %>% 
+  group_by(survey_id, species.1) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method = unique(sampling_method), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort)
+
+#are there multiple surveys within the same year?
+gillnet.effort %>%
+  mutate(year = year(date.1)) %>% 
+  group_by(lake_id, year) %>% 
+  summarise(n = n_distinct(survey_id)) %>% 
+  filter(n >1) %>% 
+  print(n = nrow(.))
+
+#Leech?
+gillnet.effort %>% 
+  filter(lake_id == "11020300") %>% 
+  mutate(year = year(date.1)) %>% 
+  ggplot() +
+  geom_point(aes(year, cpue)) +
+  facet_wrap(~species.1, scales = "free")
+
+
+fyke.effort <- effort.mn %>% 
+  filter(sampling_method_agg == "fyke_net") %>% 
+  group_by(survey_id, species.1) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method = unique(sampling_method), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort)
+
+#gillnet exploration
+#catch vs effort
+gillnet.effort %>% 
+  filter(effort < 75) %>%
+  ggplot() +
+  geom_point(aes(effort, n)) +
+  geom_smooth(aes(effort, n)) +
+  facet_wrap(~species.1, scales = "free") 
+
+#cpue vs effort
+gillnet.effort %>% 
+  filter(effort < 75) %>%
+  ggplot() +
+  geom_point(aes(effort, cpue)) +
+  geom_smooth(aes(effort, cpue)) +
+  facet_wrap(~species.1, scales = "free")
+
+#fyke exploration
+#catch vs effort
+fyke.effort %>% 
+  filter(effort < 75) %>%
+  ggplot() +
+  geom_point(aes(effort, n)) +
+  geom_smooth(aes(effort, n)) +
+  facet_wrap(~species.1, scales = "free")
+
+#cpue vs effort
+fyke.effort %>% 
+  filter(effort < 75) %>%
+  ggplot() +
+  geom_point(aes(effort, cpue)) +
+  geom_smooth(aes(effort, cpue)) +
+  facet_wrap(~species.1, scales = "free")
+
+#####both together - cpue
+effort.mn %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = sampling_method_agg)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+effort.mn %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_jitter(aes(effort, cpue, color = sampling_method_agg), alpha = .3) +
+  geom_smooth(aes(effort, cpue, color = sampling_method_agg)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+#####both together - catch
+effort.mn %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_smooth(aes(effort, n, color = sampling_method_agg)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+effort.mn %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_jitter(aes(effort, n, color = sampling_method_agg), alpha = .3) +
+  geom_smooth(aes(effort, n, color = sampling_method_agg)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+#how many surveys with effort less than 5?
+effort.mn %>% 
+  group_by(survey_id, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 5) %>% 
+  summarise(n = n())
+
+####with lake area
+area <- read_csv("Data_and_Scripts/Data/input/mn_lake_list.csv") %>% 
+  select(DOW, LAKE_AREA_DOW_ACRES) %>% 
+  mutate(DOW = as.integer(DOW))
+glimpse(area)
+glimpse(effort.mn)
+effort.mn <- left_join(effort.mn, area, by = c("lake_id" = "DOW")) 
+  
+effort.mn <- effort.mn %>%
+  mutate(LAKE_AREA_DOW_ACRES = as.numeric(case_when(
+        lake_id == "56038800" ~ "1288",
+        lake_id == "55006400" ~ "20",
+        lake_id == "76014601" ~ "467",
+        lake_id == "76014602" ~ "218",
+        TRUE ~ as.character(LAKE_AREA_DOW_ACRES))))
+effort.mn %>% 
+  filter(is.na(LAKE_AREA_DOW_ACRES)) %>% 
+  group_by(lake_id) %>% 
+  summarise(n = n())
+#no cases of na area
+
+#creating lake area bins for gill nets and fyke
+effort.area.gill <- effort.mn %>% 
+  filter(sampling_method_agg == "gill_net") %>% 
+  mutate(area.group = case_when(LAKE_AREA_DOW_ACRES < 100 ~ "<100",
+                                LAKE_AREA_DOW_ACRES >= 100 & LAKE_AREA_DOW_ACRES <= 300 ~ "100-300",
+                                LAKE_AREA_DOW_ACRES >= 301 & LAKE_AREA_DOW_ACRES <= 600 ~ "301-600",
+                                LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) %>% 
+  mutate(area.group = factor(area.group, levels = c("<100", "100-300", "301-600", "601-1500", "1501+")))
+
+effort.area.fyke <- effort.mn %>% 
+  filter(sampling_method_agg == "fyke_net") %>% 
+  mutate(area.group = case_when(LAKE_AREA_DOW_ACRES < 600 ~ "<600",
+                                LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) %>% 
+  mutate(area.group = factor(area.group, levels = c("<600", "601-1500", "1501+")))
+  
+#looking at counts by grouping
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  group_by(area.group) %>% 
+  summarise(n = n(), min = min(effort), average = median(effort), max = max(effort))
+
+#figures for bin groupings (can change between cpue and count)
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = area.group)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_jitter(aes(effort, cpue, color = area.group), alpha = .2) +
+  geom_smooth(aes(effort, cpue, color = area.group)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+########fyke summary
+effort.area.fyke %>% 
+  group_by(area.group) %>% 
+  summarise(n = n(), min = min(total_effort_1.1), average = median(total_effort_1.1), max = max(total_effort_1.1))
+
+#figures for bin groupings (can change between cpue and count)
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = area.group)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_jitter(aes(effort, cpue, color = area.group), alpha = .2) +
+  geom_smooth(aes(effort, cpue, color = area.group)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+effort.area.fyke %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = area.group)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+effort.area.fyke %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(effort < 25) %>%
+  ggplot() +
+  geom_jitter(aes(effort, cpue, color = area.group), alpha = .2) +
+  geom_smooth(aes(effort, cpue, color = area.group)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+##########how many low effort surveys are in each group for gill nets?##############
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  filter(effort < 25) %>%
+  mutate(cpue = n/effort) %>% 
+  ggplot() +
+  geom_histogram(aes(effort, fill = area.group), binwidth = 1) +
+  facet_wrap(~area.group, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+#how many surveys of effort 1, 2, or 3, 4, 5 in each area grouping?
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  filter(effort < 6) %>% 
+  group_by(area.group, effort) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+#max, min, and median effort values
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  group_by(area.group) %>% 
+  summarise(min = min(effort), median = median(effort), max = max(effort), n = n())
+
+#how many unique lakes?
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  group_by(lake_id) %>% 
+  summarise(n = n_distinct(lake_id))
+
+#filtering out minimum effort for gill nets
+effort.area.gill %>% 
+   group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>%
+  filter(!(area.group == "<100" & effort < 2) & 
+         !(area.group == "100-300" & effort < 3) &
+         !(area.group == "301-600" & effort < 3) &
+         !(area.group == "601-1500" & effort < 3) &
+         !(area.group == "1501+" & effort < 5)) %>% 
+  group_by(area.group) %>% 
+  summarise(min = min(effort), median = median(effort), max = max(effort), n = n())
+
+#how many unique lakes?
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  filter(!(area.group == "<100" & effort < 2) & 
+         !(area.group == "100-300" & effort < 3) &
+         !(area.group == "301-600" & effort < 3) &
+         !(area.group == "601-1500" & effort < 3) &
+         !(area.group == "1501+" & effort < 5)) %>% 
+  group_by(lake_id) %>% 
+  summarise(n = n_distinct(lake_id))
+
+effort.area.gill %>% 
+  filter(!(species.1 %in% c("smallmouth_bass", "cisco"))) %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>%
+  filter(!(area.group == "<100" & effort < 2) & 
+         !(area.group == "100-300" & effort < 3) &
+         !(area.group == "301-600" & effort < 3) &
+         !(area.group == "601-1500" & effort < 3) &
+         !(area.group == "1501+" & effort < 5)) %>% 
+  mutate(cpue = n/effort) %>% 
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = area.group)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.55,.27))
+
+##########how many low effort surveys are in each group for fyke nets?##############
+effort.area.fyke %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  filter(effort < 25) %>%
+  mutate(cpue = n/effort) %>% 
+  ggplot() +
+  geom_histogram(aes(effort, fill = area.group), binwidth = 1) +
+  facet_wrap(~area.group, scales = "free")
+
+#how many surveys of effort 1, 2, or 3, 4, 5 in each area grouping?
+effort.area.fyke %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  filter(effort < 6) %>% 
+  group_by(area.group, effort) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+#max, min, and median effort values
+effort.area.fyke %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  group_by(area.group) %>% 
+  summarise(min = min(effort), median = median(effort), max = max(effort), n = n())
+
+#filtering out minimum effort for gill nets
+effort.area.fyke %>% 
+   group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>%
+  filter(!(area.group == "<600" & effort < 5) & 
+         !(area.group == "601-1500" & effort < 5) &
+         !(area.group == "1501+" & effort < 5)) %>% 
+  group_by(area.group) %>% 
+  summarise(min = min(effort), median = median(effort), max = max(effort), n = n())
+
+effort.area.fyke %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>%
+  filter(!(area.group == "<600" & effort < 5) & 
+         !(area.group == "601-1500" & effort < 5) &
+         !(area.group == "1501+" & effort < 5)) %>% 
+  mutate(cpue = n/effort) %>% 
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = area.group)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+
+#######binning effort boxplot#######################
+#zoomed in
+effort.area.gill %>% 
+   group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>%
+  filter(effort < 10) %>% 
+  mutate(effort = factor(effort, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))) %>%
+  ggplot() +
+  geom_violin(aes(x = effort, y = log(cpue), color = species.1)) +
+  facet_wrap(~species.1, scales = "free")
+
+effort.area.fyke %>% 
+   group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>%
+  filter(effort < 10) %>% 
+  mutate(effort = factor(effort, levels = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10"))) %>%
+  ggplot() +
+  geom_boxplot(aes(x = effort, y = log(cpue), color = species.1)) +
+  facet_wrap(~species.1, scales = "free")
+
+effort.area.gill %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), area.group = unique(area.group), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>%
+  mutate(effort.bin = case_when(effort > 0 & effort < 3 ~ "1-2",
+                                 effort >= 3 & effort < 5 ~ "3-4",
+                                 effort >= 5 & effort < 7 ~ "5-6",
+                                 effort >= 7 & effort < 11 ~ "7-10",
+                                 effort >= 10 & effort < 21 ~ "10-20",
+                                TRUE ~ "21+")) %>% 
+  mutate(effort.bin = factor(effort.bin, levels = c("1-2", "3-4", "5-6", "7-10", "10-20", "21+"))) %>%
+  ggplot() +
+  geom_boxplot(aes(x = effort.bin, y = log(cpue), color = species.1)) +
+  geom_jitter(aes(x = effort.bin, y = log(cpue), color = species.1), alpha = .1) +
+  facet_wrap(~species.1, scales = "free")
+
+#CPUE species with time
+effort.mn <- effort.mn %>% 
+  mutate(julian_day = format(date.1, "%j")) %>% 
+  mutate(julian_day = as.numeric(julian_day))
+
+effort.mn %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  mutate(area.group = case_when(sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES < 100 ~ "<100",
+                                sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES >= 100 & LAKE_AREA_DOW_ACRES <= 300 ~ "100-300",
+                                sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES >= 301 & LAKE_AREA_DOW_ACRES <= 600 ~ "301-600",
+                                sampling_method_agg == "gill_net"& LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                sampling_method_agg == "gill_net"& LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES < 600 ~ "<600",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) %>%
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), julian_day = unique(julian_day), effort = unique(total_effort_1.1), area.group = unique(area.group), n = n()) %>% 
+  filter(!(sampling_method_agg == "gill_net" & area.group == "<100" & effort < 2) & 
+         !(sampling_method_agg == "gill_net" & area.group == "100-300" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "301-600" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "601-1500" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "1501+" & effort < 5) &
+         !(sampling_method_agg == "fyke_net" & area.group == "<600" & effort < 5) & 
+         !(sampling_method_agg == "fyke_net" & area.group == "601-1500" & effort < 5) &
+         !(sampling_method_agg == "fyke_net" & area.group == "1501+" & effort < 5)) %>% 
+  mutate(cpue = n/effort) %>% 
+  ggplot() +
+  geom_smooth(aes(x = julian_day, y = cpue, color = species.1)) +
+  facet_wrap(~sampling_method_agg, scales = "free")
+
+effort.mn %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  mutate(area.group = case_when(sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES < 100 ~ "<100",
+                                sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES >= 100 & LAKE_AREA_DOW_ACRES <= 300 ~ "100-300",
+                                sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES >= 301 & LAKE_AREA_DOW_ACRES <= 600 ~ "301-600",
+                                sampling_method_agg == "gill_net"& LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                sampling_method_agg == "gill_net"& LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES < 600 ~ "<600",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) %>%
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), julian_day = unique(julian_day), effort = unique(total_effort_1.1), area.group = unique(area.group), n = n()) %>% 
+  filter(!(sampling_method_agg == "gill_net" & area.group == "<100" & effort < 2) & 
+         !(sampling_method_agg == "gill_net" & area.group == "100-300" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "301-600" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "601-1500" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "1501+" & effort < 5) &
+         !(sampling_method_agg == "fyke_net" & area.group == "<600" & effort < 5) & 
+         !(sampling_method_agg == "fyke_net" & area.group == "601-1500" & effort < 5) &
+         !(sampling_method_agg == "fyke_net" & area.group == "1501+" & effort < 5)) %>% 
+  mutate(cpue = n/effort) %>%  
+  ggplot() +
+  geom_smooth(aes(x = julian_day, y = cpue, color = species.1)) +
+  geom_jitter(aes(x = julian_day, y = cpue, color = species.1)) +
+  facet_wrap(species.1~sampling_method_agg, scales = "free")
+
+#nop
+effort.mn %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), julian_day = unique(julian_day), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  filter(species.1 == "northern_pike" & cpue >200)
+
+########################################Wisconsin##########################################
+effort.wi <- wi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("fyke_net", 
+                                                                "mini_fyke_net",
+                                                                "mini_fyke_net_with_turtle_exclusion", 
+                                                                "mini_fyke_net_without_turtle_exclusion",
+                                                                "mini_fyke_net_with_unknown_turtle_exclusion",
+                                                                "trap_net",
+                                                                "hoop_net", 
+                                                                "hoop_trap") ~ "fyke_net",
+                                         sampling_method %in% c("bottom_gill_net", 
+                                                                "gillnet", 
+                                                                "vertical_gill_net",
+                                                                "floating_gill_net",
+                                                                "trammel_net") ~ "gill_net",
+                                         sampling_method %in% c("boom_shocker", 
+                                                                "mini_boom_shocker",
+                                                                "mini-boom_shocker",
+                                                                "boom_shocker_or_mini-boom_shocker",
+                                                                "dc_boom_shocker") ~ "boat_electrofishing",
+                                         sampling_method %in% c("stream_shocker", 
+                                                                "backpack_shocker") ~ "backpack_electrofishing",
+                                         sampling_method %in% c("seine", 
+                                                                "small-mesh_seine", 
+                                                                "elec_seine") ~ "seine",
+                                         sampling_method %in% c("trawl",
+                                                                "bottom_trawl", 
+                                                                "surface_trawl",
+                                                                "mid-water_trawl") ~ "trawl",
+                                         sampling_method == "poison" ~ "poison",
+                                         sampling_method == "spearing" ~ "spear")) %>% 
+  select(state, lake_id, species.1, sampling_method, sampling_method_agg, length.1, date.1, survey_id, survey_type.1_indivfish, effort, effort_units, total.effort.1, total.effort.1.units, total.effort.2, total.effort.2.units) %>% 
+  filter(!is.na(length.1)) %>% 
+  filter(species.1 %in% c("walleye", 
+                          "northern_pike",
+                          "largemouth_bass", 
+                          "smallmouth_bass", 
+                          "yellow_perch", 
+                          "black_crappie", 
+                          "bluegill", 
+                          "cisco/lake_herring")) %>% 
+  #this is where the break was
+  filter(sampling_method_agg == "fyke_net") %>% #no gill nets in WI
+         filter(!(sampling_method %in% c("mini_fyke_net", #excluding methods not representative of adult pop.
+                                         "mini_fyke_net_with_turtle_exclusion",
+                                         "mini_fyke_net_without_turtle_exclusion",
+                                         "mini_fyke_net_with_unknown_turtle_exclusion",
+                                         "hoop_trap",
+                                         "hoop_net",
+                                         "trap_net"))) %>% 
+  mutate(species.1 = case_when(species.1 == "cisco/lake_herring" ~ "cisco", #making Cisco name consistent 
+                               TRUE ~ species.1)) %>% 
+  filter(is.na(survey_type.1_indivfish) | #excluding survey types that do not sample abundance evenly 
+        !(survey_type.1_indivfish == "special_study" |
+         survey_type.1_indivfish == "fisheries_assessments_rivers" |
+         survey_type.1_indivfish == "fisheries_assessments_stream_smallmouth_bass" |
+         survey_type.1_indivfish == "winterkill_investigation" |
+         survey_type.1_indivfish == "non_dnr_cooperator_study"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_rotation"|
+         survey_type.1_indivfish == "fisheries_assessments_trout_trend"|
+         survey_type.1_indivfish == "habitat_improvement_evaluation"|
+         survey_type.1_indivfish =="research_project"|
+         survey_type.1_indivfish == "fish_kill_investigation"|
+         survey_type.1_indivfish == "epa_national_stream_river_assessment"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_potential"|
+         survey_type.1_indivfish =="severely_impacted"|
+         survey_type.1_indivfish =="fish_passage_study"|
+         survey_type.1_indivfish == "use_designation"|
+         survey_type.1_indivfish == "creel,_access_point"|
+         survey_type.1_indivfish == "treaty_fisheries_assessment"|
+         str_detect(survey_type.1_indivfish, "watershed"))) %>% 
+  rename(survey_type = survey_type.1_indivfish) %>%
+  collect()
+
+#Wisconsin has three effort columns, but only two are useful
+#number of nets is the second effort which is more consist by state
+glimpse(effort.wi)
+
+#which effort to use?
+effort.wi %>% 
+  mutate(total.effort.1 = as.numeric(total.effort.1)) %>%
+  filter(is.na(total.effort.1)) %>% 
+  count()
+
+effort.wi %>% 
+  mutate(total.effort.2 = as.numeric(total.effort.2)) %>%
+  filter(is.na(total.effort.2)) %>% 
+  count()
+#less NAs in the effort 2 - also is more consistent across states (number of nets)
+
+effort.wi %>% 
+  group_by(survey_id, species.1, sampling_method_agg) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), effort = unique(total.effort.2), n = n())  %>% #add in day? multiple days for one survey but same catch?
+  print(n = 25)
+  mutate(total.effort.2 = as.numeric(total.effort.2)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(total.effort.2, na.rm = T), median = median(total.effort.2, na.rm = T), max = max(total.effort.2, na.rm = T), n = n()) 
+  
+#looking a particular survey to get a feel for the structure
+survey <- effort.wi %>% 
+  filter(survey_id == 281)
+
+survey %>% 
+  group_by(survey_id, species.1, sampling_method_agg) %>% 
+  summarise(lake_id = unique(lake_id), n = n()) 
+
+survey %>% 
+  group_by(survey_id, species.1, sampling_method_agg) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), effort = unique(total.effort.2), n = n()) %>% 
+  print(n = nrow(.))
+
+survey %>% 
+  group_by(survey_id, species.1, sampling_method_agg) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), date = unique(date.1), n = n()) %>% 
+  print(n = nrow(.))
+#there are more unique dates than there are unique efforts - which efforts are combined? 
+#survey spans for what is seemingly the whole month of april 
+
+effort.wi %>% 
+  mutate(total.effort.2 = as.numeric(total.effort.2)) %>%
+  filter(total.effort.2 > 500) %>% 
+  count()
+#there is a ton of effort in Wisconsin that seems to have a lot of effort
+
+#how many less than 5? less than 1?
+effort.wi %>% 
+  mutate(total.effort.2 = as.numeric(total.effort.2)) %>%
+  filter(total.effort.2 > 5) %>% 
+  count()
+effort.wi %>% 
+  mutate(total.effort.2 = as.numeric(total.effort.2)) %>%
+  filter(total.effort.2 > 5) %>% 
+  count()
+
+effort.wi %>% 
+  mutate(total.effort.2 = as.numeric(total.effort.2)) %>% 
+  group_by(survey_id, sampling_method) %>% 
+  summarise(effort = unique(total.effort.2)) %>% 
+  filter(effort < 30) %>% 
+  ggplot() +
+  geom_histogram(aes(effort, fill = sampling_method), alpha = 0.5, binwidth = 1) +
+  theme_classic() +
+  theme(legend.position = c(.7,.7))
+
+#################################Michigan###################################
+effort.mi <- mi_data %>% 
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("large_mesh_fyke_net", "small_mesh_fyke_net", "trap_net") ~ "fyke_net",
+                                         sampling_method %in% c("great_lakes_gill_net", "inland_gill_net") ~ "gill_net",
+                                         sampling_method == "boomshocking" ~ "boat_electrofishing",
+                                         sampling_method == "seine" ~ "seine")) %>% #aggregating common sampling methods
+  filter(sampling_method_agg %in% c("fyke_net", "gill_net")) %>% #selecting fyke/trap nets and gill nets for abundance 
+  filter(species.1 != "taxon_NA") %>% #removing samples that do not have taxa
+  filter(!(sampling_method %in% c("small_mesh_fyke_net", 
+                                  "great_lakes_gill_net"))) %>% #removing gear types not representative of adult populations 
+  filter(!is.na(survey_type.1_effort)) %>% #excluding na survey types 
+  select(state, lake_id, species.1, sampling_method, sampling_method_agg, length.1, date.1, survey_id, survey_type.1_effort, total_effort_1.1_effort, effort_units.1) %>% 
+  mutate(date.1 = as.Date(date.1)) %>% 
+  mutate(length.1 = as.integer(length.1)) %>% 
+  mutate(species.1 = case_when(species.1 == "blue_gill" ~ "bluegill",
+                               TRUE ~ species.1)) %>% 
+  rename(survey_type = survey_type.1_effort) %>% 
+  collect()
+
+effort.mi %>% 
+  group_by(survey_id, sampling_method) %>% 
+  summarise(effort = unique(total_effort_1.1_effort)) %>% 
+  ggplot() +
+  geom_histogram(aes(effort, fill = sampling_method), alpha = 0.5, binwidth = 1) +
+  facet_wrap(~sampling_method) +
+  theme_classic() +
+  theme(legend.position = c(.7,.7))
+
+#what does catch and cupe look like in MI with a small amount of effort?
+gillnet.effort <- effort.mi %>% 
+  filter(sampling_method_agg == "gill_net") %>% 
+  group_by(survey_id, species.1) %>% 
+  summarise(sampling_method = unique(sampling_method), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1_effort), n = n()) %>% 
+  mutate(cpue = n/effort)
+
+fyke.effort <- effort.mi %>% 
+  filter(sampling_method_agg == "fyke_net") %>% 
+  group_by(survey_id, species.1) %>% 
+  summarise(sampling_method = unique(sampling_method), sampling_method_agg = unique(sampling_method_agg), date.1 = unique(date.1), effort = unique(total_effort_1.1_effort), n = n()) %>% 
+  mutate(cpue = n/effort)
+
+#gill net exploration
+gillnet.effort %>% 
+  mutate(effort.size = case_when(effort >= 4 ~ "4+",
+                                 effort < 4 ~ "<4")) %>% 
+  group_by(effort.size) %>% 
+  count()
+#having a 4 effort minimum removes roughly 25% of gill net surveys
+
+gillnet.effort %>%
+  filter(effort >= 4) %>% 
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = species.1)) +
+  facet_wrap(~species.1) +
+  theme(legend.position = c(.8,.2))
+
+gillnet.effort %>% 
+  mutate(effort.size = case_when(effort >= 4 ~ "4+",
+                                 effort < 4 ~ "<4")) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = effort.size, y = log(cpue)))
+
+gillnet.effort %>%
+  filter(effort >= 4) %>% 
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = species.1)) +
+  geom_jitter(aes(effort, cpue, color = species.1)) +
+  theme(legend.position = c(.8,.85))
+
+#fyke exploration - not great at catching anything other than crappie and bluegill
+fyke.effort %>% 
+  mutate(effort.size = case_when(effort >= 4 ~ "4+",
+                                 effort < 4 ~ "<4")) %>% 
+  group_by(effort.size) %>% 
+  count()
+
+fyke.effort %>% 
+  mutate(effort.size = case_when(effort >= 4 ~ "4+",
+                                 effort < 4 ~ "<4")) %>% 
+  ggplot() +
+  geom_boxplot(aes(x = effort.size, y = log(cpue)))
+
+fyke.effort %>% 
+  mutate(effort.size = case_when(effort >= 7 ~ "7+",
+                                 effort < 7 ~ "<7")) %>% 
+  group_by(effort.size) %>% 
+  count()
+
+
+fyke.effort %>% 
+  filter(effort >= 4) %>% 
+  ggplot() +
+  geom_smooth(aes(effort, cpue, color = species.1)) +
+  facet_wrap(~species.1, scales = "free") +
+  theme(legend.position = c(.8,.2))
+#having a 4 net minimum for fyke removes roughly 10% of surveys
+#jumps to 40% with 7
+
+
+#a minimum of 4 nets was chosen for Michigan surveys but might need to be species specific 
+
+
+#time of year with cpue
+effort.mi <- effort.mi %>% 
+  mutate(julian_day = format(date.1, "%j")) %>% 
+  mutate(julian_day = as.numeric(julian_day))
+
+effort.mi %>% 
+  group_by(survey_id, species.1, sampling_method) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method_agg = unique(sampling_method_agg), julian_day = unique(julian_day), effort = unique(total_effort_1.1_effort), n = n()) %>% 
+  mutate(cpue = n/effort) %>% 
+  ggplot() +
+  geom_smooth(aes(x = julian_day, y = cpue, color = species.1)) +
+  geom_jitter(aes(x = julian_day, y = cpue, color = species.1)) +
+  facet_wrap(species.1~sampling_method_agg, scales = "free")
+```
+
+#Final Filtering
+```{r}
+##############################Minnesota######################################
+#adding in area to mn data set
+area <- read_csv("Data_and_Scripts/Data/input/mn_lake_list.csv") %>% 
+  select(DOW, LAKE_AREA_DOW_ACRES) %>% 
+  mutate(DOW = as.integer(DOW))
+glimpse(area)
+glimpse(effort.mn)
+effort.mn <- left_join(effort.mn, area, by = c("lake_id" = "DOW")) 
+effort.mn <- effort.mn %>%
+  mutate(LAKE_AREA_DOW_ACRES = as.numeric(case_when(
+        lake_id == "56038800" ~ "1288",
+        lake_id == "55006400" ~ "20",
+        lake_id == "76014601" ~ "467",
+        lake_id == "76014602" ~ "218",
+        TRUE ~ as.character(LAKE_AREA_DOW_ACRES))))
+
+mn <- mn_data %>% 
+  #selecting for species of interest 
+  filter(species.1 %in% c("black_crappie", 
+                          "bluegill", 
+                          "largemouth_bass", 
+                          "northern_pike",
+                          "smallmouth_bass", 
+                          "walleye",
+                          "yellow_perch", 
+                          "cisco")) %>% 
+  #aggregating similar gear types
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets", 
+                                                                "1/4-in trap nets",
+                                                                "Special sampling with trap nets", 
+                                                                "Large-frame (5 x 6 ft) trap nets",
+                                                                "3/8-in trap nets",
+                                                                "3/4 inch single-frame trap net", 
+                                                                "Trap Net - Mini Fyke",
+                                                                "1-in trap nets",
+                                                                "Double-pot 3/4-in-mesh double frame trap nets") ~ "fyke_net",
+                                         sampling_method %in% c("Standard gill net sets", 
+                                                                "Special sampling with gill nets", 
+                                                                "Gill net fine mesh",
+                                                                "Small mesh gill nets, 3/8 and 1/2-in mesh, 200 x 6 ft",
+                                                                "Standard gill nets, set deep in stratified assessment",
+                                                                "Standard Vertical Gillnet",
+                                                                "Standard gill nets, set shallow in stratified assessment",
+                                                                "FCIN gill nets",
+                                                                "Monofilament gill nets, short-term sets",
+                                                                "Multifilament GN; 300 x 6; three 100 panels 1.5-2.0-2.5",
+                                                                "Standard gill nets, suspended sets",
+                                                                "Trammel Net; 100 X 6 multifilament",
+                                                                "Standard North American gill net") ~ "gill_net",
+                                         sampling_method %in% c("Fall electrofishing for walleye", 
+                                                                "Standard electrofishing",
+                                                                "Special sampling, electrofishing") ~ "boat_electrofishing",
+                                         sampling_method %in% c("Electrofishing, Backpack") ~ "backpack_electrofishing",
+                                         sampling_method %in% c("Standard shoreline seining", 
+                                                                "Seining, 50 foot 1/8 in Beach Seine for IBI", 
+                                                                "Seining, 15 foot 1/8 in Beach Seine for IBI",
+                                                                "Special sampling, seining") ~ "seine",
+                                         sampling_method %in% c("Standard trawling",
+                                                                "Special sampling, trawling") ~ "trawl")) %>% 
+  #only including fyke and gill net sampling gears
+  filter(sampling_method_agg %in% c("fyke_net", "gill_net")) %>% 
+  #removing gear types not representative of adult populations or has specific timing of year
+  filter(!(sampling_method %in% c("Trap Net - Mini Fyke", 
+                                         "3/8-in trap nets",
+                                         "1/4-in trap nets",
+                                         "Double-pot 3/4-in-mesh double frame trap nets",
+                                         "Small mesh gill nets, 3/8 and 1/2-in mesh, 200 x 6 ft",
+                                         "FCIN gill nets",
+                                         "Multifilament GN; 300 x 6; three 100 panels 1.5-2.0-2.5",
+                                         "Monofilament gill nets, short-term sets",
+                                         "Gill net fine mesh",
+                                         "Special sampling with gill nets",
+                                         "Special sampling with trap nets", 
+                                         "Standard gill nets, set deep in stratified assessment",
+                                         "Standard gill nets, set shallow in stratified assessment",
+                                         "Standard gill nets, suspended sets",
+                                         "Standard Vertical Gillnet",
+                                         "1-in trap nets", #mostly used in the spring 
+                                         "3/4 inch single-frame trap net",
+                                         "Large-frame (5 x 6 ft) trap nets"))) %>% 
+  #removing surveys that are not representative of abundance
+  filter(!(survey_type.1 %in% c("Winter Kill Assessment", 
+                                "External Management Survey", 
+                                "Subsurvey",
+                                "Natural Reproduction Check", 
+                                "Targeted Survey", 
+                                "Dissolved Oxygen Check"))) %>% 
+  #creating area groupings based on the recommended effort for lake area in MN
+  #groupings are based on gear type and lake size in acres 
+  mutate(area.group = case_when(sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES < 100 ~ "<100",
+                                sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES >= 100 & LAKE_AREA_DOW_ACRES <= 300 ~ "100-300",
+                                sampling_method_agg == "gill_net" & LAKE_AREA_DOW_ACRES >= 301 & LAKE_AREA_DOW_ACRES <= 600 ~ "301-600",
+                                sampling_method_agg == "gill_net"& LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                sampling_method_agg == "gill_net"& LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES < 600 ~ "<600",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                sampling_method_agg == "fyke_net" & LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) %>% 
+  #exclude surveys with a minimum effort that is not a consistence measure of CPUE
+  #filters are specific to lake area and gear type
+  filter(!(sampling_method_agg == "gill_net" & area.group == "<100" & effort < 2) & 
+         !(sampling_method_agg == "gill_net" & area.group == "100-300" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "301-600" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "601-1500" & effort < 3) &
+         !(sampling_method_agg == "gill_net" & area.group == "1501+" & effort < 5) &
+         !(sampling_method_agg == "fyke_net" & area.group == "<600" & effort < 5) & 
+         !(sampling_method_agg == "fyke_net" & area.group == "601-1500" & effort < 5) &
+         !(sampling_method_agg == "fyke_net" & area.group == "1501+" & effort < 5))
+
+
+####################################Wisconsin###################################
+wi <- wi_data %>% 
+  #selecting for species of interest 
+   filter(species.1 %in% c("walleye", 
+                          "northern_pike",
+                          "largemouth_bass", 
+                          "smallmouth_bass", 
+                          "yellow_perch", 
+                          "black_crappie", 
+                          "bluegill", 
+                          "cisco/lake_herring")) %>% 
+  #making Cisco name consistent 
+  mutate(species.1 = case_when(species.1 == "cisco/lake_herring" ~ "cisco", 
+                               TRUE ~ species.1))
+  #aggregating similar gear types
+  mutate(sampling_method_agg = case_when(sampling_method %in% c("fyke_net", 
+                                                                "mini_fyke_net",
+                                                                "mini_fyke_net_with_turtle_exclusion", 
+                                                                "mini_fyke_net_without_turtle_exclusion",
+                                                                "mini_fyke_net_with_unknown_turtle_exclusion",
+                                                                "trap_net",
+                                                                "hoop_net", 
+                                                                "hoop_trap") ~ "fyke_net",
+                                         sampling_method %in% c("bottom_gill_net", 
+                                                                "gillnet", 
+                                                                "vertical_gill_net",
+                                                                "floating_gill_net",
+                                                                "trammel_net") ~ "gill_net",
+                                         sampling_method %in% c("boom_shocker", 
+                                                                "mini_boom_shocker",
+                                                                "mini-boom_shocker",
+                                                                "boom_shocker_or_mini-boom_shocker",
+                                                                "dc_boom_shocker") ~ "boat_electrofishing",
+                                         sampling_method %in% c("stream_shocker", 
+                                                                "backpack_shocker") ~ "backpack_electrofishing",
+                                         sampling_method %in% c("seine", 
+                                                                "small-mesh_seine", 
+                                                                "elec_seine") ~ "seine",
+                                         sampling_method %in% c("trawl",
+                                                                "bottom_trawl", 
+                                                                "surface_trawl",
+                                                                "mid-water_trawl") ~ "trawl",
+                                         sampling_method == "poison" ~ "poison",
+                                         sampling_method == "spearing" ~ "spear")) %>% 
+  #only using fyke nets in  Wisconsin 
+  filter(sampling_method_agg == "fyke_net") %>% 
+  #removing gear types not representative of adult populations or has specific timing of year
+  filter(!(sampling_method %in% c("mini_fyke_net",
+                                         "mini_fyke_net_with_turtle_exclusion",
+                                         "mini_fyke_net_without_turtle_exclusion",
+                                         "mini_fyke_net_with_unknown_turtle_exclusion",
+                                         "hoop_trap",
+                                         "hoop_net",
+                                         "trap_net"))) %>% 
+  #removing surveys that are not representative of abundance
+  filter(is.na(survey_type.1_indivfish) |  
+        !(survey_type.1_indivfish == "special_study" |
+         survey_type.1_indivfish == "fisheries_assessments_rivers" |
+         survey_type.1_indivfish == "fisheries_assessments_stream_smallmouth_bass" |
+         survey_type.1_indivfish == "winterkill_investigation" |
+         survey_type.1_indivfish == "non_dnr_cooperator_study"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_rotation"|
+         survey_type.1_indivfish == "fisheries_assessments_trout_trend"|
+         survey_type.1_indivfish == "habitat_improvement_evaluation"|
+         survey_type.1_indivfish =="research_project"|
+         survey_type.1_indivfish == "fish_kill_investigation"|
+         survey_type.1_indivfish == "epa_national_stream_river_assessment"|
+         survey_type.1_indivfish =="fisheries_assessments_trout_potential"|
+         survey_type.1_indivfish =="severely_impacted"|
+         survey_type.1_indivfish =="fish_passage_study"|
+         survey_type.1_indivfish == "use_designation"|
+         survey_type.1_indivfish == "creel,_access_point"|
+         survey_type.1_indivfish == "treaty_fisheries_assessment"|
+         str_detect(survey_type.1_indivfish, "watershed")))
+  #exclude surveys with a minimum effort that is not a consistence measure of CPUE
+
+#trial run of species specific filtering################
+#smallmouth and largemouth bass? - document only says shocking
+  filter(species.1 == "walleye" &
+         month %in% c(3, 4, 5) &
+         water.temp > 40 &
+         water.temp < 50)
+  filter(species.1 == "northern_pike" &
+         month %in% c(3, 4, 5) &
+         water.temp > 40 &
+         water.temp < 50)
+  filter(species.1 == "bluegill" &
+         month %in% c(6, 7, 8) &
+         water.temp > 65 &
+         water.temp < 80)
+  filter(species.1 == "cisco" &
+         sampling_method == "vertical_gill_netting" &
+         month %in% c(3, 4, 5) &
+         water.temp > 40 &
+         water.temp < 50)
+  filter(species.1 == "black_crappie" &
+         month %in% c(3, 4, 5) &
+         water.temp > 40 &
+         water.temp < 70)
+  filter(species.1 == "yellow_perch" &
+         month %in% c(3, 4, 5) &
+         water.temp > 40 &
+         water.temp < 70) #two temperatures included in the document?
+
+###############################Michigan########################################
+mi <- mi_data %>% 
+    #selecting for species of interest
+    filter(species.1 %in% c("black_crappie", 
+                          "bluegill", 
+                          "largemouth_bass", 
+                          "northern_pike",
+                          "smallmouth_bass", 
+                          "walleye",
+                          "yellow_perch", 
+                          "cisco")) %>% 
+    #aggregating similar gear types
+    mutate(sampling_method_agg = case_when(sampling_method %in% c("large_mesh_fyke_net", 
+                                                                  "small_mesh_fyke_net", 
+                                                                  "trap_net") ~ "fyke_net",
+                                         sampling_method %in% c("great_lakes_gill_net",
+                                                                "inland_gill_net") ~ "gill_net",
+                                         sampling_method == "boomshocking" ~ "boat_electrofishing",
+                                         sampling_method == "seine" ~ "seine")) %>%
+  #only including fyke and gill net sampling gears
+  filter(sampling_method_agg %in% c("fyke_net", "gill_net")) %>% 
+  #removing gear types not representative of adult populations or has specific timing of year  
+  filter(!(sampling_method %in% c("small_mesh_fyke_net", 
+                                  "great_lakes_gill_net"))) %>% 
+  #filtering for effort that is above 4 for both gear types
+  filter(effort > 4) %>% 
+  #excluding na survey types (removing survey 4042)
+  filter(!is.na(survey_type.1_effort))
+
+#################Iowa####################################
+  
+  
+#################Indiana##################################
+  
+  
+#################Illinois#################################
+
+
+################South Dakota#############################
+  
+
+##################combining states#########################
+midwest_data <- rbind(mn, wi, mi)
+```
+
+#filter table in code
+```{r}
+#this will give me a list of sampling methods to include on the other page (might need to run other filters before this)
+mn_data %>% 
+  filter(species.1 %in% c("black_crappie", 
+                          "bluegill", 
+                          "largemouth_bass", 
+                          "northern_pike",
+                          "smallmouth_bass", 
+                          "walleye",
+                          "yellow_perch", 
+                          "cisco")) %>% 
+   mutate(sampling_method_agg = case_when(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets", 
+                                                                "1/4-in trap nets",
+                                                                "Special sampling with trap nets", 
+                                                                "Large-frame (5 x 6 ft) trap nets",
+                                                                "3/8-in trap nets",
+                                                                "3/4 inch single-frame trap net", 
+                                                                "Trap Net - Mini Fyke",
+                                                                "1-in trap nets",
+                                                                "Double-pot 3/4-in-mesh double frame trap nets") ~ "fyke_net",
+                                         sampling_method %in% c("Standard gill net sets", 
+                                                                "Special sampling with gill nets", 
+                                                                "Gill net fine mesh",
+                                                                "Small mesh gill nets, 3/8 and 1/2-in mesh, 200 x 6 ft",
+                                                                "Standard gill nets, set deep in stratified assessment",
+                                                                "Standard Vertical Gillnet",
+                                                                "Standard gill nets, set shallow in stratified assessment",
+                                                                "FCIN gill nets",
+                                                                "Monofilament gill nets, short-term sets",
+                                                                "Multifilament GN; 300 x 6; three 100 panels 1.5-2.0-2.5",
+                                                                "Standard gill nets, suspended sets",
+                                                                "Trammel Net; 100 X 6 multifilament",
+                                                                "Standard North American gill net") ~ "gill_net",
+                                         sampling_method %in% c("Fall electrofishing for walleye", 
+                                                                "Standard electrofishing",
+                                                                "Special sampling, electrofishing") ~ "boat_electrofishing",
+                                         sampling_method %in% c("Electrofishing, Backpack") ~ "backpack_electrofishing",
+                                         sampling_method %in% c("Standard shoreline seining", 
+                                                                "Seining, 50 foot 1/8 in Beach Seine for IBI", 
+                                                                "Seining, 15 foot 1/8 in Beach Seine for IBI",
+                                                                "Special sampling, seining") ~ "seine",
+                                         sampling_method %in% c("Standard trawling",
+                                                                "Special sampling, trawling") ~ "trawl")) %>% 
+  filter(sampling_method_agg %in% c("fyke_net", "gill_net")) %>% 
+  filter(sampling_method %in% c("Standard gill net sets", 
+                                "Standard 3/4-in mesh, double frame trap net sets")) %>% 
+  filter(survey_type.1 %in% c("Population Assessment",
+                              "Standard Survey",
+                              "Large Lake Survey",
+                              "HISTORICAL")) %>% 
+  group_by(species.1, survey_type.1) %>% 
+  summarise(n = n()) %>%
+  collect() %>% 
+  print(n = nrow(.))
+```
+
+#ramsey county lakes
+```{r}
+#only zeeb lakes
+zm.ramsey <- mn_data %>% 
+  filter(lake_id %in% c("62000200", 
+                        "62006200", 
+                        "62007800", 
+                        "62006700",
+                        "62005400",
+                        "62005600", 
+                        "62004600", 
+                        "62002800",
+                        "62003801",
+                        "62003802",
+                        "82016700")) %>% 
+  collect() %>% 
+  mutate(year_infested = case_when(lake_id == "62000200" ~ 2018,
+                                   lake_id == "62006200" ~ 2007,
+                                   lake_id == "62007800" ~ 2018,
+                                   lake_id == "62006700" ~ 2019,
+                                   lake_id == "62005400" ~ 2019,
+                                   lake_id == "62005600" ~ 2021,
+                                   lake_id == "62004600" ~ 2007,
+                                   lake_id == "62002800" ~ 2007,
+                                   lake_id == "62003801" ~ 2007,
+                                   lake_id == "62003802" ~ 2007,
+                                   lake_id == "82016700" ~ 2014,
+                                   TRUE ~ NA)) %>% 
+  mutate(invasion_status = case_when(year_infested <= year(date_clean) ~ "ZM",
+                                     year_infested > year(date_clean) ~ "Uninvaded",
+                                     TRUE ~ NA))
+
+#checking mutates
+zm.ramsey %>% 
+  group_by(lake_name.1) %>% 
+  summarise(n = n(), invasion = unique(invasion_status)) %>% 
+  print(n = nrow(.))
+
+#samples for each lake before and after invasion
+zm.ramsey %>% 
+  group_by(lake_name.1, invasion_status) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+#count of samples samples by year for every lake
+zm.ramsey %>% 
+  group_by(lake_name.1, year(date_clean)) %>% 
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+#any NAs?
+zm.ramsey %>% 
+  filter(is.na(invasion_status)) %>% 
+  group_by(lake_name.1) %>%
+  summarise(n = n()) %>% 
+  print(n = nrow(.))
+
+#ramsey total
+total.ramsey <- mn_data %>%
+  mutate(lake_id = as.character(lake_id)) %>% 
+  filter(str_detect(lake_id, "^62") | lake_id == "2000300" | lake_id == "82016700") %>%
+  collect() %>% 
+  mutate(year_infested = case_when(lake_id == "62000200" ~ 2018,
+                                   lake_id == "62006200" ~ 2007,
+                                   lake_id == "62007800" ~ 2018,
+                                   lake_id == "62006700" ~ 2019,
+                                   lake_id == "62005400" ~ 2019,
+                                   lake_id == "62005600" ~ 2021,
+                                   lake_id == "62004600" ~ 2007,
+                                   lake_id == "62002800" ~ 2007,
+                                   lake_id == "62003801" ~ 2007,
+                                   lake_id == "62003802" ~ 2007,
+                                   lake_id == "82016700" ~ 2014,
+                                   TRUE ~ NA)) %>% 
+  mutate(invasion_status = case_when(year_infested <= year(date_clean) ~ "ZM",
+                                     year_infested > year(date_clean) ~ "Uninvaded",
+                                     TRUE ~ NA))
+
+write_csv(total.ramsey, "ramsey_county_fish.csv")
+
+total.ramsey %>% 
+  group_by(lake_name.1) %>% 
+  summarise(n = n(), invasion = unique(invasion_status)) %>% 
+  filter(!is.na(invasion)) %>% 
+  print(n = nrow(.))
+```
+

@@ -466,7 +466,8 @@ il_data <- il_data %>%
   mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
                                    TRUE ~ NA)) %>%
   #effort units
-  mutate(effort_units_1 = "minutes") %>% 
+  mutate(total_effort_1_units = "minutes",
+         sub_effort_1_units = "minutes") %>% 
   #drop survey type and replace with garbage bin notes 4 for survey type
   select(-survey_type.1) %>% 
   rename(survey_type.1 = garbage_bin_notes.4) %>% 
@@ -542,7 +543,5 @@ il_data <- open_dataset("Data_and_Scripts/Data/output/il_file_arrow")
 
 glimpse(il_data)
 ```
-
-
 
 

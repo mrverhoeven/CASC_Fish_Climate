@@ -77,6 +77,7 @@ library(janitor)
 library(tidyr)
 library(lubridate)
 library(bit64)
+library(tidyverse)
 
 options(scipen = 999)
 ```
@@ -87,7 +88,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -100,7 +101,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -125,7 +126,7 @@ for(i in 1:n) {
   cde %>% # call data explainer file
     filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
     select_if(~ !any(is.na(.))) %>% 
-    transpose(keep.names = "newname") %>% 
+    data.table::transpose(keep.names = "newname") %>% 
     rename("oldname" = V1) %>% 
     assign("names", ., envir = .GlobalEnv)
   
@@ -190,16 +191,96 @@ for(i in 1:n) {
 # consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
 
 
+#fish as rows for most species needs to be uncounted (listed as catch)
+#lets compare number of age-length fish to fish catches
+#also renaming lowercase largemouth bass 
+sd_length_age_4Oct2021=sd_length_age_4Oct2021 %>%   mutate(across('species.1', str_replace, 'largemouth bass', 'Largemouth Bass'))
+sd_age_counts=sd_length_age_4Oct2021  %>% group_by(survey_id, species.1) %>% summarise(catch.la=n())
+
+#merge with catch to compare
+sd_compare=left_join(sd_catch_4Oct2021, sd_age_counts) %>% mutate(aged.prop=case_when(!is.na(catch.la)~catch.la/total_count.1, .default = 0))
+
+windows()
+ggplot(sd_compare, aes(species.1, aged.prop))+geom_boxplot()
+#a few cases where there are more walleye aged than walleye caught at the survey ID level (only one survey)
+filter(sd_compare, aged.prop>1)
+
+#for now expand catch data and we will assign lengths later
+#there are some zeros in the dataset to retain and uncount drops them
+zero.catch=filter(sd_catch_4Oct2021, total_count.1==0)
+fish.expand=sd_catch_4Oct2021 %>% uncount(total_count.1)
+
+
+###################
+#NOP fish data
+#mulitple datasets - age growth, length weight, length freq? Using length weight for now
+#length weight data already has effort?
+sd_length_age_nop_efforts=sd_NOP_length_weight_03Nov22 %>%  group_by(survey_id, date.1,species.1,sampling_method    ) %>% summarise(catch.la=n(), total_effort=sum(total_effort_1))
+
+#overlap of survey ids between effort file and age length file
+nrow(sd_NOP_survey_effort_03Nov22[sd_NOP_survey_effort_03Nov22$survey_id%in%sd_length_age_nop_efforts$survey_id,]) #11996- all of the NOP efforts are in the effort file BUT the effort file has a lot of surveys with no NOP in the length weight file. Furthermore, those efforts seem to include non NOP surveys but there is no overlap with other effort file.
+
+#compare effort from NOP length weight to effort in effort file
+nop.effort.test=merge(sd_length_age_nop_efforts, sd_NOP_survey_effort_03Nov22, all=TRUE)
+#effort in effort file sometimes has units associated with it (e.g., in the columns)
+#compare efforts
+ggplot(nop.effort.test, aes(total_effort, total_effort_1))+geom_point()
+
+
+#merge with catch to compare
+sd_compare=left_join(sd_catch_4Oct2021, sd_age_counts) %>% mutate(aged.prop=case_when(!is.na(catch.la)~catch.la/total_count.1, .default = 0))
+
+windows()
+ggplot(sd_compare, aes(species.1, aged.prop))+geom_boxplot()
+#a few cases where there are more walleye aged than walleye caught at the survey ID level (only one survey)
+filter(sd_compare, aged.prop>1)
+
+#for now expand catch data and we will assign lengths later
+#there are some zeros in the dataset to retain and uncount drops them
+zero.catch=filter(sd_catch_4Oct2021, total_count.1==0)
+fish.expand=sd_catch_4Oct2021 %>% uncount(total_count.1)
+
+
+#################
+
+
 #effort:
-mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
+length(unique(sd_effort_4Oct2021$survey_id)) 
+#there are 15 records of duplicated survey IDs in the effort file
+duplicates=sd_effort_4Oct2021 %>% group_by(survey_id) %>%  filter(n()>1)
+#the only thing different is sample ID 1 which appears to be a database artifact. Dropping duplicates for now
+#also dropping variables not needed
+#also mutating gear data notes to be sampling method code to match NOP
+sd_effort<-sd_effort_4Oct2021[!duplicated(sd_effort_4Oct2021$survey_id),] %>% select(date.1, lake_id, lake_name.1, county, site_id.1, sampling_method, gear_data_notes.1, total_effort_1, survey_id, targeted_or_standard) %>% mutate(sampling_method_abbrev=gsub("MethodCode:", "", gear_data_notes.1)) %>% select(-gear_data_notes.1) 
 
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1] # lake ids not unique (they *should* be though)
+str(sd_effort)
+#change date
+sd_effort$date.1=as.Date.character(sd_effort$date.1, format="%m/%d/%Y")
 
-#which lakes have multiple names for a single ID?
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id]
-mi_statustrends_effort_16Mar2021[lake_id %in% 
-                                   mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id], , ]
-# it appears here that a full survey (all gears were deployed in each part of these lakes. For that reason, My vote is that we keep them separate and use lake_id + lake_name for our key. 
+length(unique(sd_catch_4Oct2021$survey_id))
+
+#no records from catch not in effort - good!
+sd_catch_4Oct2021[!sd_catch_4Oct2021$survey_id%in%sd_effort$survey_id,]
+#5894 cases where effort yields zero catch (maybe fixed with NOP and Sauger?)
+zero.catch2=sd_effort[!sd_effort$survey_id%in%sd_catch_4Oct2021$survey_id,]
+#check survey ids with species specific data -  NO OVERLAP of survey IDS in NOP or Sauger specific datasets
+test=sd_sauger_saugeye_survey_effort_03Nov22[sd_sauger_saugeye_survey_effort_03Nov22$survey_id%in%sd_effort$survey_id,]
+
+#proceed with NOP effort file
+duplicates.nop=sd_NOP_survey_effort_03Nov22 %>% group_by(survey_id) %>%  filter(n()>1) #just one duplicate
+#the only thing different is sample ID 1 which appears to be a database artifact. Dropping duplicates for now
+#also dropping variables not needed
+sd_effort_nop<-sd_NOP_survey_effort_03Nov22[!duplicated(sd_NOP_survey_effort_03Nov22$survey_id),] %>% select(date.1, lake_id, lake_name.1, county, site_id.1, sampling_method,  total_effort_1, survey_id,targeted_or_standard, sampling_method_abbrev)
+
+sd_effort_nop$date.1=as.Date(sd_effort_nop$date.1)
+#combine effort files
+sd_effort2=rbind(sd_effort, sd_effort_nop)
+
+
+
+
+
+
 
 # view each data level for a single survey
 mi_statustrends_effort_16Mar2021[survey_id ==2446]

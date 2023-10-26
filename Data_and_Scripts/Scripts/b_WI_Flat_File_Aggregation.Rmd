@@ -23,9 +23,11 @@ DONE  7. Winnebago data included all species, want to constrain to be same as th
 DONE  8. add an effort_ident to each trawl haul from Winnebago-- note the weirdness of this (one lake, many cpues in a single day)
 DONE  8a. add effort_ident to each surveyXgear?
 DONE  9. Connect ages back to the fish observations (Diagnostics ideas -- check some unpaired age data and see if you can find the obs that should match it)
-      10. Flag crazy dates
-      11. Add a nothing_caught tag
-      12. Add NHDids
+DONE  10. Flag crazy dates
+DONE  11. Add a nothing_caught tag
+DONE  12. Add NHDids
+DONE  13. cleannames() to colnames
+      
 
 # Preamble
 
@@ -919,7 +921,47 @@ not_garbage <- c(
 setcolorder(wi_inland_fishobservations_19Mar2021, not_garbage) #reorder from this list before axe-ing the garbage cols
 
 wi_inland_fishobservations_19Mar2021 <- wi_inland_fishobservations_19Mar2021[ , ..not_garbage , ]
- 
+
+#clean up column names
+setnames(wi_inland_fishobservations_19Mar2021,
+         colnames(wi_inland_fishobservations_19Mar2021) ,
+         make_clean_names(colnames(wi_inland_fishobservations_19Mar2021)))
+
+
+#flag some crazy dates
+
+wi_inland_fishobservations_19Mar2021[ , summary(date_1) , ]
+wi_inland_fishobservations_19Mar2021[ year(date_1) < 1938 |
+                                        year(date_1) > 2023, unique(date_1) , ]
+#first clean up flags
+wi_inland_fishobservations_19Mar2021[ , .N , flag]
+wi_inland_fishobservations_19Mar2021[is.na(flag) | flag == "", .N]
+wi_inland_fishobservations_19Mar2021[is.na(flag) | flag == "", flag := NA, ]
+
+wi_inland_fishobservations_19Mar2021[year(date_1) < 1938 |
+                                        year(date_1) > 2023 , flag := ifelse(is.na(flag), "bad_date" , fpaste(flag, "bad_date", sep = ";" )) ,]
+
+# add NHDids
+
+wi_inland_fishobservations_19Mar2021 <- local_to_nhdhr(wi_inland_fishobservations_19Mar2021, from_colname = "lake_id", states = "wi")
+#check coverage
+wi_inland_fishobservations_19Mar2021[ !is.na(lake_id) , .N , is.na(nhdhr.id)]
+#report unmatched from mwlaxeref
+wi_inland_fishobservations_19Mar2021[ !is.na(lake_id) & is.na(nhdhr.id), .N , .(lake_id, lake_name_1) ]
+#fix name
+setnames(wi_inland_fishobservations_19Mar2021, "nhdhr.id", "nhdhr_id")
+
+#add a nothing_caught column
+
+wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name_1_effort) & is.na(species_1), nothing_caught := TRUE  ,  ]
+
+wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)]
+
+#should only be one instance for each record of unsucessful effort
+wi_inland_fishobservations_19Mar2021[ total_effort_ident %in% wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)], .N , total_effort_ident 
+][N>1]
+
+wi_inland_fishobservations_19Mar2021[total_effort_ident == 726827] #these are two shitty records
 
 
 ```
@@ -974,7 +1016,7 @@ glimpse(wi_data)
 #print all column names
 wi_data %>%
   names() %>%
-  sort()
+  sort() %>% make_clean_names()
 
 
 wi_data %>% 

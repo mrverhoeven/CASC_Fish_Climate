@@ -140,11 +140,9 @@ MN_Catch_0[ , .(n_indiv_obs = sum(TOTAL_CATCH)) , COMMON_NAME ][order(-n_indiv_o
 MN_Catch_0[ , .N , .(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT, WATERBODY_TYPE,YEAR)  ][ , hist(YEAR) , ] # count of surveys per year
 MN_Catch_0[ , .N , .(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT, WATERBODY_TYPE,YEAR)  ][ , .(nsurveys = .N, firstyear = min(YEAR), lastyear = max(YEAR)) , .(DOW, LKNAME) ] # summary of surveys by lake
 
-MN_Catch_0[ , SURVEYDATE := as.IDate(SURVEYDATE, format = "%m/%d/%Y"), ]
+MN_Catch_0[ , SURVEYDATE := as.IDate(SURVEYDATE, format = "%m/%d/%Y"), ] #update format for date--fromchr to Idate-- for easy use of year() month() yday() etc, functions
 
 MN_Catch_0[ TOTAL_CATCH > 0 , length(unique(DOW)) , COMMON_NAME ] # how many unique lakes was each species found in?
-
-MN_Catch_0[ , CPUE := TOTAL_CATCH/EFFORT ,]
 
 ggplot(MN_Catch_0, aes(SURVEYDATE, TOTAL_CATCH))+
   geom_point()+
@@ -171,7 +169,47 @@ ggplot(MN_Catch_0[TOTAL_CATCH>0], aes(SURVEYDATE, CPUE, color = GEAR_CATEGORY))+
   scale_y_log10()
 
 
+```
 
+
+
+```{r}
+
+#exploring data (to fill out metadata)
+
+MN_Catch_0 %>% 
+  group_by(SURVEY_ID, DOW, SURVEYDATE, SURVEYTYPE) %>% 
+  count()
+
+MN_Catch_0 %>% 
+  group_by(SURVEY_ID) %>% 
+  count()
+
+MN_Catch_0 %>% 
+  select(SURVEY_ID) %>% 
+  summary()
+
+
+MN_Catch_0 %>% 
+  select(LKNAME) %>% 
+  unique() %>% 
+  print(n = nrow(.))
+
+MN_Catch_0 %>% 
+  mutate(SURVEYDATE = as.POSIXct(SURVEYDATE, format = "%m/%d/%Y")) %>% 
+  select(SURVEYDATE) %>% 
+  summary()
+
+
+MN_Catch_0 %>% 
+  select(DOW) %>% 
+  str_detect( . ,"NA")
+
+
+
+mnCatchDT <- as.data.table(MN_Catch_0)
+
+mnCatchDT[ , .N , is.na(DOW)]
 
 
 
@@ -180,4 +218,14 @@ ggplot(MN_Catch_0[TOTAL_CATCH>0], aes(SURVEYDATE, CPUE, color = GEAR_CATEGORY))+
 
 
 ```
+
+
+
+
+
+
+
+
+
+
 

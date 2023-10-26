@@ -25,6 +25,7 @@ DONE  8a. add effort_ident to each surveyXgear?
 DONE  9. Connect ages back to the fish observations (Diagnostics ideas -- check some unpaired age data and see if you can find the obs that should match it)
       10. Flag crazy dates
       11. Add a nothing_caught tag
+      12. Add NHDids
 
 # Preamble
 

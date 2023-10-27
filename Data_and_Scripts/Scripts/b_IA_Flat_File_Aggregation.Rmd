@@ -64,10 +64,6 @@ flag - this column contains a character string with issues describing each row, 
 
 
 
-
-
-
-
 ##Libraries
 ```{r}
 library(arrow)
@@ -192,65 +188,14 @@ for(i in 1:n) {
 # consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
 
 
-#effort:
-mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
-
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1] # lake ids not unique (they *should* be though)
-
-#which lakes have multiple names for a single ID?
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id]
-mi_statustrends_effort_16Mar2021[lake_id %in% 
-                                   mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id], , ]
-# it appears here that a full survey (all gears were deployed in each part of these lakes. For that reason, My vote is that we keep them separate and use lake_id + lake_name for our key. 
-
-# view each data level for a single survey
-mi_statustrends_effort_16Mar2021[survey_id ==2446]
-mi_statustrends_catch_16Mar2021[survey_id == 2446]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, ]
-mi_statustrends_lenage_20May2021[survey_id == 2446, ]
-
-# do the counts match across all levels?
-mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count)]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, sum(total_count)]
-nrow(mi_statustrends_lenage_20May2021[survey_id == 2446, ])
-
-#no. not even close. I suspect this is bc of a species seletion that happened in the catch data:
-mi_statustrends_catch_16Mar2021[survey_id == 2446, length(unique(species.1))]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, length(unique(species.1))]
-mi_statustrends_lenage_20May2021[survey_id == 2446, length(unique(species.1)) ]
-#view species lists:
-mi_statustrends_catch_16Mar2021[survey_id == 2446,sum(total_count) , species.1]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446,sum(total_count) , species.1]
-mi_statustrends_lenage_20May2021[survey_id == 2446, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
-#view species lists:
-mi_statustrends_catch_16Mar2021[survey_id == 4079,sum(total_count) , species.1]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 4079,sum(total_count) , species.1]
-mi_statustrends_lenage_20May2021[survey_id == 4079, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
+#fish obs
+glimpse(ia_fishlengths_24Oct2023)
 
 
 
-# not exactly clear WHY the numbers still don't jive between the inch grp file and the catch file, BUT the catch file seems to have problems with the n per species X gear where there are zeros in an inchgroup (see survey 2446)
 
 
-#survey_ids matched across all surveys?
-mi_statustrends_effort_16Mar2021[ , .( effort_nrows = .N) , survey_id]
-mi_statustrends_catch_16Mar2021[ , .( catch_nrows = .N) , survey_id]
-mi_statustrends_catchlengthclass_03July2023[ , .( catchlen_nrows = .N) , survey_id ]
-mi_statustrends_lenage_20May2021[ , .( lenage_nrows = .N) , survey_id] 
-
-#data summary by surveys
-data_coverage <- 
-merge(
-  merge(
-  merge(
-    merge(mi_statustrends_effort_16Mar2021[ , .( effort_nrows = .N) , survey_id], 
-          mi_statustrends_catch_16Mar2021[ , .( catch_nrows = .N) , survey_id], all = T),
-    mi_statustrends_catchlengthclass_03July2023[ , .( catchlen_nrows = .N) , survey_id ], all = T), 
-  mi_statustrends_lenage_20May2021[ , .( lenage_nrows = .N) , survey_id], all = T),
-  mi_survey_id_crosswalk_23May2023[,.(crosswalk_nrows = .N) , Survey_Number ],by.x = "survey_id", by.y = "Survey_Number", all = T)
   
-
-
 
 ```
 

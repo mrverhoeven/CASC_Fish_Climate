@@ -1,0 +1,141 @@
+---
+title: "MN_Fish_All_Gears"
+author: "Holly Kundel"
+date: "6/1/2022"
+output: html_document
+---
+Load in required packages
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+
+options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
+
+```
+
+##Load in raw  data
+
+Data from Corey (received 5/3/22)
+- has total catch and effort by species, not individual fish
+```{r}
+all_gn_tn <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/MN/5.3.22_update/ALL-GNTN-SURVEYS.csv")
+
+all_gde_gsh <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
+```
+
+Combine the two sheets from Corey into one, and create Effort data
+```{r}
+all_gn_tn_gde_gsh <- bind_rows(all_gn_tn, all_gde_gsh)
+
+perch_target_gn_check <- all_gn_tn_gde_gsh %>%
+  filter(GEAR %in% c("GN", "GDE", "GSH"))%>%
+  filter(COMMON_NAME == "yellow perch")%>%
+  filter(SURVEYTYPE == "Targeted Survey" | SURVEYTYPE == "Special Assessment") #693
+
+All_Effort <- all_gn_tn_gde_gsh %>%
+  select(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>%
+  group_by(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>%
+  summarise(NUMBER_OF_SP = n())%>%
+  select(-NUMBER_OF_SP)%>%
+  filter(SURVEYTYPE %in% c("Population Assessment", "Re-Survey", "Standard Survey", "Special Assessment", "Targeted Survey", "Large Lake Survey", "Research Survey", "Initial Survey"))
+
+TN_Effort <- All_Effort %>%
+  filter(GEAR == "TN")
+
+GN_GDE_GSH_Effort <- All_Effort %>%
+  filter(GEAR %in% c("GN", "GDE", "GSH"))
+```
+
+
+```{r}
+BLG_all_gears <- all_gn_tn_gde_gsh %>%
+  select(SURVEY_ID, GEAR, YEAR, COMMON_NAME, TOTAL_CATCH)%>%
+  filter(COMMON_NAME == "bluegill")%>%
+  right_join(All_Effort, by = c("SURVEY_ID", "GEAR", "YEAR"))%>%
+  mutate(SURVEY_CATEGORY = case_when(SURVEYTYPE == "Standard Survey" ~ "Standard",
+                                     SURVEYTYPE == "Population Assessment" ~ "Standard",
+                                     SURVEYTYPE == "Re-Survey" ~ "Standard",
+                                     SURVEYTYPE == "Initial Survey" ~ "Standard",
+                                     SURVEYTYPE == "Large Lake Survey" ~ "Standard",
+                                     SURVEYTYPE == "Targeted Survey" ~ "Targeted",
+                                     SURVEYTYPE == "Special Assessment" ~ "Targeted",
+                                     SURVEYTYPE == "Research Survey" ~ "Targeted")) %>%
+  mutate(TOTAL_CATCH = replace_na(TOTAL_CATCH, 0))%>%
+  mutate(COMMON_NAME = replace_na(COMMON_NAME, "bluegill"))%>%
+  mutate(CPUE = TOTAL_CATCH/EFFORT)%>%
+  mutate(SURVEY_DATE = mdy(SURVEYDATE))%>%
+  mutate(SURVEY_MONTH = month(SURVEY_DATE))
+```
+
+```{r}
+YEP_all_gears <- all_gn_tn_gde_gsh %>%
+  select(SURVEY_ID, GEAR, YEAR, COMMON_NAME, TOTAL_CATCH)%>%
+  filter(COMMON_NAME == "yellow perch")%>%
+  right_join(All_Effort, by = c("SURVEY_ID", "GEAR", "YEAR"))%>%
+  mutate(SURVEY_CATEGORY = case_when(SURVEYTYPE == "Standard Survey" ~ "Standard",
+                                     SURVEYTYPE == "Population Assessment" ~ "Standard",
+                                     SURVEYTYPE == "Re-Survey" ~ "Standard",
+                                     SURVEYTYPE == "Initial Survey" ~ "Standard",
+                                     SURVEYTYPE == "Large Lake Survey" ~ "Standard",
+                                     SURVEYTYPE == "Targeted Survey" ~ "Targeted",
+                                     SURVEYTYPE == "Special Assessment" ~ "Targeted",
+                                     SURVEYTYPE == "Research Survey" ~ "Targeted")) %>%
+  mutate(TOTAL_CATCH = replace_na(TOTAL_CATCH, 0))%>%
+  mutate(COMMON_NAME = replace_na(COMMON_NAME, "yellow perch"))%>%
+  mutate(CPUE = TOTAL_CATCH/EFFORT)%>%
+  mutate(SURVEY_DATE = mdy(SURVEYDATE))%>%
+  mutate(SURVEY_MONTH = month(SURVEY_DATE))
+
+```
+
+```{r}
+TLC_all_gears <- all_gn_tn_gde_gsh %>%
+  select(SURVEY_ID, GEAR, YEAR, COMMON_NAME, TOTAL_CATCH)%>%
+  filter(COMMON_NAME == "tullibee (cisco)")%>%
+  right_join(All_Effort, by = c("SURVEY_ID", "GEAR", "YEAR"))%>%
+  mutate(SURVEY_CATEGORY = case_when(SURVEYTYPE == "Standard Survey" ~ "Standard",
+                                     SURVEYTYPE == "Population Assessment" ~ "Standard",
+                                     SURVEYTYPE == "Re-Survey" ~ "Standard",
+                                     SURVEYTYPE == "Initial Survey" ~ "Standard",
+                                     SURVEYTYPE == "Large Lake Survey" ~ "Standard",
+                                     SURVEYTYPE == "Targeted Survey" ~ "Targeted",
+                                     SURVEYTYPE == "Special Assessment" ~ "Targeted",
+                                     SURVEYTYPE == "Research Survey" ~ "Targeted")) %>%
+  mutate(TOTAL_CATCH = replace_na(TOTAL_CATCH, 0))%>%
+  select(-COMMON_NAME)%>%
+  mutate(COMMON_NAME = "cisco")%>% #making this easier to work with
+  mutate(CPUE = TOTAL_CATCH/EFFORT)%>%
+  mutate(SURVEY_DATE = mdy(SURVEYDATE))%>%
+  mutate(SURVEY_MONTH = month(SURVEY_DATE))%>%
+  select(1:3, 11, 4:10, 12:14) #reordering to match YEP and BLG
+```
+
+
+
+```{r}
+BLG_YEP_TLC_All_Gears <- bind_rows(BLG_all_gears, YEP_all_gears, TLC_all_gears)
+write_csv(BLG_YEP_TLC_All_Gears, "BLG_YEP_TLC_All_Gears.csv")
+```
+
+
+Pull Electrofishing Data, from August, 25/26th 2022 from Jon Hansen and Corey Geving
+
+EF filter rules from Jon Hansen and Bethany Bethke 8/29/2022
+Holly, for the filters I would start with the following and see how many surveys you drop…. Then maybe we can back off some of these if needed.
+
+- Months = May, June, July
+- Survey Type = Initial Survey, Large Lake Survey, Population Assessment, Re-Survey, Special Assessment, Standard Survey, Targeted Survey
+- Effort > 1 (we might have to revisit this one as you’re aware from the walleye stuff… )
+- Water Temp = 50 – 70
+- Target Species: include Null and anything with LMB or SMB
+- Representative Sampling = Y although we may want to discuss this one as it’s a relatively recent addition and I’m guessing will result in a whole bunch of surveys getting dropped. We may consider a year based approach.
+- Daylight = N, although our protocols do say that when secchi is very low daytime electrofishing is ok. Thus, if this drops a lot of surveys, we could be generous and filter this to include daytime surveys on lakes with secchi depths < 2 meters
+- Intermittent Shocking = N
+
+```{r}
+
+```
+

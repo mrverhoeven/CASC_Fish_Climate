@@ -12,13 +12,22 @@ editor_options:
 # Outstanding work
 
 DONE  1. Fix data import to squash warnings and add ticker
-      2. Button up the column name cleaning section of the file
+DONE  2. Button up the column name cleaning section of the file
 DONE  2b. consider a reformat to Arrow (sooner) for speed -- currently implemented at end, consider implementing this step earlier. 
-      3. Add section for (minimal acceptable) data proofing
+DONE  3. Add section for (minimal acceptable) data proofing
 DONE  4. Lake winnebago data are not yet "uncount" ed
 DUP2  5. Need to tidy up as many colnames as possible at each merge phase to prevent huge buildup of shit at the end (see current section at line 550ish)
 DONE  6.Crosscheck to CPUE file provided to us to check calcs/agreement
-DONE 6a. Flag abunds affected by this mismatch
+DONE  6a. Flag abunds affected by this mismatch
+DONE  7. Winnebago data included all species, want to constrain to be same as the main WI dataset.
+DONE  8. add an effort_ident to each trawl haul from Winnebago-- note the weirdness of this (one lake, many cpues in a single day)
+DONE  8a. add effort_ident to each surveyXgear?
+DONE  9. Connect ages back to the fish observations (Diagnostics ideas -- check some unpaired age data and see if you can find the obs that should match it)
+DONE  10. Flag crazy dates
+DONE  11. Add a nothing_caught tag
+DONE  12. Add NHDids
+DONE  13. cleannames() to colnames
+      
 
 # Preamble
 
@@ -55,7 +64,7 @@ files_list
 n <- length(files_list)
 
 for(i in 1:n) {
-  #i = 3
+  #i = 4
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
@@ -141,7 +150,7 @@ for(i in 1:n) {
 [6] "wi_winnebago_fishobservations_23April2021.csv" ~ Individual Fish NO THIS IS NOT!!!!!!!!!
 
 
-# Effort Data
+## Explore Effort Data
 
 Inland effort data exploration ([2] "wi_inland_effort_19Mar2021.csv"~ True Effort (as distance, sample_time_notes.1, gear_data_notes.9)   )
 ```{r}
@@ -195,7 +204,7 @@ wi_inland_effort_19Mar2021[ , , .(lake_id, year, sampling_method)] #THIS LINE JU
         
         
        #NEED TO VERIIFY HERE THAT THE VARIABLE VISIT.FISH.SEQ.NO is a surveyXgearID
-        wi_inland_effort_19Mar2021[  , .N  , .(sample_id.1)] # so obviously this is a good key
+        wi_inland_effort_19Mar2021[  , .N  , .(sample_id.1)] # so obviously this is a good key (sample_id.1 matches n obs in file total)
         wi_inland_effort_19Mar2021[ , .N  , .(lake_id, survey_id, year, date.1, sampling_method)] #try to understand what makes a row (sample-wise)
         wi_inland_effort_19Mar2021[ , .N , .(county, lake_name.1, lake_id, survey_id, year, date.1, sampling_method)]
         wi_inland_effort_19Mar2021[ , .N , .(county, lake_name.1, lake_id, survey_id, year, date.1, sampling_method)] [ , hist(N) ,]
@@ -213,7 +222,7 @@ wi_inland_effort_19Mar2021[ , , .(lake_id, year, sampling_method)] #THIS LINE JU
                                              gear_data_notes.10, 
                                              gear_data_notes.11, 
                                              gear_data_notes.12, gear_data_notes.13, gear_data_notes.14, gear_data_notes.15)]
-      # IMO this suggests that any effort data loaded into the pipeline ought to REQUIRE an input (allow many?) of total effort. 
+      # IMO this suggests that any effort data loaded into any sort of bigger pipeline ought to REQUIRE an input (allow many?) of total effort. 
       # gear_data_notes 1:8 and 12 through 15 are all electro-fishing details
       # gear_data_notes 10: depth
         
@@ -266,7 +275,7 @@ wi_inland_effort_19Mar2021[simple_gear == "netting", ':='( effort =gear_data_not
 wi_inland_effort_19Mar2021[ simple_gear == 'netting', .(effort, effort_units) , ]
 ```
 
-## Prep effort file ## 
+## Prep effort file
 
 Prep WI effort file
 ```{r}
@@ -348,7 +357,7 @@ wi_inland_effort_19Mar2021 <- wi_inland_effort_19Mar2021 %>%
   
 ```
 
-Winnebago Trawl Data
+## Winnebago Data (Gillnets and Trawls)
 - Find a unique key
 - Determine effort because it is not listed in its own column
 - Determine catch because it is not listed in its own column
@@ -356,9 +365,14 @@ Winnebago Trawl Data
 # date format is "POSIXct" and it won't subset properly, so first change to IDate
 wi_winnebago_cpue_23Apr2021[ , date.1 := as.IDate(date.1),]
 
+#these data are not just trawls
+wi_winnebago_cpue_23Apr2021[ , .N , .(year(date.1), sampling_method) ]
+wi_winnebago_fishobservations_23April2021[ , .N , .(year(date.1), sampling_method) ]
+
+
 #subset by date, see if multiple trawls are done per day per site
   # are the species aggregated? Or listed once per site?
-wi_winnebago_cpue_23Apr2021[ date.1 == "1986-06-11", .N , .(site_id.1, site_id.2, site_id.3, site_id.4, species.1) ]
+wi_winnebago_cpue_23Apr2021[ date.1 == "1986-06-11", .N , .(site_id.1, site_id.2, site_id.3, site_id.4, species.1, sampling_method) ]
     # appears that there is one trawl per site (using all 4 IDs), species are listed once per site, so CPUE is total catch
 
 
@@ -401,14 +415,12 @@ wi_winnebago_cpue_23Apr2021[ ,total_effort_1.1 := "5 minute trawl", ]
 ### would it be helpful to have it be # of fish per minute of trawl? Probably not because the trawls are always the same as is idk it's confusing in its current format
 ```
 
-count up fish caught in each trawl in fish observation file and compare to fish in caught in cpue file
+count up fish caught in each trawl in fish observation file and compare to fish in caught in cpue file -->
 ```{r}
-
-wi_inland_fishobservations_19Mar2021[ , .N ,   ] 
 
 winnebago_calc_cpue <- wi_winnebago_fishobservations_23April2021 %>%
   group_by(site_id.1, site_id.2, site_id.3, site_id.4, species.1, date.1, gear_data_notes.1)%>%
-  summarise(Total_Catch = sum(total_count)) #get 49,293 unique surveys as opposed to cpue file of 48,212 surveys
+  summarise(Total_Catch = sum(individual_count)) #get 49,293 unique surveys as opposed to cpue file of 48,212 surveys
 
 #compare our calc cpue to provided cpue file
 
@@ -430,22 +442,43 @@ winnebago_cpue_comp%>%
 
 Finalize Winnebago file so individual fish observations have an effort and effort units column (should be total.effort.1 and total.effort.1.units)
 ```{r}
+#remove non-aligned species
+#add an effort_ident
+wi_winnebago_fishobservations_23April2021[ sampling_method == "gillnet", .N , gear_data_notes.1]
+
+wi_winnebago_fishobservations_23April2021[ sampling_method == "trawl", .N , gear_data_notes.1]
+
+
+
+
+
 wi_winnebago_fishobservations_23April2021  <- wi_winnebago_fishobservations_23April2021 %>%
-  mutate(total.effort.1 = "1")%>%
-  mutate(total.effort.1.units = "5 minute trawl")%>%
-  relocate(year, date.1, lake_name.1, lake_id, site_id.1, site_id.2, site_id.3, site_id.4, gear_data_notes.1, sampling_method, species.1, total_count, length.1, young_of_year, total.effort.1, total.effort.1.units, jan2023_inventoried, file_number, file_status, state, source_contact, date_recieved, source_agency, file_path, new_file_name, file_type, data_type, targeted_or_standard, individual_count, original_file_name.1, unique_row_key.1) %>% #re-order columns
-uncount( weights = total_count, .remove = T, .id = "ident_uncount")
+  mutate(total.effort.1 = case_when(sampling_method == "trawl"~ 5,
+                                    sampling_method == "gillnet" ~ 1
+  )
+  )%>%
+  mutate(total.effort.1.units = case_when(sampling_method == "trawl"~ "minutes",
+                                          sampling_method == "gillnet" ~ "net-nights"
+  ))%>%
+  relocate(year, date.1, lake_name.1, lake_id, site_id.1, site_id.2, site_id.3, site_id.4, gear_data_notes.1, sampling_method, species.1, length.1, young_of_year, total.effort.1, total.effort.1.units, jan2023_inventoried, file_number, file_status, state, source_contact, date_recieved, source_agency, file_path, new_file_name, file_type, data_type, targeted_or_standard, individual_count, original_file_name.1, unique_row_key.1) %>% #re-order columns
+uncount( weights = individual_count, .remove = T, .id = "ident_uncount") #there are no 0 counts in here. And no 0 total catch in the winnebago trawl cpue data. As such this operation is okay--we don't drop any surveys in this way.
 
+#now add an effort_ident column
+wi_winnebago_fishobservations_23April2021[ , effort_ident := .GRP , .(site_id.1, site_id.2, site_id.3, site_id.4, species.1, date.1, gear_data_notes.1, sampling_method) ]
 
+#now thin species in here:
+wi_winnebago_fishobservations_23April2021[ , .N , species.1]
+wi_inland_fishobservations_19Mar2021[ , .N , species.1 ][,species.1]
 
-
+wi_winnebago_fishobservations_23April2021 <- wi_winnebago_fishobservations_23April2021[
+  species.1 %in% wi_inland_fishobservations_19Mar2021[ , .N , species.1 ][,species.1], , ]
 
 
 #saveRDS(wi_winnebago_fishobservations_23April2021 , file = "Data_and_Scripts\\Data\\output\\wi_winnebago_indiv_fish_w_effort.rds")
 ```
 Winnebago is DONE
 
-Investigate inland_fishobservations file
+## Investigate inland_fishobservations file
 ```{r}
 wi_inland_fishobservations_19Mar2021[, .N, .(noage = is.na(age))] #no fish in this file have ages... 
 
@@ -568,18 +601,21 @@ are the aged fish also in the wi_inland_fishobservations_19Mar2021 file? (MOVED 
 
 ```
 
-Does the CPUE file tell us which is correct?
+## Connect to aged fish files
 ```{r}
 #sampling method is simplified.
 wi_inland_cpue_19Mar2021[ , unique(sampling_method)]
 wi_inland_fishobservations_19Mar2021[ , unique(sampling_method)  , ]
 wi_inland_lenage_19Mar2021[ ,unique(sampling_method)  ,]
 
-wi_inland_cpue_19Mar2021[ , .N ,.(survey_id, sampling_method, species.1, lake_id, total_count) ] #this line shows that I have defined a unique key (length = length of full data; no N>1)
+
+wi_inland_lenage_19Mar2021[ , .N , species.1]
+
+wi_inland_cpue_19Mar2021[ , .N ,.(survey_id, sampling_method, species.1, lake_id, total_count.1) ] #this line shows that I have defined a unique key (length = length of full data; no N>1)
 
 
 #Aggregate these three to a comparable level
-wi_inland_cpue_19Mar2021[ , .("cpue_n_gears" = .N, "cpue_Nfish" = sum(total_count)) ,.(survey_id, species.1, lake_id) ]
+wi_inland_cpue_19Mar2021[ , .("cpue_n_gears" = .N, "cpue_Nfish" = sum(total_count.1)) ,.(survey_id, species.1, lake_id) ]
 wi_inland_fishobservations_19Mar2021[ , .("obs_n_gears" = length(unique(sampling_method)) , "obs_Nfish" = .N), .(survey_id, species.1, lake_id) ]
 wi_inland_lenage_19Mar2021[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl")  , .("laa_n_gears" = length(unique(sampling_method)), "laa_Nfish" = .N), .(survey_id, species.1, lake_id) ]
 
@@ -592,7 +628,7 @@ crosscheck <- merge(
   )
 
 crosscheck <- merge(crosscheck,
-wi_inland_cpue_19Mar2021[ , .("cpue_n_gears" = .N, "cpue_Nfish" = sum(total_count)) ,.(survey_id, species.1, lake_id) ],
+wi_inland_cpue_19Mar2021[ , .("cpue_n_gears" = .N, "cpue_Nfish" = sum(total_count.1)) ,.(survey_id, species.1, lake_id) ],
 by = c("survey_id", "species.1", "lake_id"), all = T
 )
 
@@ -616,134 +652,186 @@ wi_inland_fishobservations_19Mar2021[survey_id==515094436]
 
 
 # add crosscheck flag into the data:
-wi_inland_fishobservations_19Mar2021[crosscheck, on = .(species.1, survey_id), FLAGGED_laaN_exceeds_obsN := laa_exceeds_obs ]
+wi_inland_fishobservations_19Mar2021[crosscheck, on = .(species.1, survey_id), flag := ifelse(laa_exceeds_obs==T, "laa exceeds obs", "")  ]
 
-wi_inland_fishobservations_19Mar2021[ , .N , FLAGGED_laaN_exceeds_obsN ]
+wi_inland_fishobservations_19Mar2021[ , .N , flag ]
+
+
+
+#now bring the laa data back into the obs file
+# Thin to only age obs and not backcalculated: 
+wi_inland_lenage_19Mar2021 <- wi_inland_lenage_19Mar2021[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl") ]
+#prep date col
+wi_inland_lenage_19Mar2021[ , date.1 := as.IDate(date.1,format = "%m/%d/%Y"),]
+
+# try a rounding to tenth inches to clean up the age link
+wi_inland_lenage_19Mar2021[, length.1 := round(length.1,1) ]
+wi_inland_fishobservations_19Mar2021[, length.1 := round(length.1,1) ]
+
+#add identifiers for individual fish-lengths in a survey 
+wi_inland_fishobservations_19Mar2021[ , id_indv_win_len := seq_len(.N) , .(lake_id, date.1, sampling_method, survey_id, species.1, length.1) ] #assign a id to each ind fish observed within a given length
+wi_inland_lenage_19Mar2021[ , id_indv_win_len := seq_len(.N) , .(lake_id, date.1, sampling_method, survey_id, species.1, length.1) ]  #assign a id to each ind fish observed within a given length
+
+#drop unneeded cols from age data
+wi_inland_lenage_19Mar2021 <- wi_inland_lenage_19Mar2021[ , .(lake_id, date.1, sampling_method, survey_id, species.1, length.1, weight.1, age, aging_structure.1, sex, reproductive_condition_notes, aging_data_notes.1, id_indv_win_len, original_file_name.1) , ]
+#drop unneeded cols from indivfish table
+wi_inland_fishobservations_19Mar2021[ , age := NULL , ]
+
+#cleanup ws to prep for heavy merge
+rm(cde, crosscheck, gear_table, names, unusedbits, wi_inland_cpue_19Mar2021, cols, filei, files_list, i, maxn, n)
+#merge/do left join 
+wi_inland_fishobservations_19Mar2021 <- 
+merge(wi_inland_fishobservations_19Mar2021,
+      wi_inland_lenage_19Mar2021[],
+      by =  c("lake_id", "date.1", "sampling_method", "survey_id", "species.1", "length.1", "id_indv_win_len"),
+      all = T,
+      suffixes = c("_indivfish","_agedfish")) # works
+
+wi_inland_fishobservations_19Mar2021[  , .N  , .("Has_Observatinon_Dat" = !is.na(original_file_name.1_indivfish), "Has_age_dat" = !is.na(age))   ]
+
+
+#drop any age data where unable to match to fishobservations
+# wi_inland_fishobservations_19Mar2021 <- wi_inland_fishobservations_19Mar2021[!is.na(original_file_name.1_indivfish) , ,]
+
+wi_inland_fishobservations_19Mar2021[ !is.na(age) , .N , .(lake_id,date.1) ]
 
 
 # fwrite(crosscheck, file = "Data_and_Scripts/Data/output/crosscheck_cpue_fishobs_lengthage.csv")
-rm(crosscheck)
+rm(wi_inland_lenage_19Mar2021)
 
 ```
 
 
-Join wi_inland_fishobservations to the wi_inland_effort
+## Join wi_inland_fishobservations to the wi_inland_effort
 - note, unique key is: .(lake_id, date.1, sampling_method, and sample_id.1) (year can be used too)
 ```{r}
+#key check
+wi_inland_effort_19Mar2021[ , .N , .(lake_id, date.1, sampling_method, survey_id, sample_id.1) ]
+
+#still missing some effort--save that from the trash bin
+
+wi_inland_effort_19Mar2021[is.na(total.effort.1) & is.na(total.effort.2) &
+                             !str_detect(sample_time_notes.1, "NA"), `:=` (total.effort.1 = word(sample_time_notes.1, -1, sep = ":"), total.effort.1.units = "minutes")  , ]
+
+wi_inland_effort_19Mar2021[is.na(total.effort.1) & is.na(total.effort.2) &
+                             !str_detect(sample_time_notes.3, "NA"), `:=` (total.effort.1 = word(sample_time_notes.3, -1, sep = ":"), total.effort.1.units = "hours")]
+
+wi_inland_effort_19Mar2021[is.na(total.effort.1) & is.na(total.effort.2) &
+                             !str_detect(gear_data_notes.9, "NA"), `:=` (total.effort.2 = word(gear_data_notes.9, -1, sep = ":"), total.effort.2.units = "number_of_nets")]
+
+wi_inland_effort_19Mar2021[is.na(total.effort.1) & is.na(total.effort.2) &
+                             !str_detect(gear_data_notes.11, "NA"), `:=` (total.effort.2 = word(gear_data_notes.11, -1, sep = ":"), total.effort.2.units = "number_units_gear_amt")]
+
+#some vars contain no additional data
+wi_inland_effort_19Mar2021[is.na(total.effort.1) & is.na(total.effort.2) &
+                             !is.na(effort), .N , effort]
+
+wi_inland_effort_19Mar2021[is.na(total.effort.1) & is.na(total.effort.2) &
+                             !is.na(sample_time_min), .N , sample_time_min]
+
+wi_inland_effort_19Mar2021[is.na(total.effort.1) & is.na(total.effort.2) &
+                             !is.na(number_of_nets), .N , number_of_nets]
+
+
+
+
+# choose keeper cols from effort
+wi_inland_effort_19Mar2021 <- wi_inland_effort_19Mar2021[ , .(lake_id, date.1, sampling_method, survey_id, sample_id.1, simple_gear,
+                                                              distance, distance_units, total.effort.1, total.effort.1.units, total.effort.2, total.effort.2.units, 
+                                                              target_species, secondary_target_species, survey_type.1, survey_type.2, gear_data_notes.10, water_temp, water_temp_units, 
+                                                              water_clarity, water_clarity_units, lat_start, lon_start, lat_end, lon_end, 
+                                                              original_file_name.1
+                                                              ) , ]
+
+
+
+
 #change date to IDate
 wi_inland_effort_19Mar2021[ , date.1 := as.IDate(date.1,format = "%m/%d/%Y"),]
 
-WI_indiv_fish_w_effort <- merge(wi_inland_fishobservations_19Mar2021, wi_inland_effort_19Mar2021, by = c("lake_id", "date.1", "sampling_method", "sample_id.1"), suffixes = c("_indivfish", "_effort"), all = T)
 
-#saveRDS(WI_indiv_fish_w_effort, file = "Data_and_Scripts\\Data\\output\\wi_indiv_fish_w_effort_no_age.rds")
+names(wi_inland_effort_19Mar2021)
 
-WI_indiv_fish_w_effort[, total_count:= 1, ]
 
-rm(wi_inland_cpue_19Mar2021, wi_inland_effort_19Mar2021, wi_inland_fishobservations_19Mar2021)
+
+
+wi_inland_fishobservations_19Mar2021 <- merge(wi_inland_fishobservations_19Mar2021, wi_inland_effort_19Mar2021, by = c("lake_id", "date.1", "sampling_method", "survey_id", "sample_id.1"), suffixes = c("_indivfish", "_effort"), all = T)
+
+#saveRDS(wi_inland_fishobservations_19Mar2021, file = "Data_and_Scripts\\Data\\output\\wi_indiv_fish_w_effort_with_ages.rds")
+
+rm(wi_inland_effort_19Mar2021)
 
 
 #clean up this data product:
-
-colnames(WI_indiv_fish_w_effort)
+colnames(wi_inland_fishobservations_19Mar2021)
 
 #county
-colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "county")]
-WI_indiv_fish_w_effort[ county_indivfish != county_effort , .N ,  ] 
-WI_indiv_fish_w_effort[  , .N , .(countyindvNA = is.na(county_indivfish), countyeffNA = is.na(county_effort)) ] 
-WI_indiv_fish_w_effort[is.na(county_effort),  county_effort := county_indivfish ,  ]
-WI_indiv_fish_w_effort[ , county_indivfish := NULL , ]
-setnames(WI_indiv_fish_w_effort, "county_effort", "county")
+colnames(wi_inland_fishobservations_19Mar2021)[str_detect(colnames(wi_inland_fishobservations_19Mar2021), "county")]
+
 
 #lake_name
-colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "lake_name")]
-WI_indiv_fish_w_effort[ lake_name.1_indivfish != lake_name.1_effort , .N ,  ] 
-WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(lake_name.1_indivfish), effNA = is.na(lake_name.1_effort)) ] 
-WI_indiv_fish_w_effort[is.na(lake_name.1_effort),  lake_name.1_effort := lake_name.1_indivfish ,  ]
-WI_indiv_fish_w_effort[ , lake_name.1_indivfish := NULL , ]
-setnames(WI_indiv_fish_w_effort, "lake_name.1_effort", "lake_name.1")
+colnames(wi_inland_fishobservations_19Mar2021)[str_detect(colnames(wi_inland_fishobservations_19Mar2021), "lake_name")]
+
 
 #year
-colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "year")] #what's here for year data?
-#move indiv fish years to effort
-WI_indiv_fish_w_effort[ year_indivfish != year_effort , .N ,  ] 
-WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(year_indivfish), effNA = is.na(year_effort) ) ] 
-WI_indiv_fish_w_effort[is.na(year_effort),  year_effort := year_indivfish ,  ]
-WI_indiv_fish_w_effort[ , year_indivfish := NULL , ]
-setnames(WI_indiv_fish_w_effort, "year_effort", "year")
+colnames(wi_inland_fishobservations_19Mar2021)[str_detect(colnames(wi_inland_fishobservations_19Mar2021), "year")] #what's here for year data?
+wi_inland_fishobservations_19Mar2021[ , .N , is.na(date.1) ]
+wi_inland_fishobservations_19Mar2021[ , .N , .(is.na(date.1), is.na(year)) ] #no cases of na date where year can cover, drop year
+wi_inland_fishobservations_19Mar2021[ , year := NULL , ]
+
 
 #survey_id
-colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "survey_id")] #what's here for this var name?
-#consolidate if possible
-WI_indiv_fish_w_effort[ survey_id_indivfish != survey_id_effort , .N ,  ] #any disagreememnt among non-NA fields
-WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(survey_id_indivfish), effNA = is.na(survey_id_effort) ) ] # whats the NA coverage look like?
-WI_indiv_fish_w_effort[is.na(survey_id_effort),  survey_id_effort := survey_id_indivfish ,  ]
-WI_indiv_fish_w_effort[ , survey_id_indivfish := NULL , ]
-setnames(WI_indiv_fish_w_effort, "survey_id_effort", "survey_id")
+colnames(wi_inland_fishobservations_19Mar2021)[str_detect(colnames(wi_inland_fishobservations_19Mar2021), "survey_id")] #what's here for this var name?
 
-#survey_type.1
-colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "survey_type.1")] #what's here for this var name?
+
+#survey_type
+colnames(wi_inland_fishobservations_19Mar2021)[str_detect(colnames(wi_inland_fishobservations_19Mar2021), "survey_type.1")] #what's here for this var name?
 #consolidate if possible
-WI_indiv_fish_w_effort[ survey_type.1_indivfish != survey_type.1_effort , .N ,  ] #any disagreememnt among non-NA fields
-WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(survey_type.1_indivfish), effNA = is.na(survey_type.1_effort) ) ] # whats the NA coverage look like?
-#mostly disagreement, need to retain both. 
+wi_inland_fishobservations_19Mar2021[ survey_type.1_indivfish != survey_type.1_effort , .N ,  ] #any disagreememnt among non-NA fields
+wi_inland_fishobservations_19Mar2021[  , .N , .(indvNA = is.na(survey_type.1_indivfish), effNA = is.na(survey_type.1_effort) ) ] # whats the NA coverage look like?
+wi_inland_fishobservations_19Mar2021[ , .N ,  .(survey_type.1_indivfish, survey_type.2_indivfish, survey_type.1_effort, survey_type.2_effort  )]
+
+#mostly disagreement, need to retain all. 
 
 #state
-colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "state")] #what's here for this var name?
-#consolidate if possible
-WI_indiv_fish_w_effort[ state_indivfish != state_effort , .N ,  ] #any disagreememnt among non-NA fields
-WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(state_indivfish), effNA = is.na(state_effort) ) ] # whats the NA coverage look like?
-WI_indiv_fish_w_effort[is.na(state_effort),  state_effort := state_indivfish ,  ]
-WI_indiv_fish_w_effort[ , state_indivfish := NULL , ]
-setnames(WI_indiv_fish_w_effort, "state_effort", "state")
+colnames(wi_inland_fishobservations_19Mar2021)[str_detect(colnames(wi_inland_fishobservations_19Mar2021), "state")] #what's here for this var name?
 
-#total_count
-WI_indiv_fish_w_effort[ , unique(total_count) , ]
+colnames(wi_inland_fishobservations_19Mar2021)
 
-#drop age data
-WI_indiv_fish_w_effort[ , unique(age)]
-WI_indiv_fish_w_effort[ , unique(aging_structure),]
-WI_indiv_fish_w_effort[ , `:=` (age = NULL, aging_structure = NULL) ,]
-
-
-
-
+setnames(wi_inland_fishobservations_19Mar2021, "original_file_name.1" ,"original_file_name.1_effort")
 
 not_garbage <- c( 
-  "lake_id",                        "date.1",                         "sampling_method",                "sample_id.1",                   
-  "species.1",                      "length.1",                       "state",
-  "length_unit.1",                  "weight.1" ,                      "weight_unit.1",                  "sex",                            
-  "young_of_year",                  "survey_type.1_indivfish",        "survey_type.2_indivfish",        "survey_type.1_effort",
-  "survey_type.2_effort",           "county",                         "lake_name.1",                   
-  "year",                           "survey_id",                      "simple_gear",                    "distance",                      
-  "effort",                         "effort_units",                  
-  "total.effort.1",                 "total.effort.2",                 "total.effort.1.units",           "total.effort.2.units",           "total_count"  
-)
+  "state", "county", "lake_name.1", "lake_id", "date.1", "survey_id", "survey_type.1_indivfish", "survey_type.2_indivfish", "survey_type.1_effort", "survey_type.2_effort",
+  "sampling_method", "sample_id.1", "simple_gear", "target_species_effort", "target_species_indivfish", "secondary_target_species",                   
+  "total.effort.1", "total.effort.2", "total.effort.1.units", "total.effort.2.units", "distance", "distance_units",
+  "gear_data_notes.10", "water_temp", "water_temp_units", "water_clarity", "water_clarity_units", "lat_start", "lon_start", "lat_end", "lon_end",
+  "species.1", "length.1", "length_unit.1", "age", "aging_structure.1_agedfish", "weight.1_indivfish", "weight.1_agedfish", "weight_unit.1",
+  "sex_agedfish", "sex_indivfish", "young_of_year", "id_indv_win_len", "aging_data_notes.1", "reproductive_condition_notes",
+  "flag",
+  "original_file_name.1_agedfish", "original_file_name.1_indivfish", "original_file_name.1_effort"
+  )
 
+# reorder cols
+# setcolorder(wi_inland_fishobservations_19Mar2021, not_garbage)
 
-setcolorder(WI_indiv_fish_w_effort, not_garbage)
-
+#keep only specified not garbage
+wi_inland_fishobservations_19Mar2021 <- wi_inland_fishobservations_19Mar2021[ , ..not_garbage , ]
+ 
 ```
 
-*** things we may want to change about the merge above
-- do we want to retain duplicate columns with suffixes? Or have them combined into a single column?
- This is not as easy as one or the other-- where theres data in both sets for a given field, we have to keep both (see survey_type.1, above). I think this generally suggests a need to visit each column individually. 
-
-- do we want total catch at all?
-  I'd argue that we don't need to. we examine that quality of that data in the crosscheck section, above. 
 
 
-
-Bind winnebago and inland data together
+## Bind winnebago and inland data together
 ```{r}
 #prep for merge
 
 #nix all unnneeded dat from mem
 
-rm(wi_inland_lenage_19Mar2021, cde, gear_table, names, unusedbits)
+rm(not_garbage)
 
 
 #ensure all formats are DT. 
-str(WI_indiv_fish_w_effort)
+str(wi_inland_fishobservations_19Mar2021)
 str(wi_winnebago_fishobservations_23April2021)
 
 
@@ -752,79 +840,128 @@ str(wi_winnebago_fishobservations_23April2021)
 wi_winnebago_fishobservations_23April2021 [ , date.1 := as.IDate(date.1,format = "%Y/%m/%d"),]
 
 
-WI_indiv_fish_w_effort <- rbindlist(list(WI_indiv_fish_w_effort, wi_winnebago_fishobservations_23April2021 ),
+wi_inland_fishobservations_19Mar2021 <- rbindlist(list(wi_inland_fishobservations_19Mar2021, wi_winnebago_fishobservations_23April2021 ),
                                fill = TRUE,
                                use.names = TRUE)
 
 rm(wi_winnebago_fishobservations_23April2021 )
 
-#clean up this data product:
+```
 
-colnames(WI_indiv_fish_w_effort)
+## clean up the data product:
+```{r}
+colnames(wi_inland_fishobservations_19Mar2021)
 
-# #county
-# colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "county")]
-# WI_indiv_fish_w_effort[ county_indivfish != county_effort , .N ,  ] 
-# WI_indiv_fish_w_effort[  , .N , .(countyindvNA = is.na(county_indivfish), countyeffNA = is.na(county_effort)) ] 
-# WI_indiv_fish_w_effort[is.na(county_effort),  county_effort := county_indivfish ,  ]
-# WI_indiv_fish_w_effort[ , county_indivfish := NULL , ]
-# setnames(WI_indiv_fish_w_effort, "county_effort", "county")
-# 
-# #lake_name
-# colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "lake_name")]
-# WI_indiv_fish_w_effort[ lake_name.1_indivfish != lake_name.1_effort , .N ,  ] 
-# WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(lake_name.1_indivfish), effNA = is.na(lake_name.1_effort)) ] 
-# WI_indiv_fish_w_effort[is.na(lake_name.1_effort),  lake_name.1_effort := lake_name.1_indivfish ,  ]
-# WI_indiv_fish_w_effort[ , lake_name.1_indivfish := NULL , ]
-# #move effort lake_name to reg lake_name column
-# WI_indiv_fish_w_effort[ lake_name.1!= lake_name.1_effort , .N ,  ] 
-# WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(lake_name.1), effNA = is.na(lake_name.1_effort) ) ] 
-# WI_indiv_fish_w_effort[is.na(lake_name.1),  lake_name.1 := lake_name.1_effort ,  ]
-# WI_indiv_fish_w_effort[ , lake_name.1_effort := NULL , ]
-# 
-# #year
-# colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "year")] #what's here for year data?
-# #move indiv fish years to effort
-# WI_indiv_fish_w_effort[ year_indivfish != year_effort , .N ,  ] 
-# WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(year_indivfish), effNA = is.na(year_effort) ) ] 
-# WI_indiv_fish_w_effort[is.na(year_effort),  year_effort := year_indivfish ,  ]
-# WI_indiv_fish_w_effort[ , year_indivfish := NULL , ]
-# #move effort years to reg years column
-# WI_indiv_fish_w_effort[ year!= year_effort , .N ,  ] 
-# WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(year), effNA = is.na(year_effort) ) ] 
-# WI_indiv_fish_w_effort[is.na(year),  year := year_effort ,  ]
-# WI_indiv_fish_w_effort[ , year_effort := NULL , ]
-# 
-# #survey_id
-# colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "survey_id")] #what's here for this var name?
-# #consolidate if possible
-# WI_indiv_fish_w_effort[ survey_id_indivfish != survey_id_effort , .N ,  ] #any disagreememnt among non-NA fields
-# WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(survey_id_indivfish), effNA = is.na(survey_id_effort) ) ] # whats the NA coverage look like?
-# WI_indiv_fish_w_effort[is.na(survey_id_effort),  survey_id_effort := survey_id_indivfish ,  ]
-# WI_indiv_fish_w_effort[ , survey_id_indivfish := NULL , ]
-# setnames(WI_indiv_fish_w_effort, "survey_id_effort", "survey_id")
-# 
-# #survey_type.1
-# colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "survey_type.1")] #what's here for this var name?
-# #consolidate if possible
-# WI_indiv_fish_w_effort[ survey_type.1_indivfish != survey_type.1_effort , .N ,  ] #any disagreememnt among non-NA fields
-# WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(survey_type.1_indivfish), effNA = is.na(survey_type.1_effort) ) ] # whats the NA coverage look like?
-# #mostly disagreement, need to retain both. 
-# 
-# #state
-# colnames(WI_indiv_fish_w_effort)[str_detect(colnames(WI_indiv_fish_w_effort), "state")] #what's here for this var name?
-# #consolidate if possible
-# WI_indiv_fish_w_effort[ state_indivfish != state_effort , .N ,  ] #any disagreememnt among non-NA fields
-# WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(state_indivfish), effNA = is.na(state_effort) ) ] # whats the NA coverage look like?
-# WI_indiv_fish_w_effort[is.na(state_effort),  state_effort := state_indivfish ,  ]
-# WI_indiv_fish_w_effort[ , state_indivfish := NULL , ]
-# #move effort years to reg years column
-# WI_indiv_fish_w_effort[ state!= state_effort , .N ,  ] 
-# WI_indiv_fish_w_effort[  , .N , .(indvNA = is.na(state), effNA = is.na(state_effort) ) ] 
-# WI_indiv_fish_w_effort[is.na(state),  state := state_effort ,  ]
-# WI_indiv_fish_w_effort[ , state_effort := NULL , ]
-# 
-# WI_indiv_fish_w_effort[ , unique(simple_gear) , ]
+setnames(wi_inland_fishobservations_19Mar2021, "original_file_name.1", "original_file_name.1_winnebago")
+
+
+#winnebago sample idents -- can I generate some better sample loc than these composite things?
+wi_inland_fishobservations_19Mar2021[ , .N , .(is.na(site_id.1), is.na(site_id.2), is.na(site_id.3), is.na(site_id.4))]
+wi_inland_fishobservations_19Mar2021[ , .N , .(site_id.1, site_id.2, site_id.3, site_id.4, gear_data_notes.1, sampling_method)]
+
+wi_inland_fishobservations_19Mar2021[ , max(sample_id.1, na.rm = T) ,] #current max value in the data
+
+
+# The winnebago effort ident is similar to the sample_id.1 from WI DNR (visit.fish.seq.no) and is an effort grouping variable.
+wi_inland_fishobservations_19Mar2021[is.na(sample_id.1), .N , .(original_file_name.1_agedfish, original_file_name.1_indivfish, original_file_name.1_effort, original_file_name.1_winnebago) ] 
+
+
+#but for winnebago, we actually have sub_effort.1 (effort_ident is a sample out of a single net on winnebago on a date) Fix that:
+  wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name.1_winnebago) , length(unique(effort_ident))  , .(date.1 )  ]
+  wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name.1_winnebago), sub_effort_ident := effort_ident , ]
+
+#build a grouping var for the total effort (gearxdatexwinnebago)  
+  wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name.1_winnebago) , total_effort_ident := .GRP + 778618  , .(date.1, sampling_method) ] #start at the current sample_id.1 value
+  
+#now roll the rest of the dataset's sample_ids into that field
+  wi_inland_fishobservations_19Mar2021[ is.na(total_effort_ident), total_effort_ident := sample_id.1 , ]
+  wi_inland_fishobservations_19Mar2021[, `:=` (effort_ident = NULL, sample_id.1 = NULL) ,  ]
+
+#does that effort grouper work for total eff 1 & 2 ?
+wi_inland_fishobservations_19Mar2021[ , length(unique(total.effort.1)) , total_effort_ident ][ , .N , V1] #yes
+wi_inland_fishobservations_19Mar2021[ , length(unique(total.effort.2)) , total_effort_ident ][ , .N , V1] #yes
+
+#all winnebago sub_effort data are contained in the total effort column (will need to calc new total effort vals)
+    wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name.1_winnebago) , `:=` (sub_effort_1 = total.effort.1, sub_effort_1_units = total.effort.1.units)  , ]
+    wi_inland_fishobservations_19Mar2021[ , sub_effort_1 := as.integer(sub_effort_1) ,]
+    
+
+#for winnebago, total effort from a survey is a sum of how many 5 minute trawls were on that date
+wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name.1_winnebago) ,
+                                      .("n_uniquesubidents" = length(unique(sub_effort_ident)), "unique_eff" = length(unique(sub_effort_1))) , .(total_effort_ident, sampling_method) ] #these are all 1 unit of 5 minute trawl or 1 net-night of gillnet
+
+
+#calculate trawl efforts
+wi_inland_fishobservations_19Mar2021[  !is.na(original_file_name.1_winnebago) & sampling_method == "trawl" , `:=` (total.effort.1 = length(unique(sub_effort_ident))*5,
+                                                                                                      total.effort.1.units = "minutes"),
+                                                                                                      .(total_effort_ident) ]
+
+#calculate gillnet efforts
+wi_inland_fishobservations_19Mar2021[  !is.na(original_file_name.1_winnebago) & sampling_method == "gillnet" , `:=` (total.effort.1 = length(unique(sub_effort_ident)),
+                                                                                                      total.effort.1.units = "net-nights"),
+                                                                                                      .(total_effort_ident) ]
+
+wi_inland_fishobservations_19Mar2021[ !is.na(total_effort_ident) , .("nfish" = .N, unique(total.effort.1), unique(total.effort.1.units)) , .(total_effort_ident, sampling_method)]
+  
+  
+  
+
+not_garbage <- c( 
+  "state", "county", "lake_name.1", "lake_id", "date.1", "survey_id", "survey_type.1_indivfish", "survey_type.2_indivfish", "survey_type.1_effort", "survey_type.2_effort",
+  "sampling_method",  "simple_gear", "target_species_effort", "target_species_indivfish", "secondary_target_species",                   
+  "total_effort_ident", "total.effort.1", "total.effort.2", "total.effort.1.units", "total.effort.2.units", "distance", "distance_units",
+  "gear_data_notes.10", "water_temp", "water_temp_units", "water_clarity", "water_clarity_units", "lat_start", "lon_start", "lat_end", "lon_end", "site_id.1", "site_id.2", "site_id.3", "site_id.4", "gear_data_notes.1","sub_effort_ident","sub_effort_1", "sub_effort_1_units",
+  "species.1", "length.1", "length_unit.1", "age", "aging_structure.1_agedfish", "weight.1_indivfish", "weight.1_agedfish", "weight_unit.1",
+  "sex_agedfish", "sex_indivfish", "young_of_year", "id_indv_win_len", "aging_data_notes.1", "reproductive_condition_notes",
+  "flag",
+  "original_file_name.1_agedfish", "original_file_name.1_indivfish", "original_file_name.1_effort", "original_file_name.1_winnebago"
+  )
+
+
+setcolorder(wi_inland_fishobservations_19Mar2021, not_garbage) #reorder from this list before axe-ing the garbage cols
+
+wi_inland_fishobservations_19Mar2021 <- wi_inland_fishobservations_19Mar2021[ , ..not_garbage , ]
+
+#clean up column names
+setnames(wi_inland_fishobservations_19Mar2021,
+         colnames(wi_inland_fishobservations_19Mar2021) ,
+         make_clean_names(colnames(wi_inland_fishobservations_19Mar2021)))
+
+
+#flag some crazy dates
+
+wi_inland_fishobservations_19Mar2021[ , summary(date_1) , ]
+wi_inland_fishobservations_19Mar2021[ year(date_1) < 1938 |
+                                        year(date_1) > 2023, unique(date_1) , ]
+#first clean up flags
+wi_inland_fishobservations_19Mar2021[ , .N , flag]
+wi_inland_fishobservations_19Mar2021[is.na(flag) | flag == "", .N]
+wi_inland_fishobservations_19Mar2021[is.na(flag) | flag == "", flag := NA, ]
+
+wi_inland_fishobservations_19Mar2021[year(date_1) < 1938 |
+                                        year(date_1) > 2023 , flag := ifelse(is.na(flag), "bad_date" , fpaste(flag, "bad_date", sep = ";" )) ,]
+
+# add NHDids
+
+wi_inland_fishobservations_19Mar2021 <- local_to_nhdhr(wi_inland_fishobservations_19Mar2021, from_colname = "lake_id", states = "wi")
+#check coverage
+wi_inland_fishobservations_19Mar2021[ !is.na(lake_id) , .N , is.na(nhdhr.id)]
+#report unmatched from mwlaxeref
+wi_inland_fishobservations_19Mar2021[ !is.na(lake_id) & is.na(nhdhr.id), .N , .(lake_id, lake_name_1) ]
+#fix name
+setnames(wi_inland_fishobservations_19Mar2021, "nhdhr.id", "nhdhr_id")
+
+#add a nothing_caught column
+
+wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name_1_effort) & is.na(species_1), nothing_caught := TRUE  ,  ]
+
+wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)]
+
+#should only be one instance for each record of unsucessful effort
+wi_inland_fishobservations_19Mar2021[ total_effort_ident %in% wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)], .N , total_effort_ident 
+][N>1]
+
+wi_inland_fishobservations_19Mar2021[total_effort_ident == 726827] #these are two shitty records
 
 
 ```
@@ -833,18 +970,18 @@ colnames(WI_indiv_fish_w_effort)
 ## Export a WI file, Import a WI file, Reformat to Arrow
 
 ```{r}
-saveRDS(WI_indiv_fish_w_effort, "E:/My Drive/Documents/UMN/Hansen Lab/Rprojects/CASC_Fish_Climate/Data_and_Scripts/Data/output/wi_flat_effort_indivfish_merge.rds")
+saveRDS(wi_inland_fishobservations_19Mar2021, "E:/My Drive/Documents/UMN/Hansen Lab/Rprojects/CASC_Fish_Climate/Data_and_Scripts/Data/output/wi_flat_effort_indivfish_merge.rds")
 
-WI_indiv_fish_w_effort <- readRDS("E:/My Drive/Documents/UMN/Hansen Lab/Rprojects/CASC_Fish_Climate/Data_and_Scripts/Data/output/wi_flat_effort_indivfish_merge.rds")
+# wi_inland_fishobservations_19Mar2021 <- readRDS("E:/My Drive/Documents/UMN/Hansen Lab/Rprojects/CASC_Fish_Climate/Data_and_Scripts/Data/output/wi_flat_effort_indivfish_merge.rds")
 
-WI_indiv_fish_w_effort <- as_arrow_table(WI_indiv_fish_w_effort)
+# wi_dat <- as_arrow_table(wi_inland_fishobservations_19Mar2021)
 
 
 #arrow file print:
-WI_indiv_fish_w_effort
+wi_dat
 
 #now dplyr
-glimpse(WI_indiv_fish_w_effort)
+glimpse(wi_dat)
 
 #try a piped operation (note the "lazy evaluation" means require collect())
 WI_indiv_fish_w_effort %>% 
@@ -855,12 +992,8 @@ WI_indiv_fish_w_effort %>%
 
 
 
-colnames(WI_indiv_fish_w_effort)
+colnames(wi_dat)
 
-WI_indiv_fish_w_effort %>%
-
-summarize(n())
-glimpse()
 
 ```
 
@@ -868,7 +1001,7 @@ glimpse()
 #export as parquet file
 ```{r}
 
-write_dataset(dataset = WI_indiv_fish_w_effort, path = "Data_and_Scripts/Data/output/wi_file_arrow")
+write_dataset(dataset = wi_inland_fishobservations_19Mar2021, path = "Data_and_Scripts/Data/output/wi_file_arrow")
 
 wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow/")
 
@@ -883,7 +1016,16 @@ glimpse(wi_data)
 #print all column names
 wi_data %>%
   names() %>%
-  sort()
+  sort() %>% make_clean_names()
+
+
+wi_data %>% 
+  group_by(survey_type.1_indivfish) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+
 
 
 #species column
@@ -901,6 +1043,7 @@ wi_data %>%
   print(n = nrow(.))
 
 wi_data %>% 
+  filter(lake_name.1 != "lake_winnebago") %>% 
   group_by(species.1) %>% 
   summarise( n = n()) %>% 
   collect() %>% 
@@ -908,23 +1051,14 @@ wi_data %>%
 
 wi_data %>% 
   filter(is.na(species.1)) %>%
-  select(survey_id, sampling_method, site_id.1, site_id.2, site_id.3, site_id.4, date.1) %>% 
+  select(survey_id, sampling_method, total.effort.1, total.effort.1.units, total_effort_ident, lake_name.1, lake_id, date.1) %>% 
   collect() %>% 
   {species_NA_surveys <<- . }
 
 
-wi_data %>% 
-  inner_join(species_NA_surveys) %>% 
-  compute()
 
 
 #these look fine to me. They comply with the Data Agg Doc specs here: https://docs.google.com/document/d/1Ax_4vmsIqDuWU8wtxBRXv73mbLB_TjT4B2gG6Yp_tkQ/edit?pli=1#heading=h.f6zxnh5xaf40
-
-
-
-
-
-
 
 #location columns
 #lake_id & lake_name
@@ -936,7 +1070,7 @@ wi_data %>%
 #all lake loc data:
 #here I review glimpse(wi_data) and call only the location-ey fields
 wi_data %>% 
-  select(lake_id, lake_name.1, state, county, location_notes.1, location_notes.2, location_notes.3, site_id.1, site_id.2, site_id.3, site_id.4 )%>%
+  select(lake_id, lake_name.1, state, county, site_id.1, site_id.2, site_id.3, site_id.4 )%>%
   unique() %>%
   compute()
 
@@ -950,7 +1084,7 @@ wi_data %>%
 
 #here I review glimpse(wi_data) and call only the location-ey fields
 wi_data %>% 
-  select(lake_id, lake_name.1, state, county, location_notes.1, location_notes.2, location_notes.3 )%>%
+  select(lake_id, lake_name.1, state, county)%>%
   unique() %>%
   compute()
 
@@ -981,10 +1115,12 @@ wi_data %>%
   select(contains("date"))
 #date.1 is the only useful column here:
 
-#any NAs in date? NO!
+#any NAs in date? yes, they are all from aged fish that went unmatched to a survey
 wi_data %>%
   filter(is.na(date.1))%>%
-  compute()
+  group_by(is.na(original_file_name.1_agedfish)) %>% 
+  count() %>% 
+  collect()
 
 wi_data %>%
   select(date.1)%>%
@@ -997,15 +1133,21 @@ wi_data %>%
 
 # seems unlikely that there are fish data from 1899...
 wi_data %>%
-  filter(date.1 < "1940-1-1")%>%
+  filter(date.1 < "1899-1-1")%>%
   select(date.1) %>% 
-  collect()
+  unique() %>% 
+  collect() 
 
 wi_data %>% 
   filter(lake_id == 99999) %>% 
   select(lake_name.1) %>% 
   unique() %>% 
   collect()
+
+wi_data %>% filter(year(date.1)<1938) %>% collect() %>% group_by(original_file_name.1_agedfish) %>% count()# these are mostly aged fish
+wi_data %>% filter(year(date.1)<1938 & is.na(original_file_name.1_agedfish)) %>% collect() 
+
+
 
 #definitely odd, but I don't know that we have any way of determining the true date in these. Let's flag those dates as questionable
 
@@ -1039,15 +1181,13 @@ wi_data %>%
   summarise(n = n()) %>% 
   collect()
 
-<<<<<<< HEAD
-=======
+
 wi_data %>% 
-  filter(sampling_method == "vertical_gill_net") %>% 
-  group_by(survey_id, date.1, lake_name.1) %>% 
+  filter(sampling_method == "vertical_gill_net" & !is.na(original_file_name.1_effort)) %>% 
+  group_by(survey_id, date.1, lake_name.1, lake_id, original_file_name.1_effort, original_file_name.1_indivfish, original_file_name.1_agedfish, original_file_name.1_winnebago) %>% 
   summarise(n = n()) %>% 
   collect() %>% print(n = nrow(.))
 
->>>>>>> c9d89e87d9b681c173d3c70766c535719c79af71
 #target species
 wi_data %>% 
   group_by(target_species_indivfish) %>% 
@@ -1135,15 +1275,6 @@ wi_data %>%
   print(n = nrow(.))
 #224692 have a length but are missing the unit
 
-#the two cases above make up all cases for when length is na
-
-#weight
-glimse(wi_data)
-
-
-
-
-
 #see if this file has my QC flag in it
 wi_data %>%
   select(contains("flag"))
@@ -1151,19 +1282,47 @@ wi_data %>%
 
 ````
 
-
+# Test a filtering approach
 ``` {r}
 
 #explain the no fish caught situation in these data:
-#examine the species.1 = NA cases
+# if there was nothing caught in a gear within a survey (aka. nothing that was a species of interest to us--recall that we told them to not send everything but just the species of interest to us)
+#examine the species.1 = NA cases; 
 
+#how many cases of total zero survey efforts: MORE THAN HALF OF THESE!!!
 wi_data %>%
-  filter(is.na(species.1))%>%
-  select(survey_id, sampling_method, lake_id, lake_name.1, date.1, ident_uncount) %>%
-  distinct(survey_id) %>%
-  collect() %>%
-  { . ->> survey_w_NA_spp}
-  
+  filter(!is.na(original_file_name.1_effort)) %>% 
+  group_by(is.na(species.1), survey_id)%>%
+  count() %>% 
+  collect() %>% 
+  group_by(`is.na(species.1)`) %>% 
+  count()
+
+#An important result, given that there are ALL KINDS of crazy survey types in here that may or may-not ever catch the key species we were interested in. 
+wi_data %>% count(sampling_method) %>% collect()
+#how many cases of total zero survey efforts: MORE THAN HALF OF THESE!!!
+
+
+#how many cases of total zero survey efforts: MORE THAN HALF OF THESE!!!
+wi_data %>%
+   filter(!is.na(original_file_name.1_effort), sampling_method == "fyke_net") %>% 
+   group_by(is.na(species.1), survey_id)%>%
+   count() %>% 
+   collect() %>% 
+   group_by(`is.na(species.1)`) %>% 
+   count()
+
+#review the cases where boomshocking was not successful
+wi_data %>%
+  filter(!is.na(original_file_name.1_effort) & sampling_method == "boom_shocker" & is.na(species.1)) %>% 
+  group_by(total.effort.1,total.effort.1.units, survey_type.1_indivfish,survey_type.2_indivfish,survey_type.1_effort,survey_type.2_effort, target_species_effort,target_species_indivfish,secondary_target_species ) %>%
+  summarise(n = n()) %>% 
+  collect() %>% 
+  { . ->> unsucessfulboomshocking}
+
+
+
+
 
 
 

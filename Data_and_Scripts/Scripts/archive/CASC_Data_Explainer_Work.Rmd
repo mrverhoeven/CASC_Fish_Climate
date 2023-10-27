@@ -1,0 +1,270 @@
+---
+title: "CASC_Data_Explainer_Work"
+author: "Holly Kundel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+2/2/23
+First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed
+
+```{r}
+library(readr)
+library(readxl)
+library(dplyr)
+library(stringr)
+library(arrow)
+library(data.table)
+library(tidyr)
+library(tibble)
+```
+
+Read in CASC Data Explainer
+```{r}
+#CASC_Data_explainer_02Feb23 <- read_csv_arrow("Data_and_Scripts/Data/Data_Explainer/CASC_Data_Explainer_for_R_Data_Manipulation_02Feb23.csv")
+  
+CASC_Data_explainer <- read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
+```
+
+Read in MN Data (starting with 2 files)
+```{r}
+mn_gde_gsh_fish_effort_03May2022 <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_gde_gsh_fish_effort_03May2022.csv")
+
+mn_fish_effort_03May2022 <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_fish_effort_03May2022.csv")
+```
+
+Get new column names from data explainer
+```{r}
+CDE_cols <- colnames(CASC_Data_explainer_02Feb23) #all possible column names, including garbage column
+
+gde_gsh_col_id <- CASC_Data_explainer_02Feb23 %>% # call data explainer file
+  filter(`New File Name`== "mn_gde_gsh_fish_effort_03May2022")%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  select(14:25) #keep only columns of relevance (remove our file tracking and urls)
+```
+
+The attempts below did NOT work :(
+```{r}
+# note for files that have items in the "garbage bin" column, we may have a different process where we remove garbage columns after 'filter' but before dropping na columns
+
+old_cols <- (gde_gsh_col_id[1,]) #pulls exisitng column names that are in row 1
+
+new_cols <- data.frame(colnames(gde_gsh_col_id))#pulls column names that have a match in our file of interest 
+
+all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>%
+  rename(new_cols = old_cols)
+
+renamed_columns <- gde_gsh_col_id %>%
+  add_row()
+
+sapply(all_gde_gsh, rename)
+
+
+#almost works
+colnames(all_gde_gsh) <- new_cols
+```
+
+#### THIS WORKS
+
+
+Thanks to this: https://statisticsglobe.com/assign-column-names-based-on-existing-row-in-r
+
+```{R}
+gde_gsh_col_id <- CASC_Data_explainer %>% # call data explainer file
+  filter(`New File Name`== "mn_gde_gsh_fish_effort_03May2022")%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  select(14:25) #keep only columns of relevance (remove our file tracking and urls)
+
+
+colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
+```
+
+
+Repeat above process with a file that has the a column in the "garbage bin" column
+```{r}
+mn_effort_col_id <- CASC_Data_explainer %>% # call data explainer file
+  filter(`New File Name`== "mn_fish_effort_03May2022")%>% #keep only the row relevant to this file
+  select_if(~ !any(is.na(.)))%>% #drop columns that contain NA (because that means df doesn't contain that info)
+  
+
+
+#colnames(all_gde_gsh) <- (colnames(gde_gsh_col_id))
+```
+
+Now rename columns with a loop
+```{r}
+MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = "mn_")
+n <- length(MN_files_list)
+
+for(i in 1:n) {
+  assign(paste0("MN", i),
+         read.csv2(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+                          MN_files_list[i])))
+  
+}
+
+# Code from Mike
+for(i in 1:n) {
+  assign(gsub(".csv","", MN_files_list[i]),
+         read_csv(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+                               MN_files_list[i]))) #don't use 'read.csv2, only get one column
+  }  
+
+#MN[i] <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/"[i])
+```
+Could maybe loop for renaming columns with code like:
+MN_col_id[i] <- CASC_Data_explainer %>%
+    filter('New File Name' == "i")%>%
+    select_if(~ !any(is.na(.)))%>%
+    select(-1:13)
+  
+  colnames(MN[i]) <- colnames(MN_col_id[i])
+  
+  But that didn't work lol
+
+### Combine all MN files into one flat file
+```{r}
+MN_df <- as.data.frame(gsub(".csv","", MN_files_list)) %>% rename(file_name = 1)
+CDE_cols <- as.data.frame(colnames(CASC_Data_explainer))#drop 1:16
+CDE_keep_cols <- CDE_cols [17:79,]  #could also do %>%select(!Jan2023_inventoried:Targeted_or_Standard)
+
+
+
+# 1 mn aged fish
+mn_aged_fish <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/mn_aged_fish.csv")
+
+MN_df_1_id_gb <- CASC_Data_explainer %>%   # get list of old column names and new column names
+  filter(`New File Name`== MN_df[1,])%>%
+  select_if(~ !any(is.na(.)))%>%
+  select(any_of(CDE_keep_cols))
+
+
+GB1 <- as.data.frame(str_split_fixed(MN_df_1_id_gb$GarbageBin, ",", n = Inf))%>% # get list of columns in "garbage bin"
+  pivot_longer(cols = 1:5, names_to = "v", values_to = "gb")%>%
+  mutate(gb = str_trim(gb))
+
+#vars <- GB1$gb
+MN_1 <- mn_aged_fish %>% #drop garbage bin columns. SHOULD WORK BUT DOESN"T, only does first garbage column
+  select(-any_of(GB1$gb))%>%
+  select(contains("unit"))
+
+MN_id_1 <- CASC_Data_explainer %>%   # get list of old column names and new column names
+  filter(`New File Name`== MN_df[1,])%>%
+  select_if(~ !any(is.na(.)))%>%
+  select(any_of(CDE_keep_cols)) %>%
+  select(-GarbageBin)
+
+#MN1 <- mn_aged_fish %>% select(-ASSIGNED_AGE_SOURCE_NAME, -MAT, -CPUE, -AREA, -SRVY_DT)
+col_order_1 <-as.character( MN_id_1[1,])
+
+MN_1_ro <- MN_1[, col_order_1]
+colnames(MN_1) <- (colnames(MN_id_1)) #rename columns (have to manually type df name in first 'colnames()' argument)
+
+# 2 mn_aged_fish_1
+MN_df_2_id <- CASC_Data_explainer %>%
+  filter(`New File Name`== MN_df[2,])%>%
+  select_if(~ !any(is.na(.)))%>%
+  select(any_of(CDE_keep_cols))
+
+colnames(mn_aged_fish_1) <- (colnames(MN_df_2_id))
+
+# 3 mn_aged_fish_2
+MN_df_3_id <- CASC_Data_explainer %>%
+  filter(`New File Name`== MN_df[3,])%>%
+  select_if(~ !any(is.na(.)))%>%
+  select(any_of(CDE_keep_cols))
+
+colnames(mn_aged_fish_2) <- (colnames(MN_df_3_id))  # I wish this worked colnames(MN_df[3,]) <- (colnames(MN_df_3_id))
+
+# 4 mn_ef_lmb_smb_catch_26Aug2022
+MN_df_4_id <- CASC_Data_explainer %>%
+  filter(`New File Name`== MN_df[4,])%>%
+  select_if(~ !any(is.na(.)))%>%
+  select(any_of(CDE_keep_cols))
+
+colnames(mn_ef_lmb_smb_catch_26Aug2022) <- (colnames(MN_df_4_id))
+
+# 5 mn_ef_lmb_smb_effort_26Aug2022
+MN_df_5_id <- CASC_Data_explainer %>%
+  filter(`New File Name`== MN_df[5,])%>%
+  select_if(~ !any(is.na(.)))%>%
+  select(any_of(CDE_keep_cols))
+
+colnames(mn_ef_lmb_smb_effort_26Aug2022) <- (colnames(MN_df_5_id))
+
+#	6 mn_fish_effort_03May2022
+MN_df_6_id <- CASC_Data_explainer %>%
+  filter(`New File Name`== MN_df[6,])%>%
+  select_if(~ !any(is.na(.)))%>%
+  select(any_of(CDE_keep_cols))
+
+colnames(mn_fish_effort_03May2022) <- (colnames(MN_df_6_id))
+
+# 7 mn_gde_gsh_fish_effort_03May2022
+MN_df_7_id <- CASC_Data_explainer %>%
+  filter(`New File Name`== MN_df[7,])%>%
+  select_if(~ !any(is.na(.)))%>%
+  select(any_of(CDE_keep_cols))
+
+colnames(mn_gde_gsh_fish_effort_03May2022) <- (colnames(MN_df_7_id))
+
+```
+
+Now join or bind the above files into one
+```{r}
+# make blank df to full join with above, so all will have the same columns
+Col_Keep_tibble <- tibble_row(Year = NA, Date = NA, End_Date = NA, start_time = NA, end_time = NA, `Time Zone` = NA, County = NA, `Lake ID` = NA,
+                              Secondary_Lake_ID = NA, `Lake Name` = NA, `Lake Type` = NA, `Survey ID` = NA, SampleID = NA, survey_type = NA, `Site ID` = NA, 
+                              lat_unspec = NA, lon_unspec = NA, lat_start = NA, lon_start = NA, lat_end = NA, lon_end = NA, location_notes = NA, `Sampling Method` = NA, 
+                              `Sampling Method Abbrev` = NA, `Target Species` = NA, Secondary_Target_Species = NA, Species = NA, `Total Count` = NA, `Individual Count` = NA, 
+                              Length  = NA, `Length Unit` = NA, Weight = NA, `Weight Unit` = NA, Age = NA, `Aging Structure` = NA, Young_of_Year = NA, 
+                              `Backcalculated Age` = NA, Sex = NA, Reproductive_Condition = NA, Distance = NA, `Distance Units` = NA, 
+                              `Sample Time` = NA, `Sample Time Units` = NA, `Total Effort 1` = NA, 
+                              `Total Effort 2` = NA, `Total Effort 3` = NA, Total_Effort_4 = NA, Total_Effort_5 = NA, Effort_Units = NA, CPUE = NA, CPUE_Units = NA, 
+                              c_lakesize = NA, c_lakesize_units = NA, Water_Temp = NA, Water_Temp_Units = NA, Sample_ID = NA, Notes = NA, GarbageBin = NA, 
+                              Gear_Data = NA, water_clarity = NA, water_clarity_units = NA, mark_recap_data = NA, Aging_data = NA)
+
+names(mn_aged_fish) %in% names(Col_Keep_tibble)
+MN_1 <- mn_aged_fish %>%
+  bind_cols()
+```
+
+
+
+
+
+
+
+
+
+```{r}
+library(dtplyr)
+```
+
+
+
+
+
+
+
+this stuff doesn't work, and contains examples from the internet that failed to help
+```{r}
+#gde_gsh_col_id[1,i] <- colnames(gde_gsh_col_id)[i]
+
+
+#all_gde_gsh_col <- mn_gde_gsh_fish_effort_03May2022 %>% rename(all_of(old_cols))
+
+
+# Rename using a named vector and `all_of()`
+lookup <- c(pl = "Petal.Length", sl = "Sepal.Length")
+rename(iris, all_of(lookup))
+
+
+# Using data.table
+library(data.table)
+
+# rename all columns for old to new
+# Rename columns from list
+setnames(my_dataframe, old = c('c1','c2','c3','c4','c5'), 
+         new = c('id','pages','name','chapters','price'))
+```

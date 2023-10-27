@@ -32,3 +32,9 @@ desktop.ini
 *.png
 *.csv
 *.xlsx
+
+
+#Rdata files
+.rds
+.Rdata
+.parquet

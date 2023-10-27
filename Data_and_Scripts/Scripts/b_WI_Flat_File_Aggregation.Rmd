@@ -922,14 +922,18 @@ setcolorder(wi_inland_fishobservations_19Mar2021, not_garbage) #reorder from thi
 
 wi_inland_fishobservations_19Mar2021 <- wi_inland_fishobservations_19Mar2021[ , ..not_garbage , ]
 
-#clean up column names
+#parquet version 2, dated 26 Oct 2023 3:37pm
+
+
+#clean up column names - checked. not the problem
 setnames(wi_inland_fishobservations_19Mar2021,
          colnames(wi_inland_fishobservations_19Mar2021) ,
          make_clean_names(colnames(wi_inland_fishobservations_19Mar2021)))
 
 
-#flag some crazy dates
 
+
+#flag some crazy dates
 wi_inland_fishobservations_19Mar2021[ , summary(date_1) , ]
 wi_inland_fishobservations_19Mar2021[ year(date_1) < 1938 |
                                         year(date_1) > 2023, unique(date_1) , ]
@@ -941,8 +945,9 @@ wi_inland_fishobservations_19Mar2021[is.na(flag) | flag == "", flag := NA, ]
 wi_inland_fishobservations_19Mar2021[year(date_1) < 1938 |
                                         year(date_1) > 2023 , flag := ifelse(is.na(flag), "bad_date" , fpaste(flag, "bad_date", sep = ";" )) ,]
 
-# add NHDids
 
+
+# add NHDids
 wi_inland_fishobservations_19Mar2021 <- local_to_nhdhr(wi_inland_fishobservations_19Mar2021, from_colname = "lake_id", states = "wi")
 #check coverage
 wi_inland_fishobservations_19Mar2021[ !is.na(lake_id) , .N , is.na(nhdhr.id)]
@@ -951,17 +956,28 @@ wi_inland_fishobservations_19Mar2021[ !is.na(lake_id) & is.na(nhdhr.id), .N , .(
 #fix name
 setnames(wi_inland_fishobservations_19Mar2021, "nhdhr.id", "nhdhr_id")
 
-#add a nothing_caught column
 
+
+
+#add a nothing_caught column
 wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name_1_effort) & is.na(species_1), nothing_caught := TRUE  ,  ]
+wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name_1_effort) & !is.na(species_1), nothing_caught := FALSE  ,  ]
 
 wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)]
 
-#should only be one instance for each record of unsucessful effort
-wi_inland_fishobservations_19Mar2021[ total_effort_ident %in% wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)], .N , total_effort_ident 
-][N>1]
 
-wi_inland_fishobservations_19Mar2021[total_effort_ident == 726827] #these are two shitty records
+# running these two lines will cause the dataset to blow up in size at saving to parquet... no idea why, 
+# #should only be one instance for each record of unsucessful effort
+# wi_inland_fishobservations_19Mar2021[ total_effort_ident %in% wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)], .N , total_effort_ident
+# ][N>1]
+# 
+# wi_inland_fishobservations_19Mar2021[total_effort_ident == 726827] #these are two shitty records
+
+
+
+
+
+
 
 
 ```
@@ -970,7 +986,7 @@ wi_inland_fishobservations_19Mar2021[total_effort_ident == 726827] #these are tw
 ## Export a WI file, Import a WI file, Reformat to Arrow
 
 ```{r}
-saveRDS(wi_inland_fishobservations_19Mar2021, "E:/My Drive/Documents/UMN/Hansen Lab/Rprojects/CASC_Fish_Climate/Data_and_Scripts/Data/output/wi_flat_effort_indivfish_merge.rds")
+# saveRDS(wi_inland_fishobservations_19Mar2021, "E:/My Drive/Documents/UMN/Hansen Lab/Rprojects/CASC_Fish_Climate/Data_and_Scripts/Data/output/wi_flat_effort_indivfish_merge.rds")
 
 # wi_inland_fishobservations_19Mar2021 <- readRDS("E:/My Drive/Documents/UMN/Hansen Lab/Rprojects/CASC_Fish_Climate/Data_and_Scripts/Data/output/wi_flat_effort_indivfish_merge.rds")
 
@@ -978,21 +994,21 @@ saveRDS(wi_inland_fishobservations_19Mar2021, "E:/My Drive/Documents/UMN/Hansen 
 
 
 #arrow file print:
-wi_dat
-
-#now dplyr
-glimpse(wi_dat)
-
-#try a piped operation (note the "lazy evaluation" means require collect())
-WI_indiv_fish_w_effort %>% 
-  group_by(species.1) %>%
-  summarise(sum(!is.na(weight.1)))%>%
-  collect()%>%
-  print(n = 22)
-
-
-
-colnames(wi_dat)
+# wi_dat
+# 
+# #now dplyr
+# glimpse(wi_dat)
+# 
+# #try a piped operation (note the "lazy evaluation" means require collect())
+# WI_indiv_fish_w_effort %>% 
+#   group_by(species.1) %>%
+#   summarise(sum(!is.na(weight.1)))%>%
+#   collect()%>%
+#   print(n = 22)
+# 
+# 
+# 
+# colnames(wi_data)
 
 
 ```
@@ -1001,7 +1017,10 @@ colnames(wi_dat)
 #export as parquet file
 ```{r}
 
-write_dataset(dataset = wi_inland_fishobservations_19Mar2021, path = "Data_and_Scripts/Data/output/wi_file_arrow")
+# setDT(wi_inland_fishobservations_19Mar2021)
+# wi_inland_fishobservations_19Mar2021 <- as_tibble(wi_inland_fishobservations_19Mar2021)
+
+write_dataset(dataset = wi_inland_fishobservations_19Mar2021, path = "Data_and_Scripts/Data/output/wi_file_arrow", format = "parquet")
 
 wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow/")
 

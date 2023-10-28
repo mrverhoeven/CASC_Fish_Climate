@@ -937,17 +937,19 @@ setnames(wi_inland_fishobservations_19Mar2021,
 wi_inland_fishobservations_19Mar2021[ , summary(date_1) , ]
 wi_inland_fishobservations_19Mar2021[ year(date_1) < 1938 |
                                         year(date_1) > 2023, unique(date_1) , ]
-#first clean up flags
+
+
+
+#first clean up flags then add new flag note. Not the problem
 wi_inland_fishobservations_19Mar2021[ , .N , flag]
 wi_inland_fishobservations_19Mar2021[is.na(flag) | flag == "", .N]
 wi_inland_fishobservations_19Mar2021[is.na(flag) | flag == "", flag := NA, ]
-
 wi_inland_fishobservations_19Mar2021[year(date_1) < 1938 |
                                         year(date_1) > 2023 , flag := ifelse(is.na(flag), "bad_date" , fpaste(flag, "bad_date", sep = ";" )) ,]
 
 
 
-# add NHDids
+# add NHDids. checked. not the problem.
 wi_inland_fishobservations_19Mar2021 <- local_to_nhdhr(wi_inland_fishobservations_19Mar2021, from_colname = "lake_id", states = "wi")
 #check coverage
 wi_inland_fishobservations_19Mar2021[ !is.na(lake_id) , .N , is.na(nhdhr.id)]
@@ -959,11 +961,14 @@ setnames(wi_inland_fishobservations_19Mar2021, "nhdhr.id", "nhdhr_id")
 
 
 
-#add a nothing_caught column
+#add a nothing_caught column. checked. not the problem.
 wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name_1_effort) & is.na(species_1), nothing_caught := TRUE  ,  ]
 wi_inland_fishobservations_19Mar2021[ !is.na(original_file_name_1_effort) & !is.na(species_1), nothing_caught := FALSE  ,  ]
 
-wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)]
+# wi_inland_fishobservations_19Mar2021[nothing_caught == T, unique(total_effort_ident)]
+wi_inland_fishobservations_19Mar2021 %>% 
+  filter(nothing_caught == T) %>% 
+  distinct(total_effort_ident)
 
 
 # running these two lines will cause the dataset to blow up in size at saving to parquet... no idea why, 

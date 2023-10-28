@@ -1,0 +1,74 @@
+---
+title: "Filtering for CPUEs"
+author: "Mike Verhoeven"
+date: "`r Sys.Date()`"
+output: html_document
+---
+# Preamble
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load Libraries
+```{r}
+library(arrow)
+
+
+
+```
+
+## Link to Data
+
+```{r}
+wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow/")
+
+glimpse(wi_data)
+
+
+
+```
+
+## Walleye CPUE
+This process looks like this: 
+1. Choose surveys that are deemed suitable for a state-species specific CPUE
+2. Count up how many suitable fish were caught in those surveys
+
+
+```{r}
+# filter to appropriate surveys: 
+
+wi_filter <- fread("https://docs.google.com/spreadsheets/d/e/2PACX-1vTP_AxKOZ_eiehLxOSDModibTEhC0OgWPfgMiUAxfcALq7JJVPpZCD21GRLPi2YNQ/pub?output=csv", na.strings = "")
+
+wi_filter[species == "walleye" & age.class == "adult"]
+
+#is "pe" an intended metric in this table?
+wi_data %>% 
+  filter(sampling_method%in%c("boom_shocker"), month(date_1)%in%c(3:5), water_temp%in%c(40:50), !is.na(total_effort_1) ) %>% 
+  distinct(survey_type_1_indivfish,  survey_type_1_effort, survey_type_2_effort) %>% 
+  collect() 
+#it shows up in here multiple times, suggesting it is indeed a thing.
+
+
+# review what kind of surveys make the filter. This is the suitable surveys table
+wi_data %>% 
+  filter(sampling_method%in%c("fyke_netting", "boom_shocker"), month(date_1)%in% c(3:5), water_temp%in%c(40:50), !is.na(total_effort_1) ) %>% 
+  distinct(lake_name_1, lake_id, nhdhr_id, date_1, survey_id, sampling_method, total_effort_ident, total_effort_1, total_effort_1_units) %>% 
+  collect() 
+
+#can we bake the species counting right into the call for suitable surveys? #note that there are many NA lengths. Do we assume these were juveniles? Something else?
+wi_data %>% 
+  filter(sampling_method%in%c("fyke_netting", "boom_shocker"), month(date_1)%in% c(3:5), water_temp%in%c(40:50), !is.na(total_effort_1)) %>%
+  group_by(lake_name_1, lake_id, nhdhr_id, date_1, survey_id, sampling_method,survey_type_1_indivfish, total_effort_ident, total_effort_1, total_effort_1_units, nothing_caught) %>% 
+  summarise(count_walleye_13inplus = sum(species_1 == 'walleye' & (length_1 >= 13|is.na(length_1))) ) %>%
+  # summarise(count_walleye = sum(species_1 == 'walleye') ) %>%
+  collect()%>% 
+  mutate(count_walleye_13inplus = case_when(nothing_caught == TRUE ~ 0, 
+                               TRUE ~ count_walleye_13inplus)) %>% 
+  mutate(cpue = count_walleye_13inplus/as.numeric(total_effort_1)) %>% 
+  {.->>suitable_samples}
+
+
+
+```
+
+
+

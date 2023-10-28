@@ -1025,7 +1025,7 @@ wi_inland_fishobservations_19Mar2021 %>%
 # setDT(wi_inland_fishobservations_19Mar2021)
 # wi_inland_fishobservations_19Mar2021 <- as_tibble(wi_inland_fishobservations_19Mar2021)
 
-write_dataset(dataset = wi_inland_fishobservations_19Mar2021, path = "Data_and_Scripts/Data/output/wi_file_arrow2", format = "parquet")
+write_dataset(dataset = wi_inland_fishobservations_19Mar2021, path = "Data_and_Scripts/Data/output/wi_file_arrow", format = "parquet")
 
 wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow/")
 

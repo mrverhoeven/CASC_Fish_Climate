@@ -195,8 +195,6 @@ glimpse(ia_fishlengths_24Oct2023)
 
 
 
-  
-
 ```
 
 
@@ -205,6 +203,7 @@ glimpse(ia_fishlengths_24Oct2023)
 #in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
 
 #grabbing effort from catch file
+
 
 ``` 
           

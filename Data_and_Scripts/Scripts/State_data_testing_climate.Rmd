@@ -3568,6 +3568,37 @@ mn_data %>%
   summarise(n = n()) %>%
   collect() %>% 
   print(n = nrow(.))
+
+##################Minnesota agency told filtering and table trial#################
+#reading in the filter table
+filter_table <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(State == "Minnesota")
+
+#fish data
+filtered.fish <- inner_join(filter_table, mn_data, by = c("survey_type", "sampling_method"))
+
+#adding lake area to the data
+area <- read_csv("Data_and_Scripts/Data/input/mn_lake_list.csv") %>% 
+  select(DOW, LAKE_AREA_DOW_ACRES) %>% 
+  mutate(DOW = as.integer(DOW))
+#joins fish data with area data
+mn_data <- left_join(mn_data, area, by = c("lake_id" = "DOW")) %>% 
+  #hard codes lakes that do not have area in the area file (areas taken from lake finder)
+  mutate(LAKE_AREA_DOW_ACRES = as.numeric(case_when(
+        lake_id == "56038800" ~ "1288",
+        lake_id == "55006400" ~ "20",
+        lake_id == "76014601" ~ "467",
+        lake_id == "76014602" ~ "218",
+        TRUE ~ as.character(LAKE_AREA_DOW_ACRES)))) %>% 
+  #creates binned area grouping used for minimum effort calculation
+  mutate(area.group = case_when(LAKE_AREA_DOW_ACRES < 100 ~ "<100",
+                                LAKE_AREA_DOW_ACRES >= 100 & LAKE_AREA_DOW_ACRES <= 300 ~ "100-300",
+                                LAKE_AREA_DOW_ACRES >= 301 & LAKE_AREA_DOW_ACRES <= 600 ~ "301-600",
+                                LAKE_AREA_DOW_ACRES >= 601 & LAKE_AREA_DOW_ACRES <= 1500 ~ "601-1500",
+                                LAKE_AREA_DOW_ACRES >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) %>% 
+  #orders groupings so they plot well
+  mutate(area.group = factor(area.group, levels = c("<100", "100-300", "301-600", "601-1500", "1501+")))
 ```
 
 #ramsey county lakes

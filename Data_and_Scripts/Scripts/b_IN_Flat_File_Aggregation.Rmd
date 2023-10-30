@@ -187,20 +187,83 @@ for(i in 1:n) {
 ```{r}
 
 # review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
-# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
+# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (possibly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
 
+# for IN, there are data from "glacial lakes" and there are data from "reservoirs" so will work with glacial lakes, then work with reservoirs, and then combine glacial lakes and reservoirs to make a single IN file
 
 #effort:
-mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
+  #mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
 
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1] # lake ids not unique (they *should* be though)
+# no lake IDS in glacial lakes effort... so what columns(s) represent a unique lake?
+in_glaciallakes_effort_6Oct2021[ , .N, .(lake_name.1, county)]
+  # lake name and county appear to be unique, but there are inconsistencies in the capitalization for 'county' so that will need to be fixed in order to work
 
-#which lakes have multiple names for a single ID?
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id]
-mi_statustrends_effort_16Mar2021[lake_id %in% 
-                                   mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id], , ]
-# it appears here that a full survey (all gears were deployed in each part of these lakes. For that reason, My vote is that we keep them separate and use lake_id + lake_name for our key. 
+#write out the counties in all lowercase
+in_glaciallakes_effort_6Oct2021[ , county:= str_to_lower(county)]
+in_lake_id_list_22Aug2022[ , county:= str_to_lower(county)]
 
+#re-check
+in_glaciallakes_effort_6Oct2021[ , .N, .(lake_name.1, county)] #129 unique lakes
+
+# fix lake names in IN lake ID list (remove "=CountyName" from lake name)
+in_lake_id_list_22Aug2022_fixed <- in_lake_id_list_22Aug2022 %>%
+  mutate(lake_name.1 = str_remove(lake_name.1, county))%>%
+  mutate(lake_name.1 = str_remove(lake_name.1, "-"))
+
+
+
+#link glacial lakes effort to lake ID
+  #in_glaciallakes_effort_6Oct2021[in_lake_id_list_22Aug2022, on=.(lake_name.1, county), nomatch = NULL] #doesn't work
+in_glaciallakes_effort_6Oct2021_no_ID_match <- in_glaciallakes_effort_6Oct2021 %>%
+  left_join(in_lake_id_list_22Aug2022_fixed, by = c("lake_name.1", "county"))%>%
+  filter(is.na(lake_id))%>%
+  select(lake_name.1, county)%>%
+  distinct()%>%
+  left_join(in_lake_id_list_22Aug2022_fixed, by = c("lake_name.1"))
+
+
+# leaving the lake ID issue behind for now... will either ask for fresh data with lake ids, or if data look okay, OR will manually work through it with janitor etc. 
+```
+
+Data review continued
+
+IN Glacial Lakes
+```{r}
+in_glaciallakes_effort_6Oct2021[ , .N, .(sampling_method)]
+# Three gears: standard trap net, experimental gill net and nighttime electrofishing
+  # each gear is used in every survey. 152 surveys times 3 = 456
+
+
+
+```
+
+Data review continued
+IN Reservoirs
+```{r}
+
+in_reservoir_fish_community_effort_16Aug2022[ , .N, .(sampling_method)] #no sampling method... will have to add
+# effort 1: EF, effort 2: gill net, effort 3: trap net (from data explainer and orig. metadata from Sandra)
+
+# make data long, and add sampling method (instead of effort_1, effort_2, etc.)
+in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community_effort_16Aug2022 %>%
+  pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3), names_to = "sampling_method", values_to = "total_effort" ) %>% # make data longer, so that effort is in a single column
+  mutate(sampling_method = case_when(sampling_method == "total_effort_1" ~ "nighttime electrofishing",
+                                     sampling_method == "total_effort_2" ~ "experimental gill net",
+                                     sampling_method == "total_effort_3" ~ "standard trap net"))%>% # write out sampling method
+  mutate(effort_units = case_when(sampling_method == "nighttime electrofishing" ~ "hours",
+                                  sampling_method == "experimental gill net" ~ "number of nets",
+                                  sampling_method == "standard trap net" ~ "number of nets"))%>% # write out effort units
+  relocate(survey_id, lake_name.1, lake_id, date.1, end_date, survey_type.1, sampling_method, total_effort, effort_units)%>% #bring these columns to the front 
+  select(-effort_units.1, -effort_units.2, -effort_units.3) #remove redundant effort units columns
+
+
+# is survey ID a unique key..? 
+
+```
+
+
+Mike Example code
+```{r}
 # view each data level for a single survey
 mi_statustrends_effort_16Mar2021[survey_id ==2446]
 mi_statustrends_catch_16Mar2021[survey_id == 2446]

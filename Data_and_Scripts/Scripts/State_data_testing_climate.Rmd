@@ -3438,7 +3438,6 @@ wi <- wi_data %>%
          survey_type.1_indivfish == "creel,_access_point"|
          survey_type.1_indivfish == "treaty_fisheries_assessment"|
          str_detect(survey_type.1_indivfish, "watershed")))
-  #exclude surveys with a minimum effort that is not a consistence measure of CPUE
 
 #trial run of species specific filtering################
 #smallmouth and largemouth bass? - document only says shocking

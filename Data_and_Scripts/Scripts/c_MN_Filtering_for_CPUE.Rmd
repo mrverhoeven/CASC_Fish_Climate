@@ -1,0 +1,58 @@
+---
+title: "c_MN_Filtering_for_CPUE"
+author: "Denver Link"
+date: "2023-10-28"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+#Library
+```{r}
+library(tidyverse)
+library(arrow)
+```
+
+#data
+```{r}
+filter_table <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(state == "Minnesota")
+
+mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "mn_file_arrow"))
+```
+
+
+#filtering using table
+```{r}
+#fish data
+filter_table_effort <- filter_table %>% 
+  filter(metric == "adult_abundance" & state == "Minnesota") %>% 
+  select(-metric,
+         -species_1) %>% 
+  rename(survey_type.1 = survey_type)
+
+mn_data %>% 
+  mutate(area_group = unlist(area_group)) %>%
+  mutate(area_group = as.character(area_group)) %>% 
+  left_join(filter_table_effort, by = c("state",
+                                        "survey_type.1",
+                                        "sampling_method",
+                                        "area_group")) %>% 
+  glimpse()
+  distinct(lake_id,
+           nhdhr.id,
+           date_clean,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  glimpse()
+
+  #still need to figure out this filter
+  filter(month(date_1) >= month_min,
+         month(date_1) <= month_max,
+         water_temp >= water_temp_min,
+         water_temp <= water_temp_max)
+```
+

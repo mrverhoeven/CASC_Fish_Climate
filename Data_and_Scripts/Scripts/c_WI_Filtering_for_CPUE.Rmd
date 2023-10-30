@@ -3,27 +3,20 @@ title: "Filtering for CPUEs"
 author: "Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 # Preamble
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+
 ## Load Libraries
 ```{r}
 library(arrow)
-
-
-
+library(tidyverse)
 ```
 
 ## Link to Data
-
 ```{r}
 wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow/")
-
-glimpse(wi_data)
-
-
 
 ```
 
@@ -50,13 +43,13 @@ wi_data %>%
 
 # review what kind of surveys make the filter. This is the suitable surveys table
 wi_data %>% 
-  filter(sampling_method%in%c("fyke_netting", "boom_shocker"), month(date_1)%in% c(3:5), water_temp%in%c(40:50), !is.na(total_effort_1) ) %>% 
+  filter(sampling_method%in%c("fyke_net", "boom_shocker"), month(date_1)%in% c(3:5), water_temp%in%c(40:50), !is.na(total_effort_1) ) %>% 
   distinct(lake_name_1, lake_id, nhdhr_id, date_1, survey_id, sampling_method, total_effort_ident, total_effort_1, total_effort_1_units) %>% 
   collect() 
 
 #can we bake the species counting right into the call for suitable surveys? #note that there are many NA lengths. Do we assume these were juveniles? Something else?
 wi_data %>% 
-  filter(sampling_method%in%c("fyke_netting", "boom_shocker"), month(date_1)%in% c(3:5), water_temp%in%c(40:50), !is.na(total_effort_1)) %>%
+  filter(sampling_method%in%c("fyke_net", "boom_shocker"), month(date_1)%in% c(3:5), water_temp%in%c(40:50), !is.na(total_effort_1)) %>%
   group_by(lake_name_1, lake_id, nhdhr_id, date_1, survey_id, sampling_method,survey_type_1_indivfish, total_effort_ident, total_effort_1, total_effort_1_units, nothing_caught) %>% 
   summarise(count_walleye_13inplus = sum(species_1 == 'walleye' & (length_1 >= 13|is.na(length_1))) ) %>%
   # summarise(count_walleye = sum(species_1 == 'walleye') ) %>%
@@ -70,5 +63,151 @@ wi_data %>%
 
 ```
 
+#what are good survey purposes?
+```{r}
+wi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "wi_file_arrow"))
+glimpse(wi_data)
 
+#taking previous filtering work to find survey appropriate survey types for abundance
+#some surveys must have gotten miss labeled (fall_recrutiment) but we can keep them here
+wi_data %>% 
+  filter(is.na(survey_type_1_indivfish) |  
+        !(survey_type_1_indivfish == "special_study" |
+         survey_type_1_indivfish == "fisheries_assessments_rivers" |
+         survey_type_1_indivfish == "fisheries_assessments_stream_smallmouth_bass" |
+         survey_type_1_indivfish == "winterkill_investigation" |
+         survey_type_1_indivfish == "non_dnr_cooperator_study"|
+         survey_type_1_indivfish =="fisheries_assessments_trout_rotation"|
+         survey_type_1_indivfish == "fisheries_assessments_trout_trend"|
+         survey_type_1_indivfish == "habitat_improvement_evaluation"|
+         survey_type_1_indivfish =="research_project"|
+         survey_type_1_indivfish == "fish_kill_investigation"|
+         survey_type_1_indivfish == "epa_national_stream_river_assessment"|
+         survey_type_1_indivfish =="fisheries_assessments_trout_potential"|
+         survey_type_1_indivfish =="severely_impacted"|
+         survey_type_1_indivfish =="fish_passage_study"|
+         survey_type_1_indivfish == "use_designation"|
+         survey_type_1_indivfish == "creel,_access_point"|
+         survey_type_1_indivfish == "treaty_fisheries_assessment"|
+         str_detect(survey_type_1_indivfish, "watershed"))) %>% 
+  filter(sampling_method %in% c("fyke_net", "boom_shocker")) %>% 
+  filter(month(date_1)%in% c(3:5)) %>% 
+  filter(water_temp %in% c(40:50)) %>% 
+  filter(!is.na(total_effort_1)) %>%
+  group_by(survey_type_1_indivfish) %>% 
+  count() %>% 
+  collect()
+```
+
+#using table
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "Wisconsin") %>% 
+  rename(survey_type_1_indivfish = survey_type) %>% 
+  select(-area_group,
+         -metric,
+         -species_1)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "Wisconsin" & species_1 == "walleye") %>% 
+  rename(survey_type_1_indivfish = survey_type) %>% 
+  select(state,
+         species_1) %>% 
+  distinct() 
+
+#filters entire Wisconsin data for surveys representative of adult abundance 
+good_surveys <- wi_data %>%
+  inner_join(filter_table_effort, by = c("state", 
+                                        "survey_type_1_indivfish", 
+                                        "sampling_method")) %>%
+  distinct(lake_name_1,
+    survey_type_1_indivfish,
+    lake_id,
+    nhdhr_id,
+    date_1,
+    survey_id,
+    sampling_method,
+    total_effort_ident,
+    total_effort_1,
+    total_effort_1_units,
+    water_temp,
+    month_min, 
+    month_max,
+    water_temp_min,
+    water_temp_max) %>% 
+  filter(month(date_1) >= month_min,
+         month(date_1) <= month_max,
+         water_temp >= water_temp_min,
+         water_temp <= water_temp_max) %>% 
+  collect() 
+
+#checking filtering
+#month range
+good_surveys %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#water temp range
+good_surveys %>% 
+  summarise(min.temp = min(water_temp), max.temp = max(water_temp))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type_1_indivfish) %>% 
+  count()
+
+#to refine:
+#include na survey purposes?
+#minimum effort for Wisconsin
+#how to make sure surveys catching no fish are retained in fish level filter
+
+#second step of filtering 
+##first - filter entire Wisconsin for records of fish that were included in a "good" survey for adult abundance 
+##second - apply fish level filters (species, fish lengths, etc.)
+adult_walleye <- wi_data %>% 
+  #filter the Wisconsin data set for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  collect() 
+  #filter for fish level items (length, etc)
+glimpse(adult_walleye)
+
+#checking final filter
+adult_walleye %>% 
+  group_by(species_1) %>% 
+  count()
+
+adult_walleye %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#water temp range
+adult_walleye %>% 
+  summarise(min.temp = min(water_temp), max.temp = max(water_temp))
+
+#creating cpue for adult walleye 
+adult_walleye %>% 
+  group_by(lake_name_1, 
+           lake_id,
+           nhdhr_id, 
+           date_1,
+           survey_id, 
+           sampling_method,
+           survey_type_1_indivfish, 
+           total_effort_ident, 
+           total_effort_1,
+           total_effort_1_units, 
+           nothing_caught) %>% 
+  summarise(count_walleye_13inplus = sum(species_1 == 'walleye')) %>%
+  # summarise(count_walleye = sum(species_1 == 'walleye') ) %>%
+  collect()%>% 
+  mutate(count_walleye_13inplus = case_when(nothing_caught == TRUE ~ 0, 
+                               TRUE ~ count_walleye_13inplus)) %>% 
+  mutate(cpue = count_walleye_13inplus/as.numeric(total_effort_1)) %>% 
+  glimpse()
+```
 

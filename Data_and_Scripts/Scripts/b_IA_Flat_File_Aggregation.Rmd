@@ -8,6 +8,11 @@ editor_options:
 ---
 # Preamble
 
+## To Do List
+    1. Need to get a proper effort file. Current fish obs doesn't seem to have many zeros
+    
+
+
 ##Instructions
 This code is written in chunks that each accomplish a task moving towards the goal of a file for each state that encompasses all fish observations made/shared with us. The structure of that observation-level data should be one row per individual fish. By joining these data to the effort info, we will be able to filter and aggregate the data in flexible ways, always bringing along info on how much effort it took to catch each the fish obs (or set of fish).
 
@@ -85,7 +90,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -98,7 +103,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -123,7 +128,7 @@ for(i in 1:n) {
   cde %>% # call data explainer file
     filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
     select_if(~ !any(is.na(.))) %>% 
-    transpose(keep.names = "newname") %>% 
+    data.table::transpose(keep.names = "newname") %>% 
     rename("oldname" = V1) %>% 
     assign("names", ., envir = .GlobalEnv)
   
@@ -191,7 +196,44 @@ for(i in 1:n) {
 #fish obs
 glimpse(ia_fishlengths_24Oct2023)
 
+#do these data contain any no_fish_caught surveys?
+ia_fishlengths_24Oct2023[ , .N , survey_id][ , summary(N)] #every survey has at least one line
+ia_fishlengths_24Oct2023[ , .("countfish" = sum(total_count.1)), survey_id][ , summary(countfish) ,] #none of the surveys show no fish caught
+ia_fishlengths_24Oct2023[, .("countfish" = sum(total_count.1), "countspp" = length(unique(species.1))), site_id.1][ , summary(countfish)] #non of the site_ids seem to show zero either
+ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][ ,summary(N) ] # again, counting N is not relevant bc used binned counts
+ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][ ,summary(countfish) ] # welp..there are some zeros...
 
+ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][countfish == 0 , ,]
+ia_fishlengths_24Oct2023[ total_count.1 == 0 , .N,  ]
+# The zeros that are in here are very limited and I'd suggest they are wonky and inconcistent. 
+
+
+# No they do not. we'll reach out to the IA folks to get a new dataset that gives us all the CPUEs
+
+
+#but for now, I dug Colin Dassow's old cpue file up. Whats that contain?
+ia_cpue_21Aug2021[cpue == 0, .N , ] #almost certainly these are wonky zeros too (incomplete)
+#here's "all" the survey work:
+ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method) ]
+#and here's whats in the fish lengths:
+ia_fishlengths_24Oct2023[ , date_clean := as.IDate(date.1, format = "%m/%d/%Y") , ]
+ia_cpue_21Aug2021[ ,date_clean := as.IDate(date.1, format = "%m/%d/%Y")]
+ia_fishlengths_24Oct2023[ , .N , .(date.1, lake_id,  sampling_method)]
+
+
+#There's no point in comparing these things because we know that the current IA fish obs file does not contain any of the surveys woth status == NOT ACTIVE in the online database/portal 
+ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method) ][!(ia_fishlengths_24Oct2023[ , .N , .(date.1, lake_id,  sampling_method)]), on = .( date.1, lake_id,  sampling_method) , ]
+
+
+##Back to the fish data:
+#where there are surveys, are they there as place holders?
+ia_fishlengths_24Oct2023[total_count.1 == 0, .(survey_id, duplicated(survey_id)) , ]
+ia_fishlengths_24Oct2023[survey_id%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(survey_id) ], .N , survey_id 
+]
+#negative. those are not zero surveys. how about for the site_id.1
+ia_fishlengths_24Oct2023[site_id.1%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(site_id.1) ], .N , site_id.1 
+]
+#not relevant to this cause either!
 
 
 

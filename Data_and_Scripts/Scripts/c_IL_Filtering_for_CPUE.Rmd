@@ -1,0 +1,67 @@
+---
+title: "c_IL_Filtering_for_CPUE"
+author: "Denver Link"
+date: "2023-10-31"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+#Library
+```{r}
+library(tidyverse)
+library(arrow)
+```
+
+#data
+```{r}
+filter_table <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(state == "Illinois")
+
+il_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "il_file_arrow"))
+glimpse(il_data)
+```
+
+#walleye filtering
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "Illinois" & species_1 == "walleye") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  select(-metric,
+         -survey_type.1,
+         -species_1,
+         -month_min,
+         -month_max,
+         -water_temp_min,
+         -water_temp_max,
+         -area_group,
+         -effort_min)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "Illinois" & species_1 == "walleye") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  #fish level parameters of interest 
+  select(state) %>% 
+  distinct() 
+
+#still have to tweak this join
+good_surveys <- il_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                        "survey_type.1",
+                                        "sampling_method",
+                                        "area_group")) %>% 
+  distinct(lake_id,
+           nhdhr.id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  filter(total_effort_1.1 >= effort_min) %>% 
+  collect()
+```
+

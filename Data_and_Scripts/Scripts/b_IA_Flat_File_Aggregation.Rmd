@@ -197,36 +197,38 @@ for(i in 1:n) {
 glimpse(ia_fishlengths_24Oct2023)
 
 #do these data contain any no_fish_caught surveys?
+ia_fishlengths_24Oct2023[total_count.1 == 0, .N] #there are a few zeroes. Let's investigate what they mean...
+
 ia_fishlengths_24Oct2023[ , .N , survey_id][ , summary(N)] #every survey has at least one line
 ia_fishlengths_24Oct2023[ , .("countfish" = sum(total_count.1)), survey_id][ , summary(countfish) ,] #none of the surveys show no fish caught
-ia_fishlengths_24Oct2023[, .("countfish" = sum(total_count.1), "countspp" = length(unique(species.1))), site_id.1][ , summary(countfish)] #non of the site_ids seem to show zero either
-ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][ ,summary(N) ] # again, counting N is not relevant bc used binned counts
-ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][ ,summary(countfish) ] # welp..there are some zeros...
+#any_no_fish_caught in a gear within a survey situation?
+ia_fishlengths_24Oct2023[, .("countfish" = sum(total_count.1), "countspp" = length(unique(species.1))), site_id.1][ , summary(countfish)] #none of the site_ids seem to show zero either
+
+ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][ ,summary(countfish) ] # again, counting N is not relevant bc we're used binned counts. BUT ..there are some zeros...
 
 ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][countfish == 0 , ,]
 ia_fishlengths_24Oct2023[ total_count.1 == 0 , .N,  ]
 # The zeros that are in here are very limited and I'd suggest they are wonky and inconcistent. 
 
+# No theses data do not include seemingly proper zeros. We'll reach out to the IA folks to get a new dataset that gives us all the CPUEs
 
-# No they do not. we'll reach out to the IA folks to get a new dataset that gives us all the CPUEs
 
-
-#but for now, I dug Colin Dassow's old cpue file up. Whats that contain?
-ia_cpue_21Aug2021[cpue == 0, .N , ] #almost certainly these are wonky zeros too (incomplete)
-#here's "all" the survey work:
-ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method) ]
+# #but for now, I dug Colin Dassow's old cpue file up. Whats that contain?
+# ia_cpue_21Aug2021[cpue == 0, .N , ] #almost certainly these are wonky zeros too (incomplete)
+# #here's "all" the survey work:
+# ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method) ]
 #and here's whats in the fish lengths:
 ia_fishlengths_24Oct2023[ , date_clean := as.IDate(date.1, format = "%m/%d/%Y") , ]
-ia_cpue_21Aug2021[ ,date_clean := as.IDate(date.1, format = "%m/%d/%Y")]
-ia_fishlengths_24Oct2023[ , .N , .(date.1, lake_id,  sampling_method)]
-
-
+# ia_cpue_21Aug2021[ ,date_clean := as.IDate(date.1, format = "%m/%d/%Y")]
 #There's no point in comparing these things because we know that the current IA fish obs file does not contain any of the surveys woth status == NOT ACTIVE in the online database/portal 
 ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method) ][!(ia_fishlengths_24Oct2023[ , .N , .(date.1, lake_id,  sampling_method)]), on = .( date.1, lake_id,  sampling_method) , ]
 
 
 ##Back to the fish data:
-#where there are surveys, are they there as place holders?
+ia_fishlengths_24Oct2023[ , .N , .(date.1, date_clean, lake_id,  sampling_method)] #check the date cleaning
+summary(ia_fishlengths_24Oct2023$date_clean) #whoa... the years actually seem reasonable...
+
+#where there are surveys showing zeros, are they there as place holders?
 ia_fishlengths_24Oct2023[total_count.1 == 0, .(survey_id, duplicated(survey_id)) , ]
 ia_fishlengths_24Oct2023[survey_id%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(survey_id) ], .N , survey_id 
 ]
@@ -234,7 +236,52 @@ ia_fishlengths_24Oct2023[survey_id%in%ia_fishlengths_24Oct2023[total_count.1 == 
 ia_fishlengths_24Oct2023[site_id.1%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(site_id.1) ], .N , site_id.1 
 ]
 #not relevant to this cause either!
+#generally, this shows us that the zeros that are in here are somewhat meaningless to our cause.
 
+
+
+
+```
+
+## Restructure the fish obs
+```{r}
+#reorganize this beast:
+cols <- as.character(expression(
+    survey_id, state, county, lake_id, lake_name.1, date_clean, date.1,
+    site_id.1, sampling_method, total_effort_1, distance, 
+    sample_id.1, species.1, length.1, length_unit.1, weight.1, weight_unit.1, sex, total_count.1,
+    aging_structure.1, aging_structure.2, aging_structure.3, 
+    start_time,
+    lake_type, location_notes.1, lat_unspec, lon_unspec, 
+    original_file_name.1))
+
+setcolorder(ia_fishlengths_24Oct2023, cols)
+
+
+# so if we want a fish as rows setup, we uncount on total_count.1 column. How many rows will that generate? Nearly 1m. 
+ia_fishlengths_24Oct2023[ , sum(total_count.1) , ]
+
+#note that we don't care if we drop the zeros that were in here. We don't think they are useful/meaningful anyway.
+ia_fishlengths <- uncount(ia_fishlengths_24Oct2023, weights = total_count.1, .remove = T, .id = "uncount_id")
+
+# of fish per survey
+ia_fishlengths[ , .N , survey_id]
+# of species per survey
+ia_fishlengths[ , length(unique(species.1)) , survey_id ]
+# check that survey Id does what I think it does
+ia_fishlengths[ , length(unique(lake_id,lake_name.1,date_clean)), survey_id ][V1 > 1]
+
+#check other basic cols
+ia_fishlengths[ ,.N , state ]
+ia_fishlengths[ , .N , county ]
+ia_fishlengths[ , .N , .(lake_id, lake_name.1)]
+  ia_fishlengths[ , unique(lake_name.1) , ] #do all lakes have that goofy code in the name?
+  ia_fishlengths[ , lake_name.1 := word(lake_name.1, 1, -2),] #keep words in the string starting at word 1, ending at second to last
+ia_fishlengths[ , .N , year(date_clean) ]
+  
+# site_id is like total_effort_ident, right?
+ia_fishlengths[ , length(unique(sampling_method, survey_id)) , site_id.1][V1>1] #sure looks like it based on this!!!
+ia_fishlengths[ , .N , .(site_id.1, sampling_method, survey_id, total_effort_1) ]
 
 
 ```

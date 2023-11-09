@@ -3678,12 +3678,115 @@ total.ramsey <- mn_data %>%
                                      year_infested > year(date_clean) ~ "Uninvaded",
                                      TRUE ~ NA))
 
+#adding in Mccarron data from field class
+mcn_extra <- read_csv("mccarrons.csv") %>% 
+  select(-`...1`) %>% 
+  mutate(species.1 = case_when(species.1 == "pumpkin_seed" ~ "pumpkinseed",
+                               species.1 == "pumpkin_seed X bluegill" ~ "pumpkinseed x bluegill",
+                               TRUE ~ species.1)) %>% 
+  mutate(species.1 = str_replace(species.1, " ", "_")) %>% 
+  mutate(length.1 = case_when(length_unit.1 %in% c("cm", "UNK") ~ length.1*10,
+                              TRUE ~ length.1)) %>% 
+  mutate(length_unit.1 = case_when(length_unit.1 %in% c("cm", "UNK") ~ "mm",
+                                   TRUE ~ length_unit.1)) %>% 
+  mutate(species_abbrev = case_when(species_abbrev == "PUS" ~ "PMK",
+                                    species.1 == "bluegill_hybrid" ~ "BLG",
+                                    TRUE ~ species_abbrev)) %>% 
+  mutate(total_effort_1.1 = 5,
+         state = "Minnesota",
+         county = "Ramsey",
+         lake_id = "62005400",
+         lake_name.1 = "McCarron",
+         nhdhr.id = "nhdhr_120018084",
+         survey_type.1 = "UMN Field Class",
+         sampling_method = "Standard 3/4-in mesh, double frame trap net sets",
+         sampling_method_abbrev = "TN",
+         effort_units.1 = "set",
+         nothing_caught = "FALSE",
+         target_species = NA,
+         sample_id.1 = NA,
+         age = NA,
+         aging_structure = NA,
+         young_of_year = NA,
+         sex = NA,
+         original_file_name.1_effort = "mccarrons.csv",
+         original_file_name.1_indivfish = "mccarrons.csv",
+         original_file_name.1_histcatch = NA,
+         flag = NA,
+         lake_area_dow_acres = 73,
+         area_group = "<100") %>% 
+  mutate(effort_ident = case_when(date_clean == "2023-09-15" ~ 100000,
+                                  date_clean == "2020-09-04" ~ 100001,
+                                  date_clean == "2023-05-17" ~ 100002)) %>% 
+  mutate(year_infested = case_when(lake_id == "62000200" ~ 2018,
+                                   lake_id == "62006200" ~ 2007,
+                                   lake_id == "62007800" ~ 2018,
+                                   lake_id == "62006700" ~ 2019,
+                                   lake_id == "62005400" ~ 2019,
+                                   lake_id == "62005600" ~ 2021,
+                                   lake_id == "62004600" ~ 2007,
+                                   lake_id == "62002800" ~ 2007,
+                                   lake_id == "62003801" ~ 2007,
+                                   lake_id == "62003802" ~ 2007,
+                                   lake_id == "82016700" ~ 2014,
+                                   TRUE ~ NA)) %>% 
+  mutate(invasion_status = case_when(year_infested <= year(date_clean) ~ "ZM",
+                                     year_infested > year(date_clean) ~ "Uninvaded",
+                                     TRUE ~ NA)) %>% 
+  mutate(nothing_caught = as.logical(nothing_caught))
+
+#how does it look?
+mcn_extra %>% 
+  group_by(date_clean) %>% 
+  count()
+
+mcn_extra %>% 
+  group_by(species.1) %>% 
+  count()
+
+mcn_extra %>% 
+  group_by(species.1) %>% 
+  summarise(mean = mean(length.1),
+            min = min(length.1, na.rm = T),
+            max = max(length.1, na.rm = T))
+
+mcn_extra %>% 
+  group_by(species.1) %>% 
+  filter(!is.na(weight.1)) %>% 
+  count()
+
+mcn_extra %>% 
+  group_by(species_abbrev) %>% 
+  count()
+
 write_csv(total.ramsey, "ramsey_county_fish.csv")
 
 total.ramsey %>% 
-  group_by(lake_name.1) %>% 
+  group_by(lake_name.1, nhdhr.id) %>% 
   summarise(n = n(), invasion = unique(invasion_status)) %>% 
   filter(!is.na(invasion)) %>% 
   print(n = nrow(.))
+
+total.ramsey %>% 
+  group_by(species.1) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+total.ramsey %>% 
+  group_by(length_unit.1) %>% 
+  count()
+
+total.ramsey %>% 
+  group_by(effort_units.1) %>% 
+  count()
+
+total.ramsey %>% 
+  summarise(min = min(effort_ident), max = max(effort_ident))
+
+#combining umn field class and ramsey total
+total.ramsey.field <- bind_rows(mcn_extra, total.ramsey)
+
+write_csv(total.ramsey.field, "ramsey_county_fish.csv")
 ```
 

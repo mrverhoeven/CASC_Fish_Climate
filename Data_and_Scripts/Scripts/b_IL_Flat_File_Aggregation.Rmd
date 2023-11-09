@@ -192,6 +192,10 @@ for(i in 1:n) {
 #aged fish
 glimpse(il_aged_fish_surveys_28Dec2022)
 
+il_aged_fish_surveys_28Dec2022 %>% 
+  group_by(lake_name.1) %>% 
+  count() 
+
 #any na lengths? 
 il_aged_fish_surveys_28Dec2022 %>% 
   filter(is.na(length.1)) %>% 
@@ -282,6 +286,51 @@ il_catch_age_effort_17Jan22 %>%
 ##1. find a survey level grouping that lumps all sub-survey levels (survey_id, year, sampling method)
 ##2.sum the sub-survey level effort (EF runs/number of nets)
 ##3. create a survey level identifier that lumps the sub-survey levels appropriately 
+
+#exploring mismatching surveys that I found while merging fish level effort and survey level effort
+effort.catch <- il_catch_age_effort_17Jan22 %>% 
+  distinct(survey_id, 
+            lake_id,
+             year, 
+               date.1, 
+                sampling_method, 
+                gear_data_notes.1,
+                total_effort_2, 
+                 total_effort_1)
+
+effort.effort <- il_effort_17Jan22 %>% 
+    distinct(survey_id, 
+            lake_id,
+             year, 
+               date.1, 
+                sampling_method, 
+                gear_data_notes.1,
+                total_effort_2, 
+                 total_effort_1)
+
+mismatched.catch <- anti_join(effort.catch, effort.effort) %>% 
+  rename(total_effort_2.catch = total_effort_2, 
+         total_effort_1.catch =  total_effort_1)
+mismatched.effort <- anti_join(effort.effort, effort.catch) %>% 
+  rename(total_effort_2.effort = total_effort_2, 
+         total_effort_1.effort =  total_effort_1)
+
+diff.total <- bind_cols(diff.catch, diff.effort, by = c("survey_id"))
+
+
+sur.503.catch <- effort.catch %>% 
+  filter(survey_id == "Survey_503")
+
+sur.503.effort <- effort.effort %>% 
+  filter(survey_id == "Survey_503")
+#survey503 has different effort in the catch and effort files
+
+lake40.catch <- effort.catch %>% 
+  filter(lake_id == "40")
+
+lake40.effort <- effort.effort %>% 
+  filter(lake_id == "40")
+#several surveys that are mismatched within the same lake here
 ```
 
 
@@ -295,11 +344,11 @@ il_catch_age_effort_17Jan22 <- il_catch_age_effort_17Jan22 %>%
 #collapsing effort from the obs level file 
 survey.effort <- il_effort_17Jan22 %>% 
   #groups all sub-survey level effort into the larger survey
-  group_by(survey_id, lake_id, year, date.1, sampling_method, total_effort_2, total_effort_1, original_file_name.1) %>% 
+  group_by(survey_id, lake_id, year, date.1, sampling_method, gear_data_notes.1, total_effort_2, total_effort_1, original_file_name.1) %>% 
   #count of obs in each survey grouping
   count() %>% 
   #grouping by the survey id, year, and method to get survey level effort from sub-survey level 
-  group_by(survey_id, lake_id, year, sampling_method, original_file_name.1) %>% 
+  group_by(survey_id, lake_id, year, sampling_method, gear_data_notes.1, original_file_name.1) %>% 
   mutate(survey_effort = sum(total_effort_1),
          survey_effort_id = cur_group_id()) %>%  #gives a unique ident to this grouping
   rename(original_file_name.1_effort = original_file_name.1)
@@ -307,16 +356,16 @@ survey.effort <- il_effort_17Jan22 %>%
 #quick gut check on survey-effort aggregation 
 #are there any surveys that have more than one survey level effort?
 survey.effort %>% 
-  group_by(survey_id, sampling_method, survey_effort) %>% 
+  group_by(survey_id, sampling_method, gear_data_notes.1, survey_effort) %>% 
   count() %>% 
-  group_by(survey_id, sampling_method) %>% 
+  group_by(survey_id, sampling_method, gear_data_notes.1) %>% 
   count() %>% 
   filter(n >1)
 
 survey.effort %>% 
-  filter(survey_id %in% c("Survey_1324", "Survey_1390", "Survey_1445",  "Survey_587", "Survey_684"))
+  filter(survey_id %in% c("Survey_1390", "Survey_684"))
 #all of the duplicates have multiple years associated with the same effort so it wont be a problem
-#surveys have two efforts for the survey id but they are in different years or dif
+#surveys have two efforts for the survey id but they are in different years
 #this does not hinder the join as date/year will be included
 
 #joining the survey level effort with the individual fish obs
@@ -326,14 +375,37 @@ il_data <- left_join(survey.effort, il_catch_age_effort_17Jan22, by = c("survey_
                                                                               "year", 
                                                                               "date.1", 
                                                                               "sampling_method", 
+                                                                              "gear_data_notes.1",
                                                                               "total_effort_2", 
                                                                               "total_effort_1")) %>% 
   select(-n) %>% 
   rename(original_file_name.1_indvifish = original_file_name.1)
+#this works, but all of the surveys that did not catch fish are missing important survey information 
+#we want to know the surveys that did not catch fish, extract all information from the original file, put the information back in
 
 #taking a look at efforts without associated fish obs
-no_fish_nets <- il_data %>% 
-  filter(is.na(lake_name.1))
+no_matches <- anti_join(survey.effort, il_catch_age_effort_17Jan22, by = c("survey_id", 
+                                                                        "lake_id",
+                                                                              "year", 
+                                                                              "date.1", 
+                                                                              "sampling_method", 
+                                                                              "gear_data_notes.1",
+                                                                              "total_effort_2", 
+                                                                              "total_effort_1"))
+#this is an object that thas all of the survey that did not catch fish with all of the information
+no_fish <- right_join(il_effort_17Jan22, no_matches, by = c("survey_id", 
+                                                                        "lake_id",
+                                                                              "year", 
+                                                                              "date.1", 
+                                                                              "sampling_method", 
+                                                                              "gear_data_notes.1",
+                                                                              "total_effort_2", 
+                                                                              "total_effort_1"))
+#lake id 4222 in 2015 has multiple surveys of the same effort at the same location
+#returning no fish surveys back into the data
+il_data <- il_data %>% 
+  filter(!is.na(original_file_name.1_indvifish)) 
+il_data <- bind_rows(il_data, no_fish)
 
 #quick glance to see how net efforts are calculating to survey efforts
 effort.check <- il_data %>% 
@@ -345,11 +417,30 @@ il_data %>%
   group_by(original_file_name.1_indvifish) %>% 
   count() %>% 
   print(n = nrow(.))
+#this shows us that there are 227 records that have effort but are not associated with fish
 
 il_data %>% 
   group_by(original_file_name.1_effort) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#all obs have effort associated with them
+
+#fish that are in the catch but are not in the effort?
+excluded <- anti_join(il_catch_age_effort_17Jan22, il_data, by = c("survey_id", 
+                                                                   "lake_id",
+                                                                   "year", 
+                                                                   "date.1", 
+                                                                   "sampling_method", 
+                                                                   "gear_data_notes.1",
+                                                                   "total_effort_2", 
+                                                                   "total_effort_1"))
+surveys.excluded <- excluded %>% 
+  group_by(lake_id, lake_name.1, survey_id, year, sampling_method, gear_data_notes.1, total_effort_2, total_effort_1, species.1) %>% 
   count() 
-#this shows us that there are 227 records that have effort but are not associated with fish 
+
+il_effort_17Jan22 %>% 
+  filter(survey_id == "Survey_1364") %>% 
+  glimpse()
 ``` 
           
           

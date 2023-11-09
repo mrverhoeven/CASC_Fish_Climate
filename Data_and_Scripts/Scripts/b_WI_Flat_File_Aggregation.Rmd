@@ -27,6 +27,8 @@ DONE  10. Flag crazy dates
 DONE  11. Add a nothing_caught tag
 DONE  12. Add NHDids
 DONE  13. cleannames() to colnames
+      14. Update the total effort ident grouping to be at the surveyXgearXdate level
+      
       
 
 # Preamble

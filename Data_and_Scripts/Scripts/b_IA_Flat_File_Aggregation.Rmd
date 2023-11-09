@@ -8,6 +8,11 @@ editor_options:
 ---
 # Preamble
 
+## To Do List
+    1. Need to get a proper effort file. Current fish obs doesn't seem to have many zeros
+    
+
+
 ##Instructions
 This code is written in chunks that each accomplish a task moving towards the goal of a file for each state that encompasses all fish observations made/shared with us. The structure of that observation-level data should be one row per individual fish. By joining these data to the effort info, we will be able to filter and aggregate the data in flexible ways, always bringing along info on how much effort it took to catch each the fish obs (or set of fish).
 
@@ -85,7 +90,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -98,7 +103,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -123,7 +128,7 @@ for(i in 1:n) {
   cde %>% # call data explainer file
     filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
     select_if(~ !any(is.na(.))) %>% 
-    transpose(keep.names = "newname") %>% 
+    data.table::transpose(keep.names = "newname") %>% 
     rename("oldname" = V1) %>% 
     assign("names", ., envir = .GlobalEnv)
   
@@ -191,6 +196,100 @@ for(i in 1:n) {
 #fish obs
 glimpse(ia_fishlengths_24Oct2023)
 
+#do these data contain any no_fish_caught surveys?
+ia_fishlengths_24Oct2023[total_count.1 == 0, .N] #there are a few zeroes. Let's investigate what they mean...
+
+ia_fishlengths_24Oct2023[ , .N , survey_id][ , summary(N)] #every survey has at least one line
+ia_fishlengths_24Oct2023[ , .("countfish" = sum(total_count.1)), survey_id][ , summary(countfish) ,] #none of the surveys show no fish caught
+#any_no_fish_caught in a gear within a survey situation?
+ia_fishlengths_24Oct2023[, .("countfish" = sum(total_count.1), "countspp" = length(unique(species.1))), site_id.1][ , summary(countfish)] #none of the site_ids seem to show zero either
+
+ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][ ,summary(countfish) ] # again, counting N is not relevant bc we're used binned counts. BUT ..there are some zeros...
+
+ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][countfish == 0 , ,]
+ia_fishlengths_24Oct2023[ total_count.1 == 0 , .N,  ]
+# The zeros that are in here are very limited and I'd suggest they are wonky and inconcistent. 
+
+# No these data do not include seemingly proper zeros. We'll reach out to the IA folks to get a new dataset that gives us all the CPUEs
+
+
+# #but for now, I dug Colin Dassow's old cpue file up. Whats that contain? NOte here that the data rip I'm working with in IA has some Active v. non-active status issue that means I can't see all of the fish data. 
+# ia_cpue_21Aug2021[cpue == 0, .N , ] #almost certainly these are wonky zeros too (incomplete)
+# #here's "all" the survey work:
+# ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method) ]
+#and here's whats in the fish lengths:
+ia_fishlengths_24Oct2023[ , date_clean := as.IDate(date.1, format = "%m/%d/%Y") , ]
+# ia_cpue_21Aug2021[ ,date_clean := as.IDate(date.1, format = "%m/%d/%Y")]
+
+#There's no point in comparing these things because we know that the current IA fish obs file does not contain any of the surveys woth status == NOT ACTIVE in the online database/portal 
+# ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method) ][!(ia_fishlengths_24Oct2023[ , .N , .(date.1, lake_id,  sampling_method)]), on = .( date.1, lake_id,  sampling_method) , ]
+
+
+##Back to the fish data:
+ia_fishlengths_24Oct2023[ , .N , .(date.1, date_clean, lake_id,  sampling_method)] #check the date cleaning
+summary(ia_fishlengths_24Oct2023$date_clean) #whoa... the years actually seem reasonable...
+
+#where there are surveys showing zeros, are they there as place holders?
+ia_fishlengths_24Oct2023[total_count.1 == 0, .(survey_id, duplicated(survey_id)) , ]
+ia_fishlengths_24Oct2023[survey_id%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(survey_id) ], .N , survey_id 
+]
+#negative. those are not zero surveys. how about for the site_id.1
+ia_fishlengths_24Oct2023[site_id.1%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(site_id.1) ], .N , site_id.1 
+]
+#not relevant to this cause either!
+#generally, this shows us that the zeros that are in here are somewhat meaningless to our cause.
+
+
+
+
+```
+
+## Restructure the fish obs
+```{r}
+#reorganize this beast:
+cols <- as.character(expression(
+    survey_id, state, county, lake_id, lake_name.1, date_clean, date.1,
+    site_id.1, sampling_method, total_effort_1, distance, 
+    sample_id.1, species.1, length.1, length_unit.1, weight.1, weight_unit.1, sex, total_count.1,
+    aging_structure.1, aging_structure.2, aging_structure.3, 
+    start_time,
+    lake_type, location_notes.1, lat_unspec, lon_unspec, 
+    original_file_name.1))
+
+setcolorder(ia_fishlengths_24Oct2023, cols)
+
+
+# so if we want a fish as rows setup, we uncount on total_count.1 column. How many rows will that generate? Nearly 1m. 
+ia_fishlengths_24Oct2023[ , sum(total_count.1) , ]
+
+#note that we don't care if we drop the zeros that were in here. We don't think they are useful/meaningful anyway.
+ia_fishlengths <- uncount(ia_fishlengths_24Oct2023, weights = total_count.1, .remove = T, .id = "uncount_id")
+
+# of fish per survey
+ia_fishlengths[ , .N , survey_id]
+# of species per survey
+ia_fishlengths[ , length(unique(species.1)) , survey_id ]
+# check that survey Id does what I think it does
+ia_fishlengths[ , length(unique(lake_id,lake_name.1,date_clean)), survey_id ][V1 > 1]# Because there are no cases where a survey id contains multiple cases of lakeXdate, thi suggests to me survey ID does indeed fit with what we think it does
+
+#check other basic cols
+ia_fishlengths[ ,.N , state ]
+ia_fishlengths[ , .N , county ]
+ia_fishlengths[ , .N , .(lake_id, lake_name.1)]
+  ia_fishlengths[ , unique(lake_name.1) , ] #do all lakes have that goofy code in the name?
+  ia_fishlengths[ , lake_name.1 := word(lake_name.1, 1, -2),] #keep words in the string starting at word 1, ending at second to last
+ia_fishlengths[ , .N , year(date_clean) ]
+  
+# site_id is like total_effort_ident, right?
+ia_fishlengths[ , length(unique(sampling_method, survey_id)) , site_id.1][V1>1] #sure looks like it based on this!!!
+ia_fishlengths[ , .N , .(site_id.1, sampling_method, survey_id, total_effort_1) ] # and we seem to have ONE effort value for each of these! What a miracle!
+
+#sampling method
+ia_fishlengths[ , .N , sampling_method ]
+
+
+#fish lengths unpacked, clean up ws
+rm(ia_fishlengths_24Oct2023, ia_diet_21Aug2021, ia_lake_characteristics_21Aug2021, names, unusedbits, cde)
 
 
 
@@ -198,8 +297,107 @@ glimpse(ia_fishlengths_24Oct2023)
 ```
 
 
-# Effort Merge
+# Prep Age Data
 ```{r}
+#We've got three age files, each of them is uniquely messy.
+
+glimpse(ia_age_length_21Aug2021)
+toString(names(ia_age_length_21Aug2021))
+ia_age_length_21Aug2021[ , .N, is.na(date.1) ]
+ia_age_length_21Aug2021[ , .N , survey_type.1]
+ia_age_length_21Aug2021[ , .N , aging_data_notes.3]
+ia_age_length_21Aug2021[ , .N , .(garbage_bin_notes.4, species.1)]
+
+
+#drop a bunch of backcalc cols and other crud
+cols <- as.character(expression(sample_id.1, sample_id.2, sex, lake_id, lake_name.1, county, date.1, garbage_bin_notes.1, garbage_bin_notes.2, garbage_bin_notes.3, year, sampling_method, species.1, length.1,length_unit.1, weight.1, weight_unit.1, age, aging_structure.1, garbage_bin_notes.4, original_file_name.1))
+   
+ia_age_length_21Aug2021 <- ia_age_length_21Aug2021[ , .SD , .SDcols = cols]
+#there, now each fish is a row. Bring in other data
+
+
+#these guys have multiple rows for each fish. We want only the age observed, not the backcalc ages
+head(ia_BLG_age_length_21Aug2021)
+glimpse(ia_BLG_age_length_21Aug2021)
+
+ia_BLG_age_length_21Aug2021[ , .N , sample_id.1 ]
+
+#how to select that: we don't need to do much. each row has the basic info, just take the first of each:
+
+ia_BLG_age_length_21Aug2021[ , .SD[1] , sample_id.1 ]#in each subset print row 1
+ia_BLG_age_length_21Aug2021 <- ia_BLG_age_length_21Aug2021[ , .SD[1] , sample_id.1 ] # in each subset print row 1
+
+#nab out only useful cols:
+toString(names(ia_BLG_age_length_21Aug2021))
+cols <- as.character(expression(sample_id.1, garbage_bin_notes.1, lake_name.1, aging_structure.1, species.1, length.1, weight.1, sex, age, original_file_name.1, length_unit.1, weight_unit.1))
+ia_BLG_age_length_21Aug2021 <- ia_BLG_age_length_21Aug2021[ , .SD , .SDcols = cols]
+
+
+
+
+
+
+
+#date data
+ia[, unique(year)]
+
+#backfill year?
+ia[is.na(year) & !is.na(date.1)]
+#date align with year?
+ia[!is.na(date.1) & !year==year(date.1)]
+
+#lost in garbage can? yes there are some month and season data there, 
+ia[is.na(date.1), date.2 := word(garbage_bin_notes.1, -1, sep = ":"), ]
+ia[is.na(date.1), .N , date.2]
+ia[date.2 == "7", date.2 := "July"]
+ia[date.2 == "6", date.2 := "June"]
+ia[date.2 == "8", date.2 := "August"]
+ia[date.2 == "5", date.2 := "May"]
+ia[date.2 == "NA", date.2 := NA  ]
+ia[is.na(date.1)& is.na(date.2), date.2 := word(garbage_bin_notes.3, -1, sep = ":"), ]
+ia[date.2 == "." , date.2 := NA, ]
+ia[ ,date.2 := tolower(date.2) , ]
+
+ia[is.na(date.1), .N , date.2]
+
+ia[ , date.1 :=  as.IDate(date.1) , ]
+
+ia[, date_clean :=  as.IDate(date.1)]
+
+hist(ia[!is.na(date_clean) ,yday(date_clean)])
+
+#now populate some dates where only mo or season provided (set to 15th if mo given, or season date approximated from histogram here^)
+
+ia_datefill <- transpose(keep.names = "oldname", data.table(fall = "2 Oct",
+                                                          july = "15 July",
+                                                          spring = "20 April",
+                                                          summer = "19 July",
+                                                          june = "15 June",
+                                                          august = "15 August",
+                                                          may = "15 May"))
+ia[ , date.3 := 
+      ia_datefill[match(ia[ ,date.2],ia_datefill[,oldname]) ,
+                V1 , ]
+    , ]
+
+ia[!is.na(year) , date.4 := paste(date.3, year)]
+
+ia[ , .N, date.4]
+
+ia[str_detect(date.4, "NA"), date.4 := NA]
+
+ia[is.na(date_clean) & !is.na(date.4), date_clean := as.IDate(date.4, format = "%d %B %Y") ]
+
+# check coverage
+hist(ia[ ,yday(date_clean)])
+ia[!is.na(date_clean), .N , ]/ia[ , .N , ]
+
+rm(ia_datefill)
+
+# make other dates character strings
+datecols <- colnames(ia)[str_detect(colnames(ia), "date\\.")]
+ia[    , (datecols) := lapply(.SD, as.character)    ,   .SDcols = datecols]
+
 #in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
 
 #grabbing effort from catch file

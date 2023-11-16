@@ -10,6 +10,9 @@ editor_options:
 
 ## To Do List
     1. Need to get a proper effort file. Current fish obs doesn't seem to have many zeros
+    2. Aged fish data need to be plugged in (after completing the organization & join of the multiple age files, BUT we think that we're getting a new age file)
+    3. Total effort 2 ("distance") did not come to us with any units on it
+    4. lengths from binned fish need to be 1) moved over to length col, 2) units rectified (can do this using word and str_detect see code examples in this doc. then split rnage into min_length, max_length and convert those numerics, then re-paste those two cols into a single one. ) 
     
 
 
@@ -248,7 +251,7 @@ ia_fishlengths_24Oct2023[site_id.1%in%ia_fishlengths_24Oct2023[total_count.1 == 
 ```{r}
 #reorganize this beast:
 cols <- as.character(expression(
-    survey_id, state, county, lake_id, lake_name.1, date_clean, date.1,
+    state, county, lake_id, lake_name.1, date_clean, date.1, survey_id,
     site_id.1, sampling_method, total_effort_1, distance, 
     sample_id.1, species.1, length.1, length_unit.1, weight.1, weight_unit.1, sex, total_count.1,
     aging_structure.1, aging_structure.2, aging_structure.3, 
@@ -283,9 +286,89 @@ ia_fishlengths[ , .N , year(date_clean) ]
 # site_id is like total_effort_ident, right?
 ia_fishlengths[ , length(unique(sampling_method, survey_id)) , site_id.1][V1>1] #sure looks like it based on this!!!
 ia_fishlengths[ , .N , .(site_id.1, sampling_method, survey_id, total_effort_1) ] # and we seem to have ONE effort value for each of these! What a miracle!
-
+  setnames(ia_fishlengths, "site_id.1", "total_effort_ident")
+  ia_fishlengths[ , total_effort_1_units := "hours"]
+  ia_fishlengths[ , .N , .(total_effort_ident, total_effort_1, distance, sampling_method, total_effort_1_units) ]
+  ia_fishlengths[ , summary(distance)]
+  setnames(ia_fishlengths, "distance" , "total_effort_2")
+  ia_fishlengths[ , total_effort_2_units := "distance, units unknown"]
+  ia_fishlengths[ , .N , .(total_effort_ident, total_effort_1, total_effort_1_units, total_effort_2, total_effort_2_units, sampling_method) ]
+  
 #sampling method
 ia_fishlengths[ , .N , sampling_method ]
+
+
+#length and weight
+ia_fishlengths[ , `:=` (length_unit.1 = "centimeter", weight_unit.1 = "grams") , ]
+  ia_fishlengths[species.1 == "Walleye", summary(length.1)]
+  
+#species names
+  ia_fishlengths[ , .N , species.1]
+  ia_fishlengths[ , .N , species.1][,species.1]
+    make_clean_names(ia_fishlengths[ , .N , species.1][,species.1])
+  ia_fishlengths[ , species.1 := as.factor(species.1) ,] 
+  setattr(ia_fishlengths$species.1, "levels", make_clean_names(ia_fishlengths[ , .N , species.1][,species.1]))
+  
+
+#sample biological info
+ia_fishlengths[ ,.N , .( is.na(sex)) ]
+ia_fishlengths[ ,.N , .( is.na(aging_structure.1)) ]  
+ia_fishlengths[ ,.N , .( is.na(aging_structure.2)) ]  
+ia_fishlengths[ ,.N , .( is.na(aging_structure.3)) ]#trash
+
+ia_fishlengths[ ,.N , .( is.na(aging_data_notes.1)) ]#trash  
+ia_fishlengths[ ,.N , .( is.na(aging_data_notes.2)) ]#trash  
+ia_fishlengths[ ,.N , .( is.na(aging_data_notes.3)) ]#trash
+
+
+#sample quality notes
+ia_fishlengths[ ,.N , .(garbage_bin_notes.4)]
+ia_fishlengths[ , .N , garbage_bin_notes.5]
+ia_fishlengths[ , .N , garbage_bin_notes.6 ]
+
+ia_fishlengths[garbage_bin_notes.4 == "IsSampleQualityAdequate:FALSE" |
+                garbage_bin_notes.5 == "SamplingIssue:TRUE" ,
+               flag := "sample_issue_state_flagged", ]
+
+#batch counted fish sometimes have lengths (for now we simply move those data over to their own column. In future we'll actually munge them into the length col)
+ia_fishlengths[ , .N , garbage_bin_notes.13]
+  ia_fishlengths[ , batch_l := word(garbage_bin_notes.13, 2, sep = fixed(":")) ,]
+  ia_fishlengths[batch_l == "NA" , batch_l := NA , ]
+  ia_fishlengths[ !is.na(batch_l), .N , .(batch_l,species.1) ]
+  ia_fishlengths[ !is.na(batch_l), .N , .(batch_l) ]
+    ia_fishlengths[ str_detect(batch_l, ".99"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
+    ia_fishlengths[ str_detect(batch_l, ".99"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
+  #convert length to chr to recieve these:
+  # ia_fishlengths[  , length.1:= as.character(length.1)  ,  ]
+  # # now move bin data over there
+  # ia_fishlengths[str_detect(batch_l, ".99")  , `:=` (length.1 = word(batch_l, 1, sep = fixed(".")),
+  #                                                    length_unit.1 = "centimeter",
+  #                                                    batch_l = NA), ]
+  # ia_fishlengths[ str_detect(batch_l, "mm"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
+  #   # now move bin data over there
+  #   ia_fishlengths[str_detect(batch_l, "150mm")  , `:=` (length.1 = word(batch_l, 1, sep = fixed(".")),
+  #                                                      length_unit.1 = "centimeter",
+  #                                                      batch_l = NA), ]
+  # 
+  
+#nothing caught (not yet relevant)
+    ia_fishlengths[ , .N , total_effort_ident][order(N)]
+  
+    
+
+cols <- as.character(expression(
+    state, county, lake_id, lake_name.1, date_clean, date.1, survey_id,
+    total_effort_ident, total_effort_1, total_effort_1_units, total_effort_2, total_effort_2_units, sampling_method,
+    sample_id.1, species.1, length.1, length_unit.1, weight.1, weight_unit.1, sex, batch_l,
+    aging_structure.1, aging_structure.2,
+    start_time,
+    lake_type, location_notes.1, lat_unspec, lon_unspec, 
+    original_file_name.1,
+    flag))
+
+ia_fishlengths <- ia_fishlengths[ , .SD  , .SDcols = cols ]
+#notes on this file: 1) has the binned fish lengths in batch_l column; 2) contains no effort units where nothing was caught; contains no ages for these fish because we're waiting on a new database rip from IA
+
 
 
 #fish lengths unpacked, clean up ws
@@ -294,113 +377,132 @@ rm(ia_fishlengths_24Oct2023, ia_diet_21Aug2021, ia_lake_characteristics_21Aug202
 
 
 
+
 ```
 
 
+# Import/Export files
+
+```{r}
+
+
+#save to disk:
+
+
+
+
+ia_catch_eff <- as_arrow_table(ia_fishlengths)
+
+write_dataset(dataset = ia_catch_eff, path = "Data_and_Scripts/Data/output/ia_file_arrow")
+
+ia_data <- open_dataset("Data_and_Scripts/Data/output/ia_file_arrow")
+
+glimpse(ia_data)
+
+```
+
 # Prep Age Data
 ```{r}
-#We've got three age files, each of them is uniquely messy.
-
-glimpse(ia_age_length_21Aug2021)
-toString(names(ia_age_length_21Aug2021))
-ia_age_length_21Aug2021[ , .N, is.na(date.1) ]
-ia_age_length_21Aug2021[ , .N , survey_type.1]
-ia_age_length_21Aug2021[ , .N , aging_data_notes.3]
-ia_age_length_21Aug2021[ , .N , .(garbage_bin_notes.4, species.1)]
-
-
-#drop a bunch of backcalc cols and other crud
-cols <- as.character(expression(sample_id.1, sample_id.2, sex, lake_id, lake_name.1, county, date.1, garbage_bin_notes.1, garbage_bin_notes.2, garbage_bin_notes.3, year, sampling_method, species.1, length.1,length_unit.1, weight.1, weight_unit.1, age, aging_structure.1, garbage_bin_notes.4, original_file_name.1))
-   
-ia_age_length_21Aug2021 <- ia_age_length_21Aug2021[ , .SD , .SDcols = cols]
-#there, now each fish is a row. Bring in other data
-
-
-#these guys have multiple rows for each fish. We want only the age observed, not the backcalc ages
-head(ia_BLG_age_length_21Aug2021)
-glimpse(ia_BLG_age_length_21Aug2021)
-
-ia_BLG_age_length_21Aug2021[ , .N , sample_id.1 ]
-
-#how to select that: we don't need to do much. each row has the basic info, just take the first of each:
-
-ia_BLG_age_length_21Aug2021[ , .SD[1] , sample_id.1 ]#in each subset print row 1
-ia_BLG_age_length_21Aug2021 <- ia_BLG_age_length_21Aug2021[ , .SD[1] , sample_id.1 ] # in each subset print row 1
-
-#nab out only useful cols:
-toString(names(ia_BLG_age_length_21Aug2021))
-cols <- as.character(expression(sample_id.1, garbage_bin_notes.1, lake_name.1, aging_structure.1, species.1, length.1, weight.1, sex, age, original_file_name.1, length_unit.1, weight_unit.1))
-ia_BLG_age_length_21Aug2021 <- ia_BLG_age_length_21Aug2021[ , .SD , .SDcols = cols]
-
-
+# #We've got three age files, each of them is uniquely messy. This first block is built to start cleaning them
+# 
+# glimpse(ia_age_length_21Aug2021)
+# toString(names(ia_age_length_21Aug2021))
+# ia_age_length_21Aug2021[ , .N, is.na(date.1) ]
+# ia_age_length_21Aug2021[ , .N , survey_type.1]
+# ia_age_length_21Aug2021[ , .N , aging_data_notes.3]
+# ia_age_length_21Aug2021[ , .N , .(garbage_bin_notes.4, species.1)]
+# 
+# 
+# #drop a bunch of backcalc cols and other crud
+# cols <- as.character(expression(sample_id.1, sample_id.2, sex, lake_id, lake_name.1, county, date.1, garbage_bin_notes.1, garbage_bin_notes.2, garbage_bin_notes.3, year, sampling_method, species.1, length.1,length_unit.1, weight.1, weight_unit.1, age, aging_structure.1, garbage_bin_notes.4, original_file_name.1))
+#    
+# ia_age_length_21Aug2021 <- ia_age_length_21Aug2021[ , .SD , .SDcols = cols]
+# #there, now each fish is a row. Bring in other data
+# 
+# 
+# #these guys have multiple rows for each fish. We want only the age observed, not the backcalc ages
+# head(ia_BLG_age_length_21Aug2021)
+# glimpse(ia_BLG_age_length_21Aug2021)
+# 
+# ia_BLG_age_length_21Aug2021[ , .N , sample_id.1 ]
+# 
+# #how to select that: we don't need to do much. each row has the basic info, just take the first of each:
+# 
+# ia_BLG_age_length_21Aug2021[ , .SD[1] , sample_id.1 ]#in each subset print row 1
+# ia_BLG_age_length_21Aug2021 <- ia_BLG_age_length_21Aug2021[ , .SD[1] , sample_id.1 ] # in each subset print row 1
+# 
+# #nab out only useful cols:
+# toString(names(ia_BLG_age_length_21Aug2021))
+# cols <- as.character(expression(sample_id.1, garbage_bin_notes.1, lake_name.1, aging_structure.1, species.1, length.1, weight.1, sex, age, original_file_name.1, length_unit.1, weight_unit.1))
+# ia_BLG_age_length_21Aug2021 <- ia_BLG_age_length_21Aug2021[ , .SD , .SDcols = cols]
 
 
 
 
-
-#date data
-ia[, unique(year)]
-
-#backfill year?
-ia[is.na(year) & !is.na(date.1)]
-#date align with year?
-ia[!is.na(date.1) & !year==year(date.1)]
-
-#lost in garbage can? yes there are some month and season data there, 
-ia[is.na(date.1), date.2 := word(garbage_bin_notes.1, -1, sep = ":"), ]
-ia[is.na(date.1), .N , date.2]
-ia[date.2 == "7", date.2 := "July"]
-ia[date.2 == "6", date.2 := "June"]
-ia[date.2 == "8", date.2 := "August"]
-ia[date.2 == "5", date.2 := "May"]
-ia[date.2 == "NA", date.2 := NA  ]
-ia[is.na(date.1)& is.na(date.2), date.2 := word(garbage_bin_notes.3, -1, sep = ":"), ]
-ia[date.2 == "." , date.2 := NA, ]
-ia[ ,date.2 := tolower(date.2) , ]
-
-ia[is.na(date.1), .N , date.2]
-
-ia[ , date.1 :=  as.IDate(date.1) , ]
-
-ia[, date_clean :=  as.IDate(date.1)]
-
-hist(ia[!is.na(date_clean) ,yday(date_clean)])
-
-#now populate some dates where only mo or season provided (set to 15th if mo given, or season date approximated from histogram here^)
-
-ia_datefill <- transpose(keep.names = "oldname", data.table(fall = "2 Oct",
-                                                          july = "15 July",
-                                                          spring = "20 April",
-                                                          summer = "19 July",
-                                                          june = "15 June",
-                                                          august = "15 August",
-                                                          may = "15 May"))
-ia[ , date.3 := 
-      ia_datefill[match(ia[ ,date.2],ia_datefill[,oldname]) ,
-                V1 , ]
-    , ]
-
-ia[!is.na(year) , date.4 := paste(date.3, year)]
-
-ia[ , .N, date.4]
-
-ia[str_detect(date.4, "NA"), date.4 := NA]
-
-ia[is.na(date_clean) & !is.na(date.4), date_clean := as.IDate(date.4, format = "%d %B %Y") ]
-
-# check coverage
-hist(ia[ ,yday(date_clean)])
-ia[!is.na(date_clean), .N , ]/ia[ , .N , ]
-
-rm(ia_datefill)
-
-# make other dates character strings
-datecols <- colnames(ia)[str_detect(colnames(ia), "date\\.")]
-ia[    , (datecols) := lapply(.SD, as.character)    ,   .SDcols = datecols]
-
-#in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
-
-#grabbing effort from catch file
+# This code in borrowed from the growth munging file.   
+# #date data
+# ia[, unique(year)]
+# 
+# #backfill year?
+# ia[is.na(year) & !is.na(date.1)]
+# #date align with year?
+# ia[!is.na(date.1) & !year==year(date.1)]
+# 
+# #lost in garbage can? yes there are some month and season data there, 
+# ia[is.na(date.1), date.2 := word(garbage_bin_notes.1, -1, sep = ":"), ]
+# ia[is.na(date.1), .N , date.2]
+# ia[date.2 == "7", date.2 := "July"]
+# ia[date.2 == "6", date.2 := "June"]
+# ia[date.2 == "8", date.2 := "August"]
+# ia[date.2 == "5", date.2 := "May"]
+# ia[date.2 == "NA", date.2 := NA  ]
+# ia[is.na(date.1)& is.na(date.2), date.2 := word(garbage_bin_notes.3, -1, sep = ":"), ]
+# ia[date.2 == "." , date.2 := NA, ]
+# ia[ ,date.2 := tolower(date.2) , ]
+# 
+# ia[is.na(date.1), .N , date.2]
+# 
+# ia[ , date.1 :=  as.IDate(date.1) , ]
+# 
+# ia[, date_clean :=  as.IDate(date.1)]
+# 
+# hist(ia[!is.na(date_clean) ,yday(date_clean)])
+# 
+# #now populate some dates where only mo or season provided (set to 15th if mo given, or season date approximated from histogram here^)
+# 
+# ia_datefill <- transpose(keep.names = "oldname", data.table(fall = "2 Oct",
+#                                                           july = "15 July",
+#                                                           spring = "20 April",
+#                                                           summer = "19 July",
+#                                                           june = "15 June",
+#                                                           august = "15 August",
+#                                                           may = "15 May"))
+# ia[ , date.3 := 
+#       ia_datefill[match(ia[ ,date.2],ia_datefill[,oldname]) ,
+#                 V1 , ]
+#     , ]
+# 
+# ia[!is.na(year) , date.4 := paste(date.3, year)]
+# 
+# ia[ , .N, date.4]
+# 
+# ia[str_detect(date.4, "NA"), date.4 := NA]
+# 
+# ia[is.na(date_clean) & !is.na(date.4), date_clean := as.IDate(date.4, format = "%d %B %Y") ]
+# 
+# # check coverage
+# hist(ia[ ,yday(date_clean)])
+# ia[!is.na(date_clean), .N , ]/ia[ , .N , ]
+# 
+# rm(ia_datefill)
+# 
+# # make other dates character strings
+# datecols <- colnames(ia)[str_detect(colnames(ia), "date\\.")]
+# ia[    , (datecols) := lapply(.SD, as.character)    ,   .SDcols = datecols]
+# 
+# #in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
+# 
+# #grabbing effort from catch file
 
 
 ``` 
@@ -606,30 +708,6 @@ ia[    , (datecols) := lapply(.SD, as.character)    ,   .SDcols = datecols]
 
 ```
 
-
-# Import/Export files
-
-```{r}
-
-
-#save to disk:
-
-# saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
-# mi_catch_eff_merge <- readRDS(file = "Data_and_Scripts\\Data\\output\\mi_flat_effort_indivfish_merge.rds")
-
-
-str(mi_catch_eff_merge)
-
-
-mi_catch_eff_merge <- as_arrow_table(mi_catch_eff_merge)
-
-write_dataset(dataset = mi_catch_eff_merge, path = "Data_and_Scripts/Data/output/mi_file_arrow")
-
-mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
-
-glimpse(mi_data)
-
-```
 
 
 

@@ -28,6 +28,12 @@ DONE  11. Add a nothing_caught tag
 DONE  12. Add NHDids
 DONE  13. cleannames() to colnames
       14. Update the total effort ident grouping to be at the surveyXgearXdate level
+      15. Update the WI data to include all species sent by Paul F in November 2023
+      16. Why are no cisco showing up in WI?
+            Currently we do have about 30 ish surveys in there  
+            Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
+      17. 
+
       
       
 

@@ -22,6 +22,16 @@ mi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab",
 glimpse(mi_data)
 ```
 
+#looking at the data
+```{r}
+#effort with sampling types
+mi_data %>% 
+  group_by(sampling_method, effort_units.1) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+```
+
 #walleye filtering 
 ```{r}
 #filters for metric (adult abundance) and selects columns needed for survey filtering
@@ -100,7 +110,6 @@ adult_walleye <- mi_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_walleye)
 
 #checking final filter
 adult_walleye %>% 
@@ -180,6 +189,10 @@ adult_walleye_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+adult_walleye %>% 
+  group_by(species.1, nothing_caught) %>% 
+  count()
 ```
 
 #black crappie filtering 
@@ -253,14 +266,13 @@ good_surveys %>%
 
 
 adult_black_crappie <- mi_data %>% 
-  #making the state varaible the same for all rows
+  #making the state variable the same for all rows
   mutate(state = "Michigan") %>% 
   #filter the Wisconsin data set for surveys that were good for species abundance
   right_join(good_surveys) %>% 
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_black_crappie)
 
 #checking final filter
 adult_black_crappie %>% 
@@ -339,6 +351,10 @@ adult_black_crappie_cpue %>%
 adult_black_crappie_cpue %>% 
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
+  count()
+
+adult_black_crappie %>% 
+  group_by(nothing_caught, species.1) %>% 
   count()
 ```
 
@@ -500,6 +516,10 @@ adult_bluegill_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(sampling_method, cpue) %>% 
   count()
+
+adult_bluegill %>% 
+  group_by(species.1, nothing_caught) %>% 
+  count()
 ```
 
 #cisco filtering 
@@ -660,6 +680,10 @@ adult_cisco_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(sampling_method, cpue) %>% 
   count()
+
+adult_cisco %>% 
+  group_by(nothing_caught, species.1) %>% 
+  count()
 ```
 
 #largemouth filtering 
@@ -740,7 +764,6 @@ adult_largemouth <- mi_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_largemouth)
 
 #checking final filter
 adult_largemouth %>% 
@@ -819,6 +842,10 @@ adult_largemouth_cpue %>%
 adult_largemouth_cpue %>% 
   filter(nothing_caught == "TRUE") %>% 
   group_by(sampling_method, cpue) %>% 
+  count()
+
+adult_largemouth %>% 
+  group_by(species.1, nothing_caught) %>% 
   count()
 ```
 
@@ -900,7 +927,6 @@ adult_smallmouth <- mi_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_smallmouth)
 
 #checking final filter
 adult_smallmouth %>% 
@@ -979,6 +1005,10 @@ adult_smallmouth_cpue %>%
 adult_smallmouth_cpue %>% 
   filter(nothing_caught == "TRUE") %>% 
   group_by(sampling_method, cpue) %>% 
+  count()
+
+adult_smallmouth %>% 
+  group_by(nothing_caught, species.1) %>% 
   count()
 ```
 
@@ -1060,7 +1090,6 @@ adult_northern_pike <- mi_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_northern_pike)
 
 #checking final filter
 adult_northern_pike %>% 
@@ -1139,6 +1168,10 @@ adult_northern_pike_cpue %>%
 adult_northern_pike_cpue %>% 
   filter(nothing_caught == "TRUE") %>% 
   group_by(sampling_method, cpue) %>% 
+  count()
+
+adult_northern_pike %>% 
+  group_by(species.1, nothing_caught) %>% 
   count()
 ```
 
@@ -1220,7 +1253,6 @@ adult_yellow_perch <- mi_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_yellow_perch)
 
 #checking final filter
 adult_yellow_perch %>% 
@@ -1299,6 +1331,10 @@ adult_yellow_perch_cpue %>%
 adult_yellow_perch_cpue %>% 
   filter(nothing_caught == "TRUE") %>% 
   group_by(sampling_method, cpue) %>% 
+  count()
+
+adult_yellow_perch %>% 
+  group_by(species.1, nothing_caught) %>% 
   count()
 ```
 

@@ -14,24 +14,28 @@ library(tidyverse)
 
 #data
 ```{r}
-wi <- read_csv("WI_all_cpue_filtered.csv") %>% 
-  select(lake_id, nhdhr_id, sampling_method, date_1, total_effort_1, species_1, count, cpue) %>% 
+wi <- read_csv("WI_all_cpue_filtered.csv") %>%
+  select(lake_id, nhdhr_id, sampling_method, date_1, total_effort_1, species_1, count, cpue, total_effort_1_units) %>% 
   mutate(lake_id = as.character(lake_id),
-         state = "Wisconsin") 
+         state = "Wisconsin") %>% 
+  rename(nhdhr.id = nhdhr_id,
+         effort_units.1 = total_effort_1_units)
 mn <- read_csv("MN_all_cpue_filtered.csv") %>% 
-  select(lake_id, nhdhr.id, sampling_method, date_clean, total_effort_1.1, count, cpue, species_1)  %>% 
+  select(lake_id, nhdhr.id, sampling_method, date_clean, total_effort_1.1, count, cpue, species_1, effort_units.1)  %>% 
   mutate(lake_id = as.character(lake_id),
          state = "Minnesota") %>% 
   rename(date_1 = date_clean, 
          total_effort_1 = total_effort_1.1)
 mi <- read_csv("MI_all_cpue_filtered.csv") %>% 
-  select(lake_id, nhdhr.id, sampling_method, date.1, total_effort_1.1_effort, count, cpue, species_1) %>% 
+  select(lake_id, nhdhr.id, sampling_method, date.1, total_effort_1.1_effort, count, cpue, species_1, effort_units.1) %>% 
   rename(date_1 = date.1,
          total_effort_1 = total_effort_1.1_effort) %>% 
   mutate(state = "Michigan")
 
 #combined
 cross_state <- bind_rows(wi, mn, mi)
+write_csv(cross_state, "mn_wi_mi_filtered_cpue_11NOV23.csv")
+glimpse(cross_state)
 ```
 
 
@@ -179,7 +183,7 @@ cross_state %>%
 
 #histogram of timing
 
-#not sure why this plot is showing up funky? - michigan?
+#not sure why this plot is showing up funky? - Michigan?
 cross_state %>% 
   mutate(julian_day = yday(date_1)) %>% 
   ggplot() +
@@ -197,5 +201,3 @@ cross_state %>%
   geom_histogram(aes(julian_day, fill = state), binwidth = 5) +
   facet_wrap(~state)
 ```
-
-

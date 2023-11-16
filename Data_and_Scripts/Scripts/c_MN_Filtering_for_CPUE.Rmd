@@ -7,9 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-#need to get water temp in to filter for min water temp
-#na values for cpue
-
 #Library
 ```{r}
 library(tidyverse)
@@ -109,7 +106,6 @@ adult_walleye <- mn_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_walleye)
 
 #checking final filter
 adult_walleye %>% 
@@ -187,6 +183,13 @@ adult_walleye_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+adult_walleye %>% 
+  group_by(species.1, nothing_caught) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+rm(adult_walleye)
 ```
 
 #black crappie filtering
@@ -267,7 +270,6 @@ adult_black_crappie <- mn_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_black_crappie)
 
 #checking final filter
 adult_black_crappie %>% 
@@ -345,6 +347,8 @@ adult_black_crappie_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+rm(adult_black_crappie)
 ```
 
 #bluegill filtering
@@ -425,7 +429,6 @@ adult_bluegill <- mn_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_bluegill)
 
 #checking final filter
 adult_bluegill %>% 
@@ -503,6 +506,8 @@ adult_bluegill_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+rm(adult_bluegill)
 ```
 
 #largemouth filtering
@@ -583,7 +588,6 @@ adult_largemouth <- mn_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_largemouth)
 
 #checking final filter
 adult_largemouth %>% 
@@ -661,6 +665,8 @@ adult_largemouth_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+rm(adult_largemouth)
 ```
 
 #smallmouth filtering
@@ -741,7 +747,7 @@ adult_smallmouth <- mn_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_smallmouth)
+
 
 #checking final filter
 adult_smallmouth %>% 
@@ -819,6 +825,8 @@ adult_smallmouth_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+rm(adult_smallmouth)
 ```
 
 #cisco filtering
@@ -895,7 +903,7 @@ adult_cisco <- mn_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_cisco)
+
 
 #checking final filter
 adult_cisco %>% 
@@ -973,6 +981,8 @@ adult_cisco_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+rm(adult_cisco)
 ```
 
 #northern pike filtering
@@ -1052,7 +1062,6 @@ adult_northern_pike <- mn_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_cisco)
 
 #checking final filter
 adult_northern_pike %>% 
@@ -1130,6 +1139,8 @@ adult_northern_pike_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+rm(adult_northern_pike)
 ```
 
 #yellow perch filtering
@@ -1209,7 +1220,7 @@ adult_yellow_perch <- mn_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_yellow_perch)
+
 
 #checking final filter
 adult_yellow_perch %>% 
@@ -1287,6 +1298,8 @@ adult_yellow_perch_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+rm(adult_yellow_perch)
 ```
 
 #combining species
@@ -1307,29 +1320,5 @@ mn_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "northern_pike"), 
                                  adult_yellow_perch_cpue %>% 
                                    mutate(species_1 = "yellow_perch"))
-
-#to save memory
-half <- bind_rows(adult_walleye_cpue %>% 
-                                   mutate(species_1 = "walleye"), 
-                                 adult_bluegill_cpue %>% 
-                                   mutate(species_1 = "bluegill"), 
-                                 adult_black_crappie_cpue %>% 
-                                   mutate(species_1 = "black_crappie"),
-                                 adult_largemouth_cpue %>% 
-                                   mutate(species_1 = "largemouth_bass"))
-write_csv(half, "half_cpue_mn.csv")
-half.2 <- bind_rows( adult_smallmouth_cpue %>% 
-                       mutate(species_1 = "smallmouth_bass"), 
-                     adult_cisco_cpue %>% 
-                       mutate(species_1 = "cisco"), 
-                     adult_northern_pike_cpue %>% 
-                       mutate(species_1 = "northern_pike"), 
-                     adult_yellow_perch_cpue %>% 
-                       mutate(species_1 = "yellow_perch"))
-write_csv(half.2, "half.2_cpue_mn.csv")
-
-half <- read_csv("half_cpue_mn.csv")
-half.2 <- read_csv("half.2_cpue_mn.csv")
-mn_filter_species <- rbind(half, half.2)
-write_csv(mn_filter_species, "MN_all_cpue_filtered.csv")
+write_csv(mn_filtered_species, "MN_all_cpue_filtered.csv")
 ```

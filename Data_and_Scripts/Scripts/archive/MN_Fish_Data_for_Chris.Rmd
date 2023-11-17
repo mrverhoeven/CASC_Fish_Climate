@@ -1,0 +1,184 @@
+---
+title: "MN_Data_for_Chris"
+author: "Holly Kundel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+This data is for Chris' work on his PGA modeling in MN
+
+Load in required packages
+```{r}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+```
+
+
+Data Chris was previously using for reference
+```{r}
+Chris_MN_fish_3.23.22 <- read_csv("~/CASC/CASC_Fish_Abundance/Practice_MN_Fish_3.25.22.csv")
+```
+
+Columns:
+- DOW
+- COMMON_NAME
+- SURVEYDATE
+- TOTAL_CATCH
+- EFFORT
+- CPUE
+- GEAR
+
+Read in raw MN Data
+```{r, warning=FALSE}
+GN_TN <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GNTN-SURVEYS.csv")
+
+GDE_GSH <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
+
+#just using GN and TN
+#Electrofishing_catch <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/ELECTROFISHING_CATCH_LMB_SMB.csv")
+
+#Electrofishing_effort <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/ELECTROFISHING_EFFORT.csv")
+```
+
+Combine GN, TN, GDE, GSH into one df
+```{r}
+all_GN_TN <- bind_rows(GN_TN, GDE_GSH)
+
+# create separate df of just surveys aka they survey effort
+Effort_GN_TN <-  all_GN_TN %>%
+  select(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>%
+  group_by(SURVEY_ID, SURVEYDATE, SURVEYTYPE, DOW, LKNAME, YEAR, GEAR, EFFORT)%>%
+  summarise(NUMBER_OF_SP = n())%>%
+  select(-NUMBER_OF_SP)%>%
+  filter(SURVEYTYPE %in% c("Population Assessment", "Re-Survey", "Standard Survey", "Special Assessment", "Targeted Survey", "Large Lake Survey", "Research Survey", "Initial Survey"))%>%
+  mutate(SURVEY_ID_GEAR = str_c(SURVEY_ID, GEAR, sep = "_"))
+```
+
+Add instances of zero catch to all GN (GDE and GSH included) and TN didn't work
+```{r}
+Wide_catch <- all_GN_TN %>%
+  select(SURVEY_ID, GEAR, COMMON_NAME, TOTAL_CATCH)%>%
+  mutate(ID = str_c(SURVEY_ID, GEAR, COMMON_NAME))%>%
+  pivot_wider(id_cols = ID, names_from = COMMON_NAME, values_from = TOTAL_CATCH, values_fill = 0)
+
+#mutate(SURVEY_ID_GEAR = str_c(SURVEY_ID, GEAR, sep = "_"))%>% select(SURVEY_ID_GEAR, COMMON_NAME, TOTAL_CATCH) %>%
+```
+
+```{r}
+Expanded_Catch <- all_GN_TN %>%
+  select(SURVEY_ID, GEAR, COMMON_NAME, TOTAL_CATCH) %>%
+  mutate(SURVEY_ID_GEAR = str_c(SURVEY_ID, GEAR, sep = "_"))%>%
+  select(SURVEY_ID_GEAR, COMMON_NAME, TOTAL_CATCH) %>%
+  expand(SURVEY_ID_GEAR, COMMON_NAME)#note some dates appear in the COMMON_NAME column..?
+
+Catch <- all_GN_TN %>%
+  select(SURVEY_ID, GEAR, COMMON_NAME, TOTAL_CATCH) %>%
+  mutate(SURVEY_ID_GEAR = str_c(SURVEY_ID, GEAR, sep = "_"))%>%
+  select(SURVEY_ID_GEAR, COMMON_NAME, TOTAL_CATCH)
+
+Catch_w_zeros <- Expanded_Catch %>%
+  left_join(Catch, by = c("SURVEY_ID_GEAR", "COMMON_NAME"))%>%
+  mutate(TOTAL_CATCH = replace_na(TOTAL_CATCH, 0))
+
+CPUE_GN_TN_all_sp <- Catch_w_zeros %>%
+  left_join(Effort_GN_TN, by = "SURVEY_ID_GEAR")%>%
+  mutate(CPUE = TOTAL_CATCH/EFFORT)%>%
+  filter(COMMON_NAME != "7/12/2010")
+
+CPUE_GN_TN_target_sp <- CPUE_GN_TN_all_sp %>%
+  filter(COMMON_NAME %in% c("bluegill", "black crappie", "largemouth bass", "northern pike", "smallmouth bass", "walleye", "yellow perch"))%>%
+  rename(GEAR_SPECIFIC = GEAR)%>%
+  mutate(GEAR = case_when(GEAR_SPECIFIC == "GN" ~"GN",
+                                   GEAR_SPECIFIC == "GDE" ~ "GN",
+                                   GEAR_SPECIFIC == "GSH" ~ "GN",
+                                   GEAR_SPECIFIC == "TN" ~ "TN"))%>%
+  select(DOW, COMMON_NAME, SURVEYDATE, TOTAL_CATCH, EFFORT, CPUE, GEAR, GEAR_SPECIFIC)
+  
+```
+
+Add covariates
+```{r}
+mn_lake_list_info <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/mn_lake_list_info.csv")
+
+MN_lake_info <- mn_lake_list_info %>%
+  select(DOW, MAX_DEPTH_FEET, LAKE_AREA_GIS_ACRES, LAKE_CENTER_UTM_EASTING, LAKE_CENTER_UTM_NORTHING, LAKE_CENTER_LAT_DD5, LAKE_CENTER_LONG_DD5)
+
+MN_Fish_GN_TN <- CPUE_GN_TN_target_sp %>%
+  left_join(MN_lake_info, by = "DOW")
+
+write_csv(MN_Fish_GN_TN, "MN_Fish_GN_TN_Jan.12.23.csv")
+```
+
+
+
+Below is a horrible failure of using the expand function
+```{r}
+MN_all_potential_surveys <- all_GN_TN %>%
+  expand(DOW, YEAR, GEAR, COMMON_NAME) #329,472,000 total
+  
+# If we decide to try more species, add those here
+MN_expand_target_sp <- MN_all_potential_surveys %>%
+  filter(COMMON_NAME %in% c("bluegill", "black crappie", "largemouth bass", "northern pike", "smallmouth bass", "walleye", "yellow perch")) %>% #17,740,800
+  filter(GEAR %in% c("GN", "GDE", "GSH", "TN")) #3,548,160 was putting sp name in gear category..?
+
+Catch_GN_TN <- all_GN_TN %>%
+  select(1:3, 6,7,10,12)
+
+Catch_long_GN_TN <- MN_expand_target_sp %>%
+  left_join(Catch_GN_TN, by = c("DOW", "YEAR", "GEAR"))%>%
+  mutate(TOTAL_CATCH = replace_na(TOTAL_CATCH, 0))%>%
+  pivot_longer(cols = c(COMMON_NAME.x, COMMON_NAME.y), names_to = "Name", values_to = "COMMON_NAME")%>%
+  drop_na(COMMON_NAME)%>%
+  select(-Name)%>%
+  distinct(.keep_all = TRUE)%>%
+  select(DOW, YEAR, GEAR, TOTAL_CATCH, COMMON_NAME)%>%
+  group_by(DOW, YEAR, GEAR, COMMON_NAME)%>%
+  summarise(TOTAL_CATCH = sum(TOTAL_CATCH))
+
+
+GN_TN_CPUE <- Effort_GN_TN %>%
+  left_join(Catch_long_GN_TN, by = c("DOW", "YEAR", "GEAR"))
+```
+
+```{r}
+EF_catch_total <- Electrofishing_catch %>%
+  group_by(SURVEY_ID, SP)%>%
+  summarize(TOTAL_CATCH = n())%>%
+  mutate(COMMON_NAME = case_when(SP == "LMB" ~ "largemouth bass",
+                                 SP == "SMB" ~ "smallmouth bass",
+                                 TRUE ~ "NA"))
+
+EF_LMB_SMB <- Electrofishing_effort %>%
+  left_join(EF_catch_total, by = "SURVEY_ID")%>%
+  drop_na(SP)%>%
+  mutate(GEAR = "EF")%>%
+  rename(LKNAME = WATER_BODY_NAME, DOW = DOW_KITTLE, SURVEYTYPE =SURVEY_TYPE_NAME, SURVEYDATE = SURVEY_ID_DATE, YEAR = SURVEY_YEAR)%>%
+  mutate(CPUE = TOTAL_CATCH/EFFORT)%>%
+  select(SURVEY_ID, LKNAME, DOW, SURVEYTYPE, SURVEYDATE, COMMON_NAME, GEAR, CPUE, EFFORT, TOTAL_CATCH, YEAR )%>%
+  left_join(MN_lake_info, by = "DOW")
+
+
+write_csv(EF_LMB_SMB, "MN_EF_LMB_SMB_Jan.12.23.csv")
+```
+
+Combine GN, TN, and EF
+* change gear to GN, TN, EF, and have more specific under new column "gear_specific"
+```{r}
+# Note survey ID 4421012345764001 is entered wrong, remove it
+```
+
+
+checking MN DoWs that don't have an NHD ID 1/18/23
+```{r}
+noNHDID <- read_csv("Data_and_Scripts/Data/noNHDID.csv")
+
+no_NHD <- noNHDID %>%
+  mutate(DOW_8 = str_sub(DOW, -8))%>%
+  mutate(DOW_08 = str_replace(DOW_8, "_", "0"))%>%
+  mutate(child_DOW = str_detect(DOW_08, "[:digit:][:digit:][:digit:][:digit:][:digit:][:digit:][:digit:][1-9]"))%>%
+  filter(child_DOW == TRUE)
+
+write_csv(no_NHD, "no_NHD_short.csv")
+```
+

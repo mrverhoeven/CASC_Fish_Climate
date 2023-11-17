@@ -1,0 +1,201 @@
+---
+title: "d_filtered_state_combining"
+author: "Denver Link"
+date: "2023-10-31"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+#library 
+```{r}
+library(tidyverse)
+```
+
+#data
+```{r}
+wi <- read_csv("WI_all_cpue_filtered.csv") %>% 
+  select(lake_id, nhdhr_id, sampling_method, date_1, total_effort_1, species_1, count, cpue) %>% 
+  mutate(lake_id = as.character(lake_id),
+         state = "Wisconsin") 
+mn <- read_csv("MN_all_cpue_filtered.csv") %>% 
+  select(lake_id, nhdhr.id, sampling_method, date_clean, total_effort_1.1, count, cpue, species_1)  %>% 
+  mutate(lake_id = as.character(lake_id),
+         state = "Minnesota") %>% 
+  rename(date_1 = date_clean, 
+         total_effort_1 = total_effort_1.1)
+mi <- read_csv("MI_all_cpue_filtered.csv") %>% 
+  select(lake_id, nhdhr.id, sampling_method, date.1, total_effort_1.1_effort, count, cpue, species_1) %>% 
+  rename(date_1 = date.1,
+         total_effort_1 = total_effort_1.1_effort) %>% 
+  mutate(state = "Michigan")
+
+#combined
+cross_state <- bind_rows(wi, mn, mi)
+```
+
+
+#map of cpue by state
+```{r}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(stringr)
+library(maps) #to pull in the map data for geom_polygon
+library(colorspace) #package with color palettes to choose from
+library(viridis) #more color palettes
+
+# lake info from LAGOS, https://portal.edirepository.org/nis/mapbrowse?packageid=edi.854.1 (want 'lake_information' file)
+lagos_lake_info <- read_csv("LAGOS_lake_information_20Oct2023.csv")
+nhd_lat_longs <- lagos_lake_info %>%
+  select(lake_nhdid, lake_lat_decdeg, lake_lon_decdeg) #removes unnecessary columns
+
+wi_cpue_lat_long <- wi %>%
+  mutate(lake_nhdid = str_replace(nhdhr_id, "nhdhr_", "")) %>%  #remove nhdhr_ prefix from id
+  left_join(nhd_lat_longs, by = "lake_nhdid")
+mn_cpue_lat_long <- mn %>% 
+  mutate(lake_nhdid = str_replace(nhdhr.id, "nhdhr_", "")) %>%    #remove nhdhr_ prefix from id
+  left_join(nhd_lat_longs, by = "lake_nhdid")
+mi_cpue_lat_long <- mi %>% 
+  mutate(lake_nhdid = str_replace(nhdhr.id, "nhdhr_", "")) %>%    #remove nhdhr_ prefix from id
+  left_join(nhd_lat_longs, by = "lake_nhdid")
+  
+#checked for lakes that didn't get lat longs with following code placed after the left join above 
+  # %>% filter(is.na(lake_lat_decdeg))%>%group_by(lake_id)%>%summarise(total = n())
+#  84600, 2621900, 2674100, 2691500 check out these nhd ids later
+
+#basic map for reference code
+Midwest <- map_data("state", region = c("minnesota", "wisconsin", "north dakota", "south dakota", "iowa", "illinois", "indiana", "michigan"))
+midwest_map <- ggplot(data = Midwest)+
+  geom_polygon(aes(x = long, y = lat, group = group, fill = region), color = "white")+
+  coord_fixed(1.3)+
+  guides(fill = FALSE)
+midwest_map
+
+#wisconsin map
+WI <- map_data("state", region = "wisconsin") #get basic WI map
+wi_map <- ggplot(data = WI)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = wi_cpue_lat_long, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue ), alpha = .25)+
+  facet_wrap(species_1~sampling_method)+
+  scale_color_viridis(option = "H")
+wi_map
+
+#Minnesota map
+MN <- map_data("state", region = "minnesota") #get basic WI map
+mn_map <- ggplot(data = MN)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = mn_cpue_lat_long, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue), alpha = .25)+
+  facet_wrap(species_1~sampling_method)+
+  scale_color_viridis(option = "H")
+mn_map
+
+#Michigan map
+MI <- map_data("state", region = "michigan") #get basic WI map
+mi_map <- ggplot(data = MI)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = mi_cpue_lat_long, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue), alpha = .25)+
+  facet_wrap(species_1~sampling_method)+
+  scale_color_viridis(option = "H")
+mi_map
+
+#all states together - still needs work
+MN_MI_WI <- map_data("state", region = c("minnesota", "wisconsin", "michigan"))
+MN_MI_WI_map <- ggplot(data = MN_MI_WI)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = cross_state_wae, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = log(cpue)), alpha = .5)+ #can repeat this line for each state if needed
+  facet_wrap(.~sampling_method)+
+  scale_color_viridis(option = "H")+
+  labs(title = "Filtered Walleye CPUE data by gear", x = "longitude", y = "latitude")
+MN_MI_WI_map
+
+#time with walleye?
+ggplot(data = MN)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = mn_cpue_lat_long %>% 
+               filter(species_1 == "walleye" & sampling_method == "Standard gill net sets"), aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue), alpha = .25)+
+  facet_wrap(~year(date_1))+
+  scale_color_viridis(option = "H")
+```
+
+
+#comparing acorss states
+```{r}
+#tallies of surveys
+cross_state %>% 
+  filter(state == "Minnesota") %>% 
+  mutate(sampling_method = case_when(str_detect(sampling_method, "Standard gill") ~ "gill net",
+                                     TRUE ~ "trap net")) %>% 
+  ggplot() +
+  geom_bar(aes(sampling_method)) +
+  facet_wrap(~species_1) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+cross_state %>% 
+  filter(state == "Wisconsin") %>% 
+  ggplot() +
+  geom_bar(aes(sampling_method)) +
+  facet_wrap(~species_1) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+cross_state %>% 
+  filter(state == "Michigan") %>% 
+  ggplot() +
+  geom_bar(aes(sampling_method)) +
+  facet_wrap(~species_1) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+
+
+#histogram of cpues
+cross_state %>% 
+  filter(cpue < 100) %>% 
+  ggplot() +
+  geom_histogram(aes(cpue), alpha = .6) +
+  facet_grid(species_1~state, scales = "free")
+
+cross_state %>% 
+  filter(state == "Minnesota") %>% 
+  ggplot()+
+  geom_histogram(aes(cpue), alpha = .6) +
+  facet_grid(~species_1, scales = "free")
+
+cross_state %>% 
+  filter(state == "Wisconsin") %>% 
+  ggplot()+
+  geom_histogram(aes(cpue), alpha = .6) +
+  facet_grid(~species_1, scales = "free")
+
+cross_state %>% 
+  filter(state == "Michigan") %>% 
+  ggplot()+
+  geom_histogram(aes(cpue), alpha = .6) +
+  facet_grid(~species_1, scales = "free")
+
+#histogram of timing
+
+#not sure why this plot is showing up funky? - michigan?
+cross_state %>% 
+  mutate(julian_day = yday(date_1)) %>% 
+  ggplot() +
+  geom_histogram(aes(julian_day, fill = state), alpha = .4, binwidth = 5) +
+  facet_wrap(~state, scales = "free")
+
+cross_state %>% 
+  mutate(julian_day = yday(date_1)) %>% 
+  ggplot() +
+  geom_density(aes(julian_day, fill = state), alpha = .4)
+
+cross_state %>% 
+  mutate(julian_day = yday(date_1)) %>% 
+  ggplot() +
+  geom_histogram(aes(julian_day, fill = state), binwidth = 5) +
+  facet_wrap(~state)
+```
+
+

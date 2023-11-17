@@ -1,0 +1,57 @@
+---
+title: "IA_Data_Combining"
+author: "Holly Kundel"
+date: '2022-06-15'
+output: html_document
+---
+Load in required packages
+```{r}
+library(readr)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(googledrive)
+library(ggplot2)
+
+options(scipen = 999) #ensures that survey ID numbers aren't rounded with scientific notation
+
+```
+
+Read in raw CPUE data (split up by species)
+```{r, message= FALSE, warning=FALSE}
+BLC <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/blackcrappie_cpue.csv")
+BLG <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/bluegill_cpue.csv")
+CCF <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/channelcatfish_cpue.csv")
+LMB <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/largemouthbass_cpue.csv")
+NOP <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/northernpike_cpue.csv")
+SMB <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/smallmouthbass_cpue.csv")
+WAE <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/walleye_cpue.csv")
+WHC <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/whitecrappie_cpue.csv")
+YEP <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/CPUE_CSV/yellowperch_cpue.csv")
+```
+Combine the Data into one
+```{r}
+IA_CPUE <- bind_rows(BLC, BLG, CCF, LMB, NOP, SMB, WAE, WHC, YEP)
+
+write_csv(IA_CPUE, "IA_CPUE.csv")
+```
+
+Read in raw Fish Measure data (split up by species)
+```{r, message= FALSE, warning=FALSE}
+BLCm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/blackcrappie_fishmeasurementdetail.csv")
+BLGm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/bluegill_fishmeasurementdetail.csv")
+CCFm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/channelcatfish_fishmeasurementdetail.csv")
+LMBm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/largemouthbass_fishmeasurementdetail.csv")
+NOPm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/northernpike_fishmeasurmentdetail.csv")
+SMBm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/smallmouthbass_fishmeasurementdetail.csv")
+WAEm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/walleye_fishmeasurementdetail.csv")
+WHCm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/whitecrappie_fishmeasurementdetail.csv")
+YEPm <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/IA/Fish_Measure_CSV/yellowperch_fishmeasurementdetail.csv")
+```
+
+Combine the Data into one
+```{r}
+IA_Fish_Measure <- bind_rows(BLCm, BLGm, CCFm, LMBm, NOPm, SMBm, WAEm, WHCm, YEPm)
+
+write_csv(IA_Fish_Measure, "IA_Fish_Measure.csv")
+```

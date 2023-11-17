@@ -38,7 +38,7 @@ new_gn_tn_export <- new_gn_tn %>%
 MN CPUE data (draft May 23)
 - all species, all gears, catch and effort
 ```{r}
-MN_CPUE <- read_csv("draft_MN_catch_effort_23May2023.csv")
+MN_CPUE <- read_csv_arrow("draft_MN_catch_effort_02June2023.csv")
 ```
 
 Add "id number" to each fish to match up ages

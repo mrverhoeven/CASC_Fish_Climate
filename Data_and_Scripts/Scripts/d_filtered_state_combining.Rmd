@@ -201,3 +201,14 @@ cross_state %>%
   geom_histogram(aes(julian_day, fill = state), binwidth = 5) +
   facet_wrap(~state)
 ```
+
+#gears across states?
+```{r}
+cross_state <- read_csv("mn_wi_mi_filtered_cpue_11NOV23.csv")
+
+cross_state %>% 
+  group_by(species_1, state, sampling_method) %>% 
+  count() %>% 
+  print(n = nrow(.))
+```
+

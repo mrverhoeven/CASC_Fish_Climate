@@ -35,6 +35,9 @@ wi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab",
 
 #Minnesota
 mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "mn_file_arrow"))
+
+#Iowa
+ia_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "ia_file_arrow"))
 ```
 
 #Column Tidy
@@ -3788,5 +3791,50 @@ total.ramsey %>%
 total.ramsey.field <- bind_rows(mcn_extra, total.ramsey)
 
 write_csv(total.ramsey.field, "ramsey_county_fish.csv")
+```
+
+#MN surveys with different purposes relating to catches?
+```{r}
+#surveys that Chris Rounds found with the issue
+example <- read_csv("multi_survey_ex.csv") 
+  
+
+#finding the records in the data
+records <- mn_data %>% 
+  filter(lake_id %in% example$lake_id, effort_ident %in% example$effort_ident, survey_type.1 %in% example$survey_type.1) %>% 
+  collect() %>% 
+  distinct(effort_ident, .keep_all = T)
+
+#specific to one survey 
+specific <- mn_data %>% 
+  filter(effort_ident %in% c(25520, 44776)) %>% 
+  collect()
+
+#is this a problem in the larger database?
+#getting cases where there are more than one survey per sampling method in one day
+problems <- mn_data %>%
+  distinct(effort_ident, date_clean, lake_id, lake_name.1, sampling_method, nothing_caught) %>%
+  collect() %>%
+  group_by(lake_id, lake_name.1, date_clean, sampling_method, nothing_caught) %>% 
+  count() %>% 
+  filter(n >1) %>% 
+  print(n = nrow(.))
+
+#filtering for these surveys in the original data set
+problem_surveys <- mn_data %>% 
+  filter(lake_id %in% problems$lake_id & date_clean %in% problems$date_clean & sampling_method %in% problems$sampling_method) %>% 
+  collect() 
+
+#generates a list of surveys with more than one survey per day
+list_of_problems <- problem_surveys %>% 
+  distinct(effort_ident, .keep_all = T)
+
+#counting records for the these lakes, dates, and survey type
+#problem seems to exist where there are two survey types where one reports nothing caught but the nothing reports catch
+#not all of these appear to be problems - some are are def multi surveys in a day
+problem_surveys %>% 
+  group_by(lake_id, lake_name.1, date_clean, survey_type.1, nothing_caught) %>% 
+  count() %>% 
+  print(n = nrow(.))
 ```
 

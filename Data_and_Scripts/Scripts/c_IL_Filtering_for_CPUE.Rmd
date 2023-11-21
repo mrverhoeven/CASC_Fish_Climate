@@ -7,13 +7,9 @@ editor_options:
   chunk_output_type: console
 ---
 
-1. many targeted surveys in Illinois without a reported targeted species 
-##do they only record that species in the targeted survey? - need to checked species reported in targed surveys
-2. the surveys with nothing caught need to be cleaned so that the survey info is retained for filtering
-3. fix total effort id so that the gear group is at a finer scale than the larger grouping
-     -"nets" includes gill nets and fyke nets
-     -in the current situation we could have more than one sub-gear type in a survey
-
+To do:
+-targeted species surveys filtering?
+-sub sample in electrofishing?
 
 #Library
 ```{r}
@@ -115,7 +111,6 @@ adult_black_crappie <- il_data %>%
   #filter for fish level items (length, etc)
   right_join(filter_table_fish) %>% 
   collect() 
-glimpse(adult_black_crappie)
 
 #checking final filter
 adult_black_crappie %>% 
@@ -1175,10 +1170,19 @@ adult_yellow_perch_cpue %>%
 
 #combining species
 ```{r}
-mn_filtered_species <- bind_rows(adult_walleye_cpue, 
-                                 adult_bluegill_cpue, 
-                                 adult_largemouth_cpue, 
-                                 adult_smallmouth_cpue, 
-                                 adult_northern_pike_cpue, 
-                                 adult_yellow_perch_cpue)
+il_filtered_species <- bind_rows(adult_walleye_cpue %>% 
+                                   mutate(species_1 = "walleye"), 
+                                 adult_bluegill_cpue %>% 
+                                   mutate(species_1 = "bluegill"), 
+                                 adult_black_crappie_cpue %>% 
+                                   mutate(species_1 = "black_crappie"),
+                                 adult_largemouth_cpue %>% 
+                                   mutate(species_1 = "largemouth_bass"), 
+                                 adult_smallmouth_cpue %>% 
+                                   mutate(species_1 = "smallmouth_bass"), 
+                                 adult_northern_pike_cpue %>% 
+                                   mutate(species_1 = "northern_pike"), 
+                                 adult_yellow_perch_cpue %>% 
+                                   mutate(species_1 = "yellow_perch"))
+write_csv(il_filtered_species, "IL_all_cpue_filtered.csv")
 ```

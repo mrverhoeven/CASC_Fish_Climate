@@ -3,6 +3,8 @@ title: "IN_Flat_File_Aggregation"
 author: "Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 # Preamble
 
@@ -411,7 +413,30 @@ merge(
                         
 ``` 
           
-          
+#Reservoir
+```{r}
+################aged fish#################
+#age fish
+glimpse(in_reservoir_age_fish_16Aug2022)
+
+#age effort
+glimpse(in_reservoir_age_effort_16Aug2022)
+
+###############fish community#############
+#fish
+glimpse(in_reservoir_fish_community_fishdata_16Aug2022)
+
+#effort
+glimpse(in_reservoir_fish_community_effort_16Aug2022)
+
+##############targeted surveys#######################
+#fish
+glimpse(in_reservoir_targeted_fish_1Sep2022)
+
+#effort
+glimpse(in_reservoir_targeted_effort_1Sep2022)
+```
+
           
 # Data tidying                        
 ```{r}                       

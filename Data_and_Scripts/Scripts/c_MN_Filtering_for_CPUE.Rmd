@@ -7,6 +7,11 @@ editor_options:
   chunk_output_type: console
 ---
 
+Things to note:
+-DNR suggests having a filter for water temp for GN set in shallow stratifed assessment
+  -it is not implimented below but should be explored further 
+
+
 #Library
 ```{r}
 library(tidyverse)

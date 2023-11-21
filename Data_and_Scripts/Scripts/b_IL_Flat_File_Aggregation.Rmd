@@ -16,6 +16,16 @@ Things to keep in mind:
     -are they capturing all fish before they sub sample (including sub sample species)?
 -make sure I am retaining important columns that are listed before the effort section
 
+things to do:
+-make sure the effort ident is at the correct level (pretty sure Denver already took care of this)
+     -"nets" includes gill nets and fyke nets
+     -in the current situation we could have more than one sub-gear type in a survey
+     -in short, make sure there is sampling method and finer scale sampling method in id creation
+-the surveys with nothing caught need to be cleaned so that the survey info is retained for filtering (also think this is done)
+      -right now the way I join the nothing caught surveys in they only contain the distinct columns
+      -requires just the .keep_all = true in the tidy
+-check targeted surveys if they have a targeted species - does this align with subsample?
+     -do they only record that species in the targeted survey? - need to checked species reported in targeted surveys
 
 
 ##Libraries
@@ -643,7 +653,9 @@ il_data <- il_data %>%
          sub_effort_1_units = "minutes") %>% 
   #drop survey type and replace with garbage bin notes 4 for survey type
   select(-survey_type.1) %>% 
-  rename(survey_type.1 = garbage_bin_notes.4) %>% 
+  rename(survey_type.1 = garbage_bin_notes.4,
+         sub_sample_effort = garbage_bin_notes.1,
+         sub_sample_species = ) %>% 
   mutate(survey_type.1 = gsub("Sample Type:", "", survey_type.1)) %>%  #cleans up column name
   #adding in length units
   #no units were specified within data but general assumption is mm
@@ -713,7 +725,7 @@ glimpse(il_data)
 #how does the caught nothign column look?
 il_data %>% 
   filter(caught_nothing == "TRUE") %>% 
-  group_by(caught_nothing, lake_name_1, sub_effort_1_id) %>% 
+  group_by(caught_nothing, lake_name_1, lake_id, survey_id, sub_effort_1_id) %>% 
   count() %>% 
   print(n = nrow(.))
 #the only columns with an na lake name do not have a catch - this tell us the merge was done correctly

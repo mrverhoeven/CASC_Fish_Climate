@@ -21,9 +21,9 @@ options(scipen = 999) #ensures that survey ID numbers aren't rounded with scient
 Data from Corey (received 5/3/22)
 - has total catch and effort by species, not individual fish
 ```{r}
-all_gn_tn <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/MN/5.3.22_update/ALL-GNTN-SURVEYS.csv")
+all_gn_tn <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GNTN-SURVEYS.csv")
 
-all_gde_gsh <- read_csv("~/CASC/CASC_Fish_Abundance/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
+all_gde_gsh <- read_csv("Data_and_Scripts/Data/Data_Summaries/MN/5.3.22_update/ALL-GDEGSH-SURVEYS.csv")
 ```
 
 Combine the two sheets from Corey into one, and create Effort data

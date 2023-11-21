@@ -24,13 +24,13 @@ library(data.table)
 library(googledrive)
 library(janitor)
 library(tidyr)
-
+options(scipen = 999)
 ```
 
 ## CASC Data Explainer
 ### Read in
 ```{r}
-cde <- data.table(read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
+cde <- data.table(read_excel("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
 ```
 
 ### Prep 

@@ -8,7 +8,7 @@ output: html_document
 2/2/23
 First attempt to use the CASC Data Explainer File to rename columns and create units columns where needed
 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 library(readr)
 library(readxl)
 library(dplyr)
@@ -19,11 +19,11 @@ library(tidyr)
 library(tibble)
 ```
 
-Read in CASC Data Explainer
+Read in CASC Data Explainer (use "CASC_Data_Explainer_HLK.Rmd")
 ```{r}
 #CASC_Data_explainer_02Feb23 <- read_csv_arrow("Data_and_Scripts/Data/Data_Explainer/CASC_Data_Explainer_for_R_Data_Manipulation_02Feb23.csv")
   
-CASC_Data_explainer <- read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
+#CASC_Data_explainer <- read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
 ```
 
 Read in MN Data (starting with 2 files)

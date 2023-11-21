@@ -1,0 +1,150 @@
+---
+title: "CPUE_map"
+author: "Holly Kundel"
+date: "`r Sys.Date()`"
+output: html_document
+---
+load required packages
+```{r}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(stringr)
+library(maps) #to pull in the map data for geom_polygon
+library(colorspace) #package with color palettes to choose from
+library(viridis) #more color palettes
+```
+
+load in data
+```{r}
+wi_cpue <- read_csv("Data_and_Scripts/Data/Data_Summaries/WI_WAE_cpue_filtered.csv")
+View(WI_WAE_cpue_filtered) #from Denver 10/30/2023
+
+# lake info from LAGOS, https://portal.edirepository.org/nis/mapbrowse?packageid=edi.854.1 (want 'lake_information' file)
+lagos_lake_info <- read_csv("LAGOS_lake_information_20Oct2023.csv")
+
+nhd_lat_longs <- lagos_lake_info %>%
+  select(lake_nhdid, lake_lat_decdeg, lake_lon_decdeg) #removes unnecessary columns
+```
+
+Join WI to nhd lat longs to prep for mapping
+```{r}
+wi_cpue_lat_long <- wi_cpue %>%
+  mutate(lake_nhdid = str_replace(nhdhr_id, "nhdhr_", ""))%>% #remove nhdhr_ prefix from id
+  left_join(nhd_lat_longs, by = "lake_nhdid")
+  
+#checked for lakes that didn't get lat longs with following code placed after the left join above 
+  # %>% filter(is.na(lake_lat_decdeg))%>%group_by(lake_id)%>%summarise(total = n())
+#  84600, 2621900, 2674100, 2691500 check out these nhd ids later
+```
+
+basic map code for reference
+```{r}
+Midwest <- map_data("state", region = c("minnesota", "wisconsin", "north dakota", "south dakota", "iowa", "illinois", "indiana", "michigan"))
+
+midwest_map <- ggplot(data = Midwest)+
+  geom_polygon(aes(x = long, y = lat, group = group, fill = region), color = "white")+
+  coord_fixed(1.3)+
+  guides(fill = FALSE)
+midwest_map
+```
+
+
+Make a WI map
+```{r}
+WI <- map_data("state", region = "wisconsin") #get basic WI map
+
+
+wi_map <- ggplot(data = WI)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = wi_cpue_lat_long, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue), alpha = .25)+
+  facet_wrap(.~sampling_method)+
+  scale_color_viridis(option = "H")
+
+wi_map
+```
+Second attempt with cpue filtered to 100 or less
+```{r}
+wi_cpue_less_than_100 <- wi_cpue_lat_long %>%
+  filter(cpue <= 100)
+
+wi_map_less_than_100 <- ggplot(data = WI)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = wi_cpue_less_than_100, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue), alpha = .5)+
+  facet_wrap(.~sampling_method)+
+  scale_color_viridis(option = "H")
+
+wi_map_less_than_100
+
+# can change color scheme by replacing H with other letter, see https://sjmgarnier.github.io/viridis/reference/scale_viridis.html
+```
+filtering cpue for 20 or less
+```{r}
+wi_cpue_less_than_20 <- wi_cpue_lat_long %>%
+  filter(cpue <= 20)
+
+wi_map_less_than_20 <- ggplot(data = WI)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = wi_cpue_less_than_20, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue), alpha = .5)+
+  facet_wrap(.~sampling_method)+
+  scale_color_viridis(option = "H")
+
+wi_map_less_than_20
+```
+
+make map for MN, MI, and WI
+```{r}
+MN_MI_WI <- map_data("state", region = c("minnesota", "wisconsin", "michigan"))
+
+MN_MI_WI_map <- ggplot(data = MN_MI_WI)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = YOUR_DAT_lat_long, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue), alpha = .5)+ #can repeat this line for each state if needed
+  facet_wrap(.~sampling_method)+
+  scale_color_viridis(option = "H")+
+  labs(title = "Filtered Walleye CPUE data by gear", x = "longitude", y = "latitude")
+
+MN_MI_WI_map
+```
+
+WI map with custom color legend
+```{r}
+WI <- map_data("state", region = "wisconsin") #get basic WI map
+
+#make color palette https://rpubs.com/mjvoss/psc_viridis
+
+plasma_pal <- (c("#fcd225", "#fdae32","#f68d45","#e76f5a","#d5546e","#c03a83", "#a62098", "#8606a6", "#6300a7", "#3e049c", "#370499","#0d0887"))
+
+plasma_pal_r <- c("#0d0887","#370499","#3e049c", "#6300a7","#8606a6","#a62098","#c03a83","#d5546e","#e76f5a","#f68d45", "#fdae32", "#fcd225")
+
+# tag CPUEs of 0
+wi_cpue_0 <- wi_cpue_lat_long %>%
+  mutate(cpue_0 = ifelse(cpue==0, "Y", "N"))
+
+#make map
+wi_map2 <- ggplot(data = WI)+
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "white", color = "black")+
+  coord_fixed(1.3)+
+  geom_point(data = wi_cpue_0, aes(x = lake_lon_decdeg, y = lake_lat_decdeg, color = cpue, shape =cpue_0), alpha = .1)+
+  facet_wrap(.~sampling_method)+
+  scale_colour_stepsn(
+  colours = plasma_pal_r,
+  breaks = c(0,1,3,5,10,20,50,100,200,300,400), #breaks in the data
+  values = c(0,0.0025,0.0075,0.0125,0.025,0.05,0.125,0.25,0.5,0.75,1), #position from 0 to 1
+  space = "Lab",
+  na.value = "grey50",
+  guide = "coloursteps",
+  aesthetics = "colour",
+  colors,
+  show.limits = TRUE
+)+
+  scale_shape_manual(values = c(N = 16, Y = 4), guide = "none")+
+  labs(title = "filtered walleye CPUE by gear", x = "longitude", y = "latitude")
+
+wi_map2
+
+```
+

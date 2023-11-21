@@ -59,7 +59,14 @@ FLAGS AND ISSUES:
 flag - this column contains a character string with issues describing each row, each issue separated with a comma. Use mutate(flag = paste(flag, "new issue description", sep = ",")) to add to this column without overwriting other issues already specified.
 
 
+# Issues to deal with
+- Holly is working on glacial lakes
+- IN glacial lakes needs to use new file from Matthew Linn (11/16/23)
+- Get age data from Matthew Linn for the IN glacial lakes
 
+- Denver is going to work on the IN reservoirs
+
+- Can glacial lakes and reservoirs be filtered the same way? Or do they need different filtering mechanisms
 
 
 
@@ -132,7 +139,7 @@ for(i in 1:n) {
     assign("names", ., envir = .GlobalEnv)
   
   #see if any column names will not have a match! 
-  # IF any pop FALSE, force stop and revist of data explainer ()
+  # IF any pop FALSE, force stop and revisit of data explainer ()
   # - e.g., named something "total catch" when actual column name was "total_catch"
   print(
     cbind(colnames(get(filei)),
@@ -186,23 +193,233 @@ for(i in 1:n) {
 
 
 #Data Review
+   - Holly has to re-do this with new data, not much changes except we have lake ID now
 ```{r}
 
 # review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
-# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
+# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (possibly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
 
+# for IN, there are data from "glacial lakes" and there are data from "reservoirs" so will work with glacial lakes, then work with reservoirs, and then combine glacial lakes and reservoirs to make a single IN file
 
 #effort:
-mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
+  #mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
 
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1] # lake ids not unique (they *should* be though)
+# no lake IDS in glacial lakes effort... so what columns(s) represent a unique lake?
+in_glaciallakes_effort_6Oct2021[ , .N, .(lake_name.1, county)]
+  # lake name and county appear to be unique, but there are inconsistencies in the capitalization for 'county' so that will need to be fixed in order to work
 
-#which lakes have multiple names for a single ID?
-mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id]
-mi_statustrends_effort_16Mar2021[lake_id %in% 
-                                   mi_statustrends_effort_16Mar2021[  ,length(unique(lake_name.1)), .(lake_id)][V1>1][,lake_id], , ]
-# it appears here that a full survey (all gears were deployed in each part of these lakes. For that reason, My vote is that we keep them separate and use lake_id + lake_name for our key. 
+#write out the counties in all lowercase
+#in_glaciallakes_effort_6Oct2021[ , county:= str_to_lower(county)]
+in_lake_id_list_22Aug2022[ , county:= str_to_title(county)]
 
+#re-check
+in_glaciallakes_effort_6Oct2021[ , .N, .(lake_name.1, county)] #129 unique lakes
+
+#link glacial lakes effort to lake ID
+  #in_glaciallakes_effort_6Oct2021[in_lake_id_list_22Aug2022, on=.(lake_name.1, county), nomatch = NULL] #doesn't work
+
+in_lake_id_list_22Aug2022_fixed <- in_lake_id_list_22Aug2022 %>%
+  mutate(county = str_to_title(county))%>%
+  mutate(county_lower = str_to_lower(county))%>%
+  mutate(lake_name.1 = str_remove(lake_name.1, county))%>%
+  mutate(lake_name.1 = str_remove(lake_name.1, county_lower))%>%
+  mutate(lake_name.1 = str_remove_all(lake_name.1, "-"))%>%
+  mutate(lake_name.1 = str_replace(lake_name.1, " \\(\\)", ""))%>%
+  mutate(county = str_to_title(county))%>%
+  select(lake_id, lake_name.1, county)
+
+
+in_GL_st_effort_no_ID <- in_glaciallakes_effort_6Oct2021 %>%
+  mutate(county = str_to_title(county))%>%
+  mutate(county_lower = str_to_lower(county))%>%
+  mutate(lake_name.1 = str_remove(lake_name.1, county))%>%
+  mutate(lake_name.1 = str_remove(lake_name.1, county_lower))%>%
+  mutate(lake_name.1 = str_remove_all(lake_name.1, "-"))%>%
+  mutate(lake_name.1 = str_replace(lake_name.1, " \\(\\)", ""))%>%
+  left_join(in_lake_id_list_22Aug2022_fixed, by = c("lake_name.1", "county"))%>%
+  filter(is.na(lake_id))%>%
+  select(lake_name.1, county)%>%
+  distinct()
+
+```
+ write_csv(in_lake_id_list_22Aug2022_fixed, "in_lake_id_list_22Aug2022_cleaned.csv")
+write_csv(in_GL_st_effort_no_ID, "in_GL_st_effort_no_ID.csv")
+
+Data review continued
+
+IN Glacial Lakes
+```{r}
+in_glaciallakes_effort_6Oct2021[ , .N, .(sampling_method)]
+# Three gears: standard trap net, experimental gill net and nighttime electrofishing
+  # each gear is used in every survey. 152 surveys times 3 = 456
+
+```
+
+From Matthew Linn IN Glacial lakes contact: "we do the same effort for each survey (2 overnight trap lifts, 2 overnight experiment gill net lifts, and 0.5 hours of nighttime electrofishing)" - this is for standard surveys
+
+IN GL (glacial lakes)
+unify effort units into a single column
+```{r}
+in_glaciallakes_effort_6Oct2021_2 <- in_glaciallakes_effort_6Oct2021 %>%
+  mutate(effort_units = case_when(sampling_method == "Standard Trap Net" ~ "overnight lifts",
+                                  sampling_method == "Experimental Gill Net" ~ "overnight lifts",
+                                  sampling_method == "Nighttime Electrofishing" ~ "hours")) %>%
+  select(-effort_units.1, -effort_units.2, -effort_units.3)%>% #remove these columns now that the info exists in "effort_units"
+  mutate(sampling_method = str_to_lower(sampling_method))%>% #make sampling method consistent for std and targeted
+  rename(effort_units.1 = effort_units)%>%
+  relocate(lake_name.1, county, year, sampling_method, total_effort_1, effort_units.1)%>%
+  mutate(targeted_or_standard = "standard")
+```
+
+prep IN GL fish data
+- already one fish per row! yay!
+```{r}
+#will need to clean up lake names and county names for merge
+
+in_glaciallakes_fish_6Oct2021_2 <- in_glaciallakes_fish_6Oct2021 %>%
+  rename(sampling_method_abbrev = sampling_method)%>% #this is an abbreviated name, make column with full name
+  mutate(sampling_method = case_when(sampling_method_abbrev == "TN"~ "standard trap net",
+                                  sampling_method_abbrev == "GN" ~ "experimental gill net",
+                                  sampling_method_abbrev == "EF" ~ "nighttime electrofishing"))%>%
+  mutate(county = str_to_lower(county))%>%
+  relocate(lake_name.1, county, year, species.1, length.1, sampling_method, sampling_method_abbrev, targeted_or_standard)
+```
+
+merge IN GL standard fish with effort
+- 65,927 fish obs
+- 456 survey/gear -> 152 individual surveys
+```{r}
+# set up key columns for merge
+keycols_INGL <- c("lake_name.1", "county", "year", "sampling_method")
+
+setkeyv(in_glaciallakes_fish_6Oct2021_2, keycols_INGL)
+setkeyv(in_glaciallakes_effort_6Oct2021_2, keycols_INGL)
+
+# merge IN glacial lakes standard surveys effort and fish data
+in_glaciallakes_st_merge <- merge(in_glaciallakes_fish_6Oct2021_2, in_glaciallakes_effort_6Oct2021_2, by = keycols_INGL, all = T, suffixes = c("_catch", "_effort")) #get 65,942 obs... an extra 15 obs... 
+    # appears some fish don't have a sampling method... 
+
+## checking for lake ID work
+in_clear <- in_glaciallakes_st_merge%>%
+  filter(lake_name.1 == "Clear")
+
+in_glaciallakes_fish_no_samp_method <- in_glaciallakes_fish_6Oct2021_2 %>%
+  filter(is.na(sampling_method)) #there are 5 fish without a sampling method
+```
+
+IN Glacial Lakes (GL) targeted surveys
+```{r}
+in_glaciallakes_targeted_effort_1Sep2022_2 <- in_glaciallakes_targeted_effort_1Sep2022 %>%
+  mutate(effort_units = case_when(sampling_method == "Experimental gill net" ~ "overnight lifts",
+                                  sampling_method == "Nighttime electrofishing" ~ "hours"))%>%
+  mutate(date.1 = mdy(date.1))%>%
+  mutate(year = year(date.1))%>% #make column for year to match non-targeted
+  mutate(sampling_method = str_to_lower(sampling_method))%>% #make sampling method consistent for std and targeted
+  select(-effort_units.1)%>%
+  rename(effort_units.1 = effort_units)%>%
+  mutate(county = str_to_lower(county))%>%
+  relocate(lake_id, lake_name.1, county, year, sampling_method, total_effort_1, effort_units.1, date.1)
+```
+
+
+- check that lake ID >= lake_name.1 and county for key columns
+```{r}
+in_GL_tar_effort <- in_glaciallakes_targeted_effort_1Sep2022_2 %>%
+  group_by(lake_name.1, county)%>%
+  summarise(Total = n()) #46 lakes
+
+in_GL_tar_effort2 <- in_glaciallakes_targeted_effort_1Sep2022_2 %>%
+  group_by(lake_id)%>%
+  summarise(Total = n()) #46 lakes, looks like we can use lake ID for these surveys!
+```
+
+IN GL targeted fish data
+- don't have gear listed... Matthew Linn says these are targeted surveys for LMB and cisco
+- is the gear important, or are LMB and cisco targeted with different gears..? (if not, will need the data pulled again)
+```{r}
+IN_GL_targeted_LMB <- in_glaciallakes_targeted_fish_1Sep2022 %>%
+  filter(species.1 == "Largemouth Bass")%>%
+  mutate(LMB = "Y")%>%
+  select(1:5, 19) #13305 fish out of 13717
+
+IN_GL_targeted_CIS <- in_glaciallakes_targeted_fish_1Sep2022 %>%
+  filter(species.1 == "Cisco")%>%
+  mutate(Cisco = "Y")%>%
+  select(1:5, 19) #412
+
+IN_GL_targeted_gear_check <- in_glaciallakes_targeted_fish_1Sep2022 %>%
+  select(1:5)%>%
+  group_by(lake_id, species.1)%>%
+  summarise(Total_Catch = n())%>%
+  pivot_wider(names_from = species.1, values_from = Total_Catch)
+
+IN_GL_targeted_gear_check2 <- in_glaciallakes_targeted_effort_1Sep2022_2%>%
+  select(1:8)%>%
+  pivot_wider(names_from = sampling_method, values_from = year) #gill nets and EF not done in same survey. Different lakes sample with GN
+
+
+IN_GL_targeted_GN <- in_glaciallakes_targeted_effort_1Sep2022_2 %>%
+  filter(sampling_method == "experimental gill net")%>%
+  select(1:8)
+
+IN_GL_targeted_merge_check <- in_glaciallakes_targeted_fish_1Sep2022 %>%
+  filter(species.1 == "Cisco")%>% 
+  select(1:5)%>%
+  left_join(IN_GL_targeted_GN, by = "lake_id")
+
+```
+### email matt linn and ask about targeted survey gears (is EF just bass and GN just cisco)
+- nope cisco are caught with electrofishing... see lake Eve... 
+- ask about lake IDs too, email sent 11/10
+
+merge IN GL targeted fish with effort
+- 13,717 fish obs
+- 51 survey/gear 
+```{r}
+# set up key columns for merge
+keycols_INGL_target <- c("lake_id", "year", "sampling_method")
+
+setkeyv(in_glaciallakes_targeted_effort_1Sep2022_2, keycols_INGL_target)
+setkeyv(in_glaciallakes_targeted_fish_1Sep2022, keycols_INGL_target)
+
+# merge IN glacial lakes standard surveys effort and fish data
+in_glaciallakes_target_merge <- merge(in_glaciallakes_fish_6Oct2021_2, in_glaciallakes_effort_6Oct2021_2, by = keycols_INGL, all = T, suffixes = c("_catch", "_effort")) #get 65,942 obs... an extra 15 obs... 
+    # appears some fish don't have a sampling method... 
+
+in_glaciallakes_fish_no_samp_method <- in_glaciallakes_fish_6Oct2021_2 %>%
+  filter(is.na(sampling_method)) #there are 5 fish without a sampling method
+```
+
+Data review continued
+
+
+
+# IN Reservoirs
+```{r}
+
+in_reservoir_fish_community_effort_16Aug2022[ , .N, .(sampling_method)] #no sampling method... will have to add
+# effort 1: EF, effort 2: gill net, effort 3: trap net (from data explainer and orig. metadata from Sandra)
+
+# make data long, and add sampling method (instead of effort_1, effort_2, etc.)
+in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community_effort_16Aug2022 %>%
+  pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3), names_to = "sampling_method", values_to = "total_effort" ) %>% # make data longer, so that effort is in a single column
+  mutate(sampling_method = case_when(sampling_method == "total_effort_1" ~ "nighttime electrofishing",
+                                     sampling_method == "total_effort_2" ~ "experimental gill net",
+                                     sampling_method == "total_effort_3" ~ "standard trap net"))%>% # write out sampling method
+  mutate(effort_units = case_when(sampling_method == "nighttime electrofishing" ~ "hours",
+                                  sampling_method == "experimental gill net" ~ "number of nets",
+                                  sampling_method == "standard trap net" ~ "number of nets"))%>% # write out effort units
+  relocate(survey_id, lake_name.1, lake_id, date.1, end_date, survey_type.1, sampling_method, total_effort, effort_units)%>% #bring these columns to the front 
+  select(-effort_units.1, -effort_units.2, -effort_units.3) #remove redundant effort units columns
+
+
+# is survey ID a unique key..? 
+
+```
+
+
+Mike Example code
+```{r}
 # view each data level for a single survey
 mi_statustrends_effort_16Mar2021[survey_id ==2446]
 mi_statustrends_catch_16Mar2021[survey_id == 2446]

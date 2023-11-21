@@ -6,6 +6,19 @@ output: html_document
 ---
 # Preamble
 
+## To-do List
+1. Ages were excluded from this file
+2. We limited species in this because the files had different species extents
+3. CRITICAL: The lengths form the inch-group file need to be updated like this: 
+     - lengths given as bins will be retained in a length_bin column, with length_bin_units column. Then length.1 gets assigned as the bin midpoint and flag field gets a note added stating "length assigned as midpoint of binned length data" (and units move in parallel)."
+
+
+
+
+
+
+
+
 ##Libraries
 ```{r}
 library(arrow)

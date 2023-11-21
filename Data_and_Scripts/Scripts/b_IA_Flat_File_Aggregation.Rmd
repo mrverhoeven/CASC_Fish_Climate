@@ -12,7 +12,8 @@ editor_options:
     1. Need to get a proper effort file. Current fish obs doesn't seem to have many zeros
     2. Aged fish data need to be plugged in (after completing the organization & join of the multiple age files, BUT we think that we're getting a new age file)
     3. Total effort 2 ("distance") did not come to us with any units on it
-    4. lengths from binned fish need to be 1) moved over to length col, 2) units rectified (can do this using word and str_detect see code examples in this doc. then split rnage into min_length, max_length and convert those numerics, then re-paste those two cols into a single one. ) 
+    4. lengths from binned fish need to be 1) moved over to length col, 2) units rectified (can do this using word and str_detect see code examples in this doc. then split rnage into min_length, max_length and convert those numerics, then re-paste those two cols into a single one. )
+    5. Review fishcounts by species, currently very wonky numbers for many species (ia_data %>% group_by(species.1) %>% summarise(n = n()) %>% collect())
     
 
 

@@ -3791,6 +3791,41 @@ total.ramsey %>%
 total.ramsey.field <- bind_rows(mcn_extra, total.ramsey)
 
 write_csv(total.ramsey.field, "ramsey_county_fish.csv")
+
+
+#grabbing age/length
+mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "Age-assigned Data", "mn_halk_aged_data"))
+glimpse(mn_data)
+
+total.ramsey <- mn_data %>%
+  mutate(lake_id = as.character(lake.id)) %>% 
+  filter(str_detect(lake_id, "^62") | lake_id == "2000300" | lake_id == "82016700") %>%
+  collect() %>% 
+  mutate(year_infested = case_when(lake_id == "62000200" ~ 2018,
+                                   lake_id == "62006200" ~ 2007,
+                                   lake_id == "62007800" ~ 2018,
+                                   lake_id == "62006700" ~ 2019,
+                                   lake_id == "62005400" ~ 2019,
+                                   lake_id == "62005600" ~ 2021,
+                                   lake_id == "62004600" ~ 2007,
+                                   lake_id == "62002800" ~ 2007,
+                                   lake_id == "62003801" ~ 2007,
+                                   lake_id == "62003802" ~ 2007,
+                                   lake_id == "82016700" ~ 2014,
+                                   TRUE ~ NA)) %>% 
+  mutate(invasion_status = case_when(year_infested <= year(date) ~ "ZM",
+                                     year_infested > year(date) ~ "Uninvaded",
+                                     TRUE ~ NA))
+
+total.ramsey %>% 
+  group_by(age) %>% 
+  count()
+
+total.ramsey %>% 
+  group_by(est.age) %>% 
+  count()
+
+write_csv(total.ramsey, "ramsey_county_fish_growth.csv")
 ```
 
 #MN surveys with different purposes relating to catches?
@@ -3831,7 +3866,8 @@ list_of_problems <- problem_surveys %>%
 
 #counting records for the these lakes, dates, and survey type
 #problem seems to exist where there are two survey types where one reports nothing caught but the nothing reports catch
-#not all of these appear to be problems - some are are def multi surveys in a day
+#not all of these appear to be problems - some are are def multi surveys in a day\
+#historical catch typically has values while the other survey type doesn't
 problem_surveys %>% 
   group_by(lake_id, lake_name.1, date_clean, survey_type.1, nothing_caught) %>% 
   count() %>% 

@@ -158,6 +158,7 @@ adult_walleye_cpue <- adult_walleye %>%
 
 #range of cpues?
 adult_walleye_cpue %>% 
+  filter(!is.na(cpue) & total_effort_1 != "0") %>% 
   group_by(sampling_method) %>% 
   summarise(min = min(cpue), max = max(cpue))
 #an efishing value has an effort of 0?
@@ -303,6 +304,7 @@ adult_black_crappie_cpue <- adult_black_crappie %>%
 
 #range of cpues?
 adult_black_crappie_cpue %>% 
+  filter(!is.na(cpue) & total_effort_1 != "0") %>% 
   group_by(sampling_method) %>% 
   summarise(min = min(cpue), max = max(cpue))
 #an efishing value has an effort of 0?
@@ -317,6 +319,10 @@ adult_black_crappie_cpue %>%
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+adult_black_crappie_cpue %>% 
+  filter(cpue == Inf) %>% 
+  glimpse()
 
 rm(adult_black_crappie)
 ```
@@ -448,7 +454,7 @@ adult_bluegill_cpue <- adult_bluegill %>%
 
 #range of cpues?
 adult_bluegill_cpue %>% 
-  filter(!is.na(total_effort_1)) %>% 
+  filter(!is.na(total_effort_1) & total_effort_1 != "0") %>% 
   group_by(sampling_method) %>% 
   summarise(min = min(cpue), max = max(cpue))
 #an efishing value has an effort of 0?
@@ -459,10 +465,12 @@ adult_bluegill_cpue %>%
   print(n = nrow(.))
 
 #surveys that have nothing caught?
-adult_walleye_cpue %>% 
+adult_bluegill_cpue %>% 
   filter(nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+rm(adult_bluegill)
 ```
 
 #filtering largemouth bass
@@ -592,7 +600,7 @@ adult_largemouth_cpue <- adult_largemouth %>%
 
 #range of cpues?
 adult_largemouth_cpue %>% 
-  filter(!is.na(total_effort_1)) %>% 
+  filter(!is.na(total_effort_1) & total_effort_1 != "0") %>% 
   group_by(sampling_method) %>% 
   summarise(min = min(cpue), max = max(cpue))
 #an efishing value has an effort of 0?
@@ -738,7 +746,7 @@ adult_smallmouth_cpue <- adult_smallmouth %>%
 
 #range of cpues?
 adult_smallmouth_cpue %>% 
-  filter(!is.na(total_effort_1)) %>% 
+  filter(!is.na(total_effort_1) & total_effort_1 != "0") %>% 
   group_by(sampling_method) %>% 
   summarise(min = min(cpue), max = max(cpue))
 #an efishing value has an effort of 0?
@@ -884,7 +892,7 @@ adult_northern_pike_cpue <- adult_northern_pike %>%
 
 #range of cpues?
 adult_northern_pike_cpue %>% 
-  filter(!is.na(total_effort_1)) %>% 
+  filter(!is.na(total_effort_1) & total_effort_1 != "0") %>% 
   group_by(sampling_method) %>% 
   summarise(min = min(cpue), max = max(cpue))
 #an efishing value has an effort of 0?
@@ -1030,7 +1038,7 @@ adult_yellow_perch_cpue <- adult_yellow_perch %>%
 
 #range of cpues?
 adult_yellow_perch_cpue %>% 
-  filter(!is.na(total_effort_1)) %>% 
+  filter(!is.na(total_effort_1) & total_effort_1 != "0") %>% 
   group_by(sampling_method) %>% 
   summarise(min = min(cpue), max = max(cpue))
 #an efishing value has an effort of 0?
@@ -1047,7 +1055,6 @@ adult_yellow_perch_cpue %>%
   count()
 
 rm(adult_yellow_perch)
-
 ```
 
 #combining species

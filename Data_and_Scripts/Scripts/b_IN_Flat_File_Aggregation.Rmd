@@ -64,7 +64,10 @@ flag - this column contains a character string with issues describing each row, 
 - IN glacial lakes needs to use new file from Matthew Linn (11/16/23)
 - Get age data from Matthew Linn for the IN glacial lakes
 
-- Denver is going to work on the IN reservoirs
+- reservior update (Denver 11/21)
+  -community surveys mostly done 
+   - survey 273 has effort data but is not in the catch
+  -select columns to carry through
 
 - Can glacial lakes and reservoirs be filtered the same way? Or do they need different filtering mechanisms
 
@@ -390,30 +393,243 @@ in_glaciallakes_fish_no_samp_method <- in_glaciallakes_fish_6Oct2021_2 %>%
   filter(is.na(sampling_method)) #there are 5 fish without a sampling method
 ```
 
-Data review continued
-
-
-
-# IN Reservoirs
+#Glacial Lakes 
 ```{r}
+glimpse(in_glaciallakes_effort_16Nov2023)
+glimpse(in_glaciallakes_fish_16Nov2023)
 
-in_reservoir_fish_community_effort_16Aug2022[ , .N, .(sampling_method)] #no sampling method... will have to add
-# effort 1: EF, effort 2: gill net, effort 3: trap net (from data explainer and orig. metadata from Sandra)
+#
+```
 
-# make data long, and add sampling method (instead of effort_1, effort_2, etc.)
+
+
+#Reservoir
+```{r}
+################aged fish#################
+#age fish
+glimpse(in_reservoir_age_fish_16Aug2022)
+
+#age effort
+glimpse(in_reservoir_age_effort_16Aug2022)
+
+###############fish community#############
+#fish
+glimpse(in_reservoir_fish_community_fishdata_16Aug2022)
+
+#effort
+glimpse(in_reservoir_fish_community_effort_16Aug2022)
+
+##############targeted surveys#######################
+#fish
+glimpse(in_reservoir_targeted_fish_1Sep2022)
+
+#effort
+glimpse(in_reservoir_targeted_effort_1Sep2022)
+
+#community data set has the most fish so i will start there
+
+#collapse fish into survey level - doesn't look like I need to uncount
+
+#effort file has lake specific info that could be useful in linking (lat/long, lake_id)
+
+#potienal steps could be linking effort via survey id and sampling method and retaining info from the survey file
+
+#how do lake names align?
+fish.lakes <- in_reservoir_fish_community_fishdata_16Aug2022 %>% 
+  group_by(survey_id, lake_name.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+effort.lakes <- in_reservoir_fish_community_effort_16Aug2022 %>% 
+  group_by(survey_id,lake_name.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+in_reservoir_fish_community_effort_16Aug2022 %>% 
+  group_by(survey_id, date.1) %>% 
+  count() %>% 
+  print(n=nrow(.))
+#survey ids only contain one date
+
+
+#lake names seem to slightly differ between the two files, but survey ids are consist
+#no dates within the fish file, but if the survey ids are consist between the two files that should be okay
+
+in_reservoir_fish_community_fishdata_16Aug2022 %>% 
+  group_by(survey_id, sampling_method) %>% 
+  count() %>% 
+  print( n= nrow(.))
+#multiple survey types per survey id
+
+
+#how can i get sampling method within the effort file?
+in_reservoir_fish_community_effort_16Aug2022 %>% 
+  group_by(total_effort_1, total_effort_2, total_effort_3) %>% 
+  count()
+#data explainer says:
+#1. total_effort_1 reports effort for electofishing
+#2. total_effort_2 reports effort for gill netting
+#3. total_effort_3 reports effort for trap netting 
+
+#will joining on survey id work alright?
+in_reservoir_fish_community_fishdata_16Aug2022 %>% 
+  filter(is.na(survey_id))
+in_reservoir_fish_community_effort_16Aug2022 %>% 
+  filter(is.na(survey_id))
+#921 surveys without an id - this will be a problem
+#raw data only shows 79 rows/surveys - not sure why it reads in more 
+
+in_reservoir_fish_community_effort_16Aug2022 %>% 
+  filter(is.na(survey_id)) %>% 
+  glimpse()
+```
+
+To do in reservoir:
+1. targeted - why are there no fish for survey 512 standard traps despite showing significant effort ?
+2. aged - can I just join to add age to the standard surveys? are they targeted surveys different?
+
+#Resivor effort merge
+```{r}
+#steps to get effort and fish together:
+#1. generate sampling method for the effort file
+#2. link the effort to the fish via survey id and sampling method
+#3. retain or gather survey info from effort file or the lake id list
+
+
+#generating sampling method for the effort file
 in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community_effort_16Aug2022 %>%
-  pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3), names_to = "sampling_method", values_to = "total_effort" ) %>% # make data longer, so that effort is in a single column
-  mutate(sampling_method = case_when(sampling_method == "total_effort_1" ~ "nighttime electrofishing",
-                                     sampling_method == "total_effort_2" ~ "experimental gill net",
-                                     sampling_method == "total_effort_3" ~ "standard trap net"))%>% # write out sampling method
-  mutate(effort_units = case_when(sampling_method == "nighttime electrofishing" ~ "hours",
-                                  sampling_method == "experimental gill net" ~ "number of nets",
-                                  sampling_method == "standard trap net" ~ "number of nets"))%>% # write out effort units
+  filter(!is.na(survey_id)) %>% 
+  pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3), names_to = "sampling_method", values_to = "total_effort" ) %>%  # make data longer, so that effort is in a single column
+  mutate(sampling_method = case_when(sampling_method == "total_effort_1" ~ "Night EF",
+                                     sampling_method == "total_effort_2" ~ "Gill net std exp",
+                                     sampling_method == "total_effort_3" ~ "Trap net std"))%>% # write out sampling method
+  mutate(effort_units = case_when(sampling_method == "Night EF" ~ "hours",
+                                  sampling_method == "Gill net std exp" ~ "number of nets",
+                                  sampling_method == "Trap net std" ~ "number of nets"))%>% # write out effort units
   relocate(survey_id, lake_name.1, lake_id, date.1, end_date, survey_type.1, sampling_method, total_effort, effort_units)%>% #bring these columns to the front 
-  select(-effort_units.1, -effort_units.2, -effort_units.3) #remove redundant effort units columns
+  select(-effort_units.1, -effort_units.2, -effort_units.3)
 
+anti.effort <- anti_join(in_reservoir_fish_community_effort_16Aug2022_gear, 
+                          in_reservoir_fish_community_fishdata_16Aug2022, 
+                          by = c("survey_id", "sampling_method"))
 
-# is survey ID a unique key..? 
+anti.fish <- anti_join(in_reservoir_fish_community_fishdata_16Aug2022,
+                       in_reservoir_fish_community_effort_16Aug2022_gear,
+                       by = c("survey_id", "sampling_method"))
+#this shows a mismatch in survey ids at cypress lake between the effort and fish data
+#there was a difference in the sampling method spelling for a few records at Summit
+#fish data must be fixed to insure they join together 
+
+#prepping fish data for merge
+in_reservoir_fish_community_fishdata_16Aug2022_prep <- in_reservoir_fish_community_fishdata_16Aug2022 %>% 
+  mutate(sampling_method = case_when(sampling_method == "Gill net STB exp" ~ "Gill net std exp",
+                                     TRUE ~ sampling_method))  %>% #sampling method difference for a few records of fish
+  mutate(survey_id = case_when((survey_id == 373 & lake_name.1 == "Cypress Lake") ~ 273,
+                               TRUE ~ survey_id)) #difference in survey id at cypress lake
+
+in.community <- inner_join(in_reservoir_fish_community_effort_16Aug2022_gear, 
+                          in_reservoir_fish_community_fishdata_16Aug2022_prep, 
+                          by = c("survey_id", "sampling_method")) %>% 
+  select(survey_id,
+         sampling_method,
+         total_effort,
+         effort_units,
+         lake_id,
+         date.1,
+         end_date,
+         survey_type.1,
+         lat_unspec,
+         lon_unspec,
+         species.1,
+         length.1,
+         weight.1,
+         length_unit.1,
+         weight_unit.1,
+         gear_data_notes.1)
+
+#targeted surveys
+in_reservoir_targeted_effort_1Sep2022_gear <- in_reservoir_targeted_effort_1Sep2022 %>% 
+  filter(!is.na(survey_id)) %>% 
+  pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3, total_effort_4, total_effort_5), names_to = "sampling_method", values_to = "total_effort" ) %>% 
+  mutate(sampling_method = case_when(sampling_method == "total_effort_1" ~ "Night EF",
+                                     sampling_method == "total_effort_2" ~ "Gill net std exp",
+                                     sampling_method == "total_effort_3" ~ "Trap net std",
+                                     sampling_method == "total_effort_4" ~ "MITN",
+                                     sampling_method == "total_effort_5" ~ "Large-mesh GN"))%>% # write out sampling method
+  mutate(effort_units = case_when(sampling_method == "Night EF" ~ "hours",
+                                  sampling_method == "Gill net std exp" ~ "number of nets",
+                                  sampling_method == "Trap net std" ~ "number of nets",
+                                  sampling_method == "MITN" ~ "number of nets",
+                                  sampling_method == "Large-mesh GN" ~ "number of nets")) %>% 
+  relocate(survey_id, lake_name.1, lake_id, date.1, end_date, survey_type.1, sampling_method, total_effort, effort_units)%>% #bring these columns to the front 
+  select(-effort_units.1, -effort_units.2, -effort_units.3, -effort_units.4, -effort_units.5) %>% 
+  filter(!is.na(total_effort))
+
+anti.effort <- anti_join(in_reservoir_targeted_effort_1Sep2022_gear, 
+                         in_reservoir_targeted_fish_1Sep2022, 
+                          by = c("survey_id", "sampling_method"))
+
+anti.fish <- anti_join(in_reservoir_targeted_fish_1Sep2022,
+                       in_reservoir_targeted_effort_1Sep2022_gear,
+                       by = c("survey_id", "sampling_method"))
+
+anti.fish %>% 
+  group_by(survey_id, lake_name.1, sampling_method) %>% 
+  count()
+
+in_reservoir_targeted_fish_1Sep2022 %>% 
+  filter(is.na(survey_id)) %>% 
+  group_by(lake_name.1, species.1, length.1) %>% 
+  count()
+#no fish records in 512 for the standard trap effort - all fish are are a MITN... is it really nothing caught with 35 nets?
+#200 records that have everything as just na - similar to what I have been seeing in the effort data
+
+#prepping fish data for merge
+in_reservoir_targeted_fish_1Sep2022_prep <- in_reservoir_targeted_fish_1Sep2022 %>% 
+  filter(!is.na(survey_id))
+
+in.targeted <- inner_join(in_reservoir_targeted_effort_1Sep2022_gear, 
+                          in_reservoir_targeted_fish_1Sep2022_prep, 
+                          by = c("survey_id", "sampling_method")) %>% 
+  select(survey_id,
+         sampling_method,
+         total_effort,
+         effort_units,
+         lake_id,
+         date.1,
+         end_date,
+         survey_type.1,
+         lat_unspec,
+         lon_unspec,
+         species.1,
+         length.1,
+         weight.1,
+         length_unit.1,
+         weight_unit.1,
+         gear_data_notes.1)
+
+#aged fish
+anti.age.effort <- anti_join(in_reservoir_age_effort_16Aug2022, 
+                             in_reservoir_fish_community_effort_16Aug2022,
+                             by = c("survey_id", "length.1", "weight.1", "species.1"))
+
+in_reservoir_age_effort_16Aug2022 %>% 
+  group_by(total_effort_4, total_effort_5) %>% 
+  count()
+
+in_reservoir_age_effort_16Aug2022 %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+in_reservoir_targeted_effort_1Sep2022 %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+trial <- left_join(in_reservoir_fish_community_fishdata_16Aug2022, in_reservoir_age_fish_16Aug2022,
+                   by = c("survey_id", "species.1", ))
+
+#these fish appear be fish from the above surveys - can I just join on lake, sampling method, weight, date
+#I think I would only be able to do this for the standard surveys - the effort for the targeted survey is not in the targeted effor file for effort 
 
 ```
 
@@ -630,30 +846,6 @@ merge(
                         
 ``` 
           
-#Reservoir
-```{r}
-################aged fish#################
-#age fish
-glimpse(in_reservoir_age_fish_16Aug2022)
-
-#age effort
-glimpse(in_reservoir_age_effort_16Aug2022)
-
-###############fish community#############
-#fish
-glimpse(in_reservoir_fish_community_fishdata_16Aug2022)
-
-#effort
-glimpse(in_reservoir_fish_community_effort_16Aug2022)
-
-##############targeted surveys#######################
-#fish
-glimpse(in_reservoir_targeted_fish_1Sep2022)
-
-#effort
-glimpse(in_reservoir_targeted_effort_1Sep2022)
-```
-
           
 # Data tidying                        
 ```{r}                       

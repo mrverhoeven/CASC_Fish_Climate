@@ -356,6 +356,7 @@ adult_black_crappie_cpue %>%
 rm(adult_black_crappie)
 ```
 
+
 #bluegill filtering
 ```{r}
 #filters for metric (adult abundance) and selects columns needed for survey filtering
@@ -1327,3 +1328,4 @@ mn_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "yellow_perch"))
 write_csv(mn_filtered_species, "MN_all_cpue_filtered.csv")
 ```
+

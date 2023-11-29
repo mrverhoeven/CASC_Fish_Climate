@@ -409,11 +409,11 @@ il_catch_age_effort_17Jan22 <- il_catch_age_effort_17Jan22 %>%
 #collapsing effort from the obs level file 
 survey.effort <- il_effort_17Jan22 %>% 
   #groups all sub-survey level effort into the larger survey
-  group_by(survey_id, lake_id, year, date.1, sampling_method, gear_data_notes.1, total_effort_2, total_effort_1, original_file_name.1) %>% 
+  group_by(lake_id, year, date.1, sampling_method, gear_data_notes.1, total_effort_2, total_effort_1, original_file_name.1) %>% 
   #count of obs in each survey grouping
   count() %>% 
   #grouping by the survey id, year, and method to get survey level effort from sub-survey level 
-  group_by(survey_id, lake_id, year, sampling_method, gear_data_notes.1, original_file_name.1) %>% 
+  group_by(lake_id, year, sampling_method, gear_data_notes.1, original_file_name.1) %>% 
   mutate(survey_effort = sum(total_effort_1),
          survey_effort_id = cur_group_id()) %>%  #gives a unique ident to this grouping
   rename(original_file_name.1_effort = original_file_name.1)
@@ -421,9 +421,9 @@ survey.effort <- il_effort_17Jan22 %>%
 #quick gut check on survey-effort aggregation 
 #are there any surveys that have more than one survey level effort?
 survey.effort %>% 
-  group_by(survey_id, sampling_method, gear_data_notes.1, survey_effort) %>% 
+  group_by(lake_id, year, sampling_method, gear_data_notes.1, survey_effort) %>% 
   count() %>% 
-  group_by(survey_id, sampling_method, gear_data_notes.1) %>% 
+  group_by(lake_id, year, sampling_method, gear_data_notes.1) %>% 
   count() %>% 
   filter(n >1)
 
@@ -435,8 +435,7 @@ survey.effort %>%
 
 #joining the survey level effort with the individual fish obs
 #this join adds the survey level effort and survey effort ident for each grouping
-il_data <- left_join(survey.effort, il_catch_age_effort_17Jan22, by = c("survey_id", 
-                                                                        "lake_id",
+il_data <- left_join(survey.effort, il_catch_age_effort_17Jan22, by = c("lake_id",
                                                                         "year", 
                                                                         "date.1", 
                                                                         "sampling_method", 
@@ -683,7 +682,7 @@ il_data <- il_data %>%
          lake_id,
          date.1,
          year,
-         survey_id,
+         #survey_id,
          lat_unspec,
          lon_unspec,
          survey_type.1,
@@ -722,10 +721,10 @@ il_data <- il_data %>%
 
 glimpse(il_data)
 
-#how does the caught nothign column look?
+#how does the caught nothing column look?
 il_data %>% 
   filter(caught_nothing == "TRUE") %>% 
-  group_by(caught_nothing, lake_name_1, lake_id, survey_id, sub_effort_1_id) %>% 
+  group_by(caught_nothing, lake_name_1, lake_id, sub_effort_1_id) %>% 
   count() %>% 
   print(n = nrow(.))
 #the only columns with an na lake name do not have a catch - this tell us the merge was done correctly
@@ -740,7 +739,7 @@ cpue <- il_data %>%
   group_by(total_effort_1_id, species_1) %>% 
   mutate(n = n(),
          cpue = n/total_effort_1) %>% 
-  distinct(survey_id, sampling_method_1, total_effort_1_id, total_effort_1, n, species_1, cpue)
+  distinct(sampling_method_1, total_effort_1_id, total_effort_1, n, species_1, cpue)
 
 #subeffort?
 glimpse(il_data)

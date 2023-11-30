@@ -780,17 +780,17 @@ mn_dat <- mn_data %>%
                             species_abbrev == "SMT" ~ "speckled_madtom",
                             species_abbrev == "RDS" ~ "red_shiner",
                             species_abbrev == "WAM" ~ "warmouth",
-                            # below unknown codes specified as such
                             species_abbrev == "CIS" ~ "cisco",
                             species_abbrev == "CPS" ~ "carpsucker",
                             species_abbrev == "CRP" ~ "crappie",
                             species_abbrev == "HCR" ~ "hybrid_crappie",
-                            species_abbrev == "LXB" ~ "see_ambiguous_species_code",
                             species_abbrev == "SCU" ~ "sculpin",
                             species_abbrev == "SHD" ~ "slenderhead_darter",
                             species_abbrev == "SIP" ~ "northern_pike_silver_phase",
                             species_abbrev == "UK1" ~ "unknown_fish",
                             species_abbrev == "UK2" ~ "unknown_fish",
+                            # below unknown codes specified as such
+                            species_abbrev == "LXB" ~ "see_ambiguous_species_code",
                             TRUE ~ species_abbrev
                           )
       ]

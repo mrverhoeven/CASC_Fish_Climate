@@ -17,13 +17,6 @@ Things to keep in mind:
 -make sure I am retaining important columns that are listed before the effort section
 
 things to do:
--make sure the effort ident is at the correct level (pretty sure Denver already took care of this)
-     -"nets" includes gill nets and fyke nets
-     -in the current situation we could have more than one sub-gear type in a survey
-     -in short, make sure there is sampling method and finer scale sampling method in id creation
--the surveys with nothing caught need to be cleaned so that the survey info is retained for filtering (also think this is done)
-      -right now the way I join the nothing caught surveys in they only contain the distinct columns
-      -requires just the .keep_all = true in the tidy
 -check targeted surveys if they have a targeted species - does this align with subsample?
      -do they only record that species in the targeted survey? - need to checked species reported in targeted surveys
 
@@ -427,15 +420,9 @@ survey.effort %>%
   count() %>% 
   filter(n >1)
 
-survey.effort %>% 
-  filter(survey_id %in% c("Survey_1390", "Survey_684"))
-#all of the duplicates have multiple years associated with the same effort so it wont be a problem
-#surveys have two efforts for the survey id but they are in different years
-#this does not hinder the join as date/year will be included
-
 #joining the survey level effort with the individual fish obs
 #this join adds the survey level effort and survey effort ident for each grouping
-il_data <- left_join(survey.effort, il_catch_age_effort_17Jan22, by = c("lake_id",
+il_data_merged <- left_join(survey.effort, il_catch_age_effort_17Jan22, by = c("lake_id",
                                                                         "year", 
                                                                         "date.1", 
                                                                         "sampling_method", 
@@ -447,20 +434,16 @@ il_data <- left_join(survey.effort, il_catch_age_effort_17Jan22, by = c("lake_id
 #this works, but all of the surveys that did not catch fish are missing important survey information 
 #we want to know the surveys that did not catch fish, extract all information from the original file, put the information back in
 
-
-##########saw an issue with loosing fish obs -checking that below#########
 #taking a look at efforts without associated fish obs
-no_matches <- anti_join(survey.effort, il_catch_age_effort_17Jan22, by = c("survey_id", 
-                                                                        "lake_id",
+no_matches <- anti_join(survey.effort, il_catch_age_effort_17Jan22, by = c("lake_id",
                                                                               "year", 
                                                                               "date.1", 
                                                                               "sampling_method", 
                                                                               "gear_data_notes.1",
                                                                               "total_effort_2", 
                                                                               "total_effort_1"))
-#this is an object that thas all of the survey that did not catch fish with all of the information
-no_fish <- right_join(il_effort_17Jan22, no_matches, by = c("survey_id", 
-                                                                        "lake_id",
+#this is an object that has all of the survey that did not catch fish with all of the information
+no_fish <- right_join(il_effort_17Jan22, no_matches, by = c("lake_id",
                                                                               "year", 
                                                                               "date.1", 
                                                                               "sampling_method", 
@@ -468,15 +451,18 @@ no_fish <- right_join(il_effort_17Jan22, no_matches, by = c("survey_id",
                                                                               "total_effort_2", 
                                                                               "total_effort_1"))
 #lake id 4222 in 2015 has multiple surveys of the same effort at the same location
+
+
 #returning no fish surveys back into the data
-il_data <- il_data %>% 
+il_data_all <- il_data_merged %>% 
   filter(!is.na(original_file_name.1_indvifish)) 
-il_data <- bind_rows(il_data, no_fish)
+il_data <- bind_rows(il_data_all, no_fish) %>% 
+  ungroup()
 
 #quick glance to see how net efforts are calculating to survey efforts
 effort.check <- il_data %>% 
-  distinct(survey_id, lake_id, year, date.1, sampling_method, total_effort_2, total_effort_1, .keep_all = T) %>% 
-  select(survey_id, lake_id, lake_name.1, year, date.1, sampling_method, total_effort_2, total_effort_1, survey_effort)
+  distinct(lake_id, year, date.1, sampling_method, total_effort_2, total_effort_1, .keep_all = T) %>% 
+  select(lake_id, lake_name.1, year, date.1, sampling_method, total_effort_2, total_effort_1, survey_effort)
 
 #Are my original file names tracking?
 il_data %>% 
@@ -492,8 +478,7 @@ il_data %>%
 #all obs have effort associated with them
 
 #fish that are in the catch but are not in the effort?
-excluded <- anti_join(il_catch_age_effort_17Jan22, il_data, by = c("survey_id", 
-                                                                   "lake_id",
+excluded <- anti_join(il_catch_age_effort_17Jan22, il_data, by = c("lake_id",
                                                                    "year", 
                                                                    "date.1", 
                                                                    "sampling_method", 

@@ -530,14 +530,16 @@ in_reservoir_fish_community_fishdata_16Aug2022_prep <- in_reservoir_fish_communi
 in.community <- inner_join(in_reservoir_fish_community_effort_16Aug2022_gear, 
                           in_reservoir_fish_community_fishdata_16Aug2022_prep, 
                           by = c("survey_id", "sampling_method")) %>% 
-  select(survey_id,
-         sampling_method,
-         total_effort,
-         effort_units,
+  select(state.x,
+         survey_id,
+         lake_name.1.x,
          lake_id,
          date.1,
          end_date,
          survey_type.1,
+         sampling_method,
+         total_effort,
+         effort_units,
          lat_unspec,
          lon_unspec,
          species.1,
@@ -545,7 +547,13 @@ in.community <- inner_join(in_reservoir_fish_community_effort_16Aug2022_gear,
          weight.1,
          length_unit.1,
          weight_unit.1,
-         gear_data_notes.1)
+         gear_data_notes.1,
+         original_file_name.1.x,
+         original_file_name.1.y) %>% 
+  rename(state = state.x,
+         lake_name.1 = lake_name.1.x,
+         original_file_name.1_effort_standard = original_file_name.1.x,
+         original_file_name.1_fish_standard = original_file_name.1.y)
 
 #targeted surveys
 in_reservoir_targeted_effort_1Sep2022_gear <- in_reservoir_targeted_effort_1Sep2022 %>% 
@@ -591,14 +599,16 @@ in_reservoir_targeted_fish_1Sep2022_prep <- in_reservoir_targeted_fish_1Sep2022 
 in.targeted <- inner_join(in_reservoir_targeted_effort_1Sep2022_gear, 
                           in_reservoir_targeted_fish_1Sep2022_prep, 
                           by = c("survey_id", "sampling_method")) %>% 
-  select(survey_id,
-         sampling_method,
-         total_effort,
-         effort_units,
+  select(state.x,
+         survey_id,
+         lake_name.1.x,
          lake_id,
          date.1,
          end_date,
          survey_type.1,
+         sampling_method,
+         total_effort,
+         effort_units,
          lat_unspec,
          lon_unspec,
          species.1,
@@ -606,31 +616,89 @@ in.targeted <- inner_join(in_reservoir_targeted_effort_1Sep2022_gear,
          weight.1,
          length_unit.1,
          weight_unit.1,
-         gear_data_notes.1)
+         gear_data_notes.1,
+         original_file_name.1.x,
+         original_file_name.1.y) %>% 
+    rename(state = state.x,
+          lake_name.1 = lake_name.1.x,
+          original_file_name.1_effort_targeted = original_file_name.1.x,
+          original_file_name.1_fish_targeted = original_file_name.1.y)
+
+#combining targeted and community surveys
+in_reservoir_data_noage <- bind_rows(in.community, in.targeted)
+
 
 #aged fish
-anti.age.effort <- anti_join(in_reservoir_age_effort_16Aug2022, 
-                             in_reservoir_fish_community_effort_16Aug2022,
-                             by = c("survey_id", "length.1", "weight.1", "species.1"))
-
-in_reservoir_age_effort_16Aug2022 %>% 
-  group_by(total_effort_4, total_effort_5) %>% 
+in_reservoir_age_fish_16Aug2022 %>% 
+  group_by(sampling_method) %>% 
   count()
 
-in_reservoir_age_effort_16Aug2022 %>% 
-  group_by(survey_type.1) %>% 
+in_reservoir_age_fish_16Aug2022 %>% 
+  group_by(species.1) %>% 
   count()
 
-in_reservoir_targeted_effort_1Sep2022 %>% 
-  group_by(survey_type.1) %>% 
-  count()
+in_reservoir_data_noage %>% 
+  group_by(species.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
 
-trial <- left_join(in_reservoir_fish_community_fishdata_16Aug2022, in_reservoir_age_fish_16Aug2022,
-                   by = c("survey_id", "species.1", ))
+in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
+  filter(!is.na(survey_id)) %>% 
+  arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
+  group_by(survey_id,species.1, sampling_method, length.1, weight.1) %>% 
+  mutate(age_id = row_number()) %>% 
+  ungroup() %>% 
+  mutate(length.1 = as.double(length.1),
+         weight.1 = as.double(weight.1)) %>% 
+  mutate(sampling_method = case_when(sampling_method %in% c("IN Standard Net", "Gill net") ~ "Gill net std exp",
+                                     TRUE ~ sampling_method)) %>% 
+  select(survey_id, 
+         sampling_method, 
+         species.1,
+         length.1, 
+         weight.1,
+         age_id, 
+         age, 
+         aging_structure.1, 
+         original_file_name.1) %>% 
+  rename(original_file_name.1_age = original_file_name.1)
 
-#these fish appear be fish from the above surveys - can I just join on lake, sampling method, weight, date
-#I think I would only be able to do this for the standard surveys - the effort for the targeted survey is not in the targeted effor file for effort 
+in_reservoir_data_age <- in_reservoir_data_noage %>% 
+  arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
+  group_by(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
+  mutate(age_id = row_number())
 
+#matching with community fish
+in_reservoir_data <- left_join(in_reservoir_data_age,
+                                    in_reservoir_age_fish_16Aug2022_merge,
+                                    by = c("survey_id",
+                                           "sampling_method",
+                                           "species.1",
+                                           "length.1",
+                                           "weight.1",
+                                           "age_id")) 
+
+#aged fish that do not have a match
+anti.age <- anti_join(in_reservoir_age_fish_16Aug2022_merge,
+                      in_reservoir_data,
+                                    by = c("survey_id",
+                                           "species.1",
+                                           "sampling_method",
+                                           "length.1",
+                                           "weight.1",
+                                           "age_id"))
+#surveys of aged fish that do not have a match
+anti.age %>% 
+  group_by(survey_id, sampling_method) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#I was only able to match about half of the fish 
+#surveys that do not have any records besides age data: 373, 467, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490
+#survey that have matching community record but no corresponding fish: 379
+#surveys that have a matching survey id but mismatching survey info: 468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478, 479, 480
+
+#I will wait to clean up data with glacial lakes 
+#Items that will need to be cleaned up: length/weight units, species 
 ```
 
 

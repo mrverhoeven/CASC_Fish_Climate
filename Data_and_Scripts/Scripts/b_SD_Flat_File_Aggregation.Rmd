@@ -97,7 +97,7 @@ files_list
 n <- length(files_list)
 
 for(i in 1:n) {
-  #i = 1
+  #i = 3
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
@@ -191,9 +191,53 @@ for(i in 1:n) {
 # review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
 # consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
 
+# indiv fish records are here (bind brings together two datasets split to share): 
+sd_catch_indivfish_2Nov2023 <- rbindlist(list(sd_catch1_indivfish_2Nov2023,sd_catch2_indivfish_2Nov2023))
+  rm(sd_catch1_indivfish_2Nov2023, sd_catch2_indivfish_2Nov2023)
+  names(sd_catch_indivfish_2Nov2023)
+
+sd_catch_indivfish_2Nov2023[ , .N , .(survey_id, species.1) ]
+sd_catch_indivfish_2Nov2023[ , .N , .(species.1) ]
+#then there's the batch count data:
+names(sd_catch3_batchcounts_2Nov2023)
+
+sd_catch3_batchcounts_2Nov2023[, .N , .(survey_id, species.1) ]
+  sd_catch3_batchcounts_2Nov2023[, .N , .(survey_id, species.1) ][N>1]
+#based on this format I would not expect to see multi batch counts for one survey...
+sd_catch3_batchcounts_2Nov2023[sd_catch3_batchcounts_2Nov2023[, .N , .(survey_id, species.1) ][N>1] , on = .(survey_id, species.1) , ][order(survey_id,species.1)]
+#some are because of nulls   
+#remove null records 
+  sd_catch3_batchcounts_2Nov2023[total_count.1 == 0 , .N  ,]
+  sd_catch3_batchcounts_2Nov2023 <-  sd_catch3_batchcounts_2Nov2023[ total_count.1 > 1 ,  ]
+  
+#okay, so there are two (or more) different vals for batch counts, let's check to make sure that the effort data are one gear per lake kinda thing on the survey_id field
+sd_effort_lakesurveysdata_2Nov2023[ , .N , .(survey_id) ][N>1]
+sd_effort_lakesurveysdata_2Nov2023[survey_id == "{E02AD9C6-0877-475B-9BAA-1973CCA1DCFB}"] #only one case..we're going to drop that second record
+sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ !garbage_bin_notes.1 ==  "OBJECTID *:374903" , ,]
+#okay, but note that the survey_id is not unique at the lakeXgear level
+sd_effort_lakesurveysdata_2Nov2023[ , length(unique(survey_id)) , .( lake_name.1, date(date.1)) ]#
+# so that suggests that the survey_id is equivalent to our sub_effort_ident (i.e. we will need to generate a total_effort_ident filed that sums all sub_effort_idents in a lakeXgear)
+
+#expand the batchcounts
+
+sd_batchcounts_uncounted <- uncount(sd_catch3_batchcounts_2Nov2023, weights = total_count.1, .remove = T, .id = "uncount_ident")
+rm(sd_catch3_batchcounts_2Nov2023)
+
+
+sd_catch_indivfish_2Nov2023 <- rbindlist(list(sd_batchcounts_uncounted,sd_catch_indivfish_2Nov2023), fill = TRUE)
+  rm(sd_batchcounts_uncounted)
+  
+  sd_catch_indivfish_2Nov2023[ , .N , tolower(species.1)]
+  
+#now scratch around in the aged fish to see whats there: 
+  sd_length_age_2Nov2023[ , .N , tolower(species.1)]
+  
+  
+  
+  
 
 #fish as rows for most species needs to be uncounted (listed as catch)
-#lets compare number of age-length fish to fish catches
+#let's compare number of age-length fish to fish catches
 #also renaming lowercase largemouth bass 
 sd_length_age_4Oct2021=sd_length_age_4Oct2021 %>%   mutate(across('species.1', str_replace, 'largemouth bass', 'Largemouth Bass'))
 sd_age_counts=sd_length_age_4Oct2021  %>% group_by(survey_id, species.1) %>% summarise(catch.la=n())

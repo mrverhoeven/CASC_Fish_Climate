@@ -230,7 +230,17 @@ in_lake_id_list_1Dec2023_fixed <- in_lake_id_list_1Dec2023 %>%
   mutate(lake_name.1 = str_remove_all(lake_name.1, "-"))%>%
   mutate(lake_name.1 = str_replace(lake_name.1, " \\(\\)", ""))%>%
   mutate(county = str_to_lower(county))%>%
-  select(lake_id, lake_name.1, county)
+  select(lake_id, lake_name.1, county)%>%
+  mutate(county = str_replace(county, " ", ""))%>%
+  mutate(county = if_else(county == "st.joseph", "st. joseph", county))%>%
+  mutate(lake_name.1 = case_when(lake_name.1 == "LakeoftheWoods" ~ "Lake of the Woods",
+                                 lake_name.1 == "Little Long" & county == "noble" ~ "Little Long (Noble)",
+                                 lake_name.1 == "Little Long" & county == "steuben" ~ "Little Long (Steuben)",
+                                 lake_name.1 == "Pretty" & county == "marshall" ~ "Pretty (Marshall)",
+                                 lake_name.1 == "TroyCedar" & county == "whitley" ~ "Troy-Cedar",
+                                 lake_name.1 == "Round (Clear)" ~ "Round(Clear)",
+                                 lake_name.1 == "Crooked (/Whitley)" ~ "Crooked (Noble/Whitley)",
+                                 .default = lake_name.1))
 ```
 
 ```{r}
@@ -284,7 +294,16 @@ in_glaciallakes_effort_6Oct2021_2 <- in_glaciallakes_effort_6Oct2021 %>%
 in_effort_prob_list <- in_glaciallakes_effort_6Oct2021_2 %>%
   left_join(in_lake_id_list_1Dec2023_fixed, by = c("lake_name.1", "county"))%>%
   select(lake_id, lake_name.1, county, year)%>%
-  distinct()
+  distinct()%>%
+  filter(is.na(lake_id)) # only two problems: Loon and Tamarack in Noble County
+
+# get lake ID from FINFO lake ID list
+in_glaciallakes_effort_6Oct2021_ID <- in_glaciallakes_effort_6Oct2021_2 %>%
+  left_join(in_lake_id_list_1Dec2023_fixed, by = c("lake_name.1", "county"))%>%
+  mutate(lake_id = case_when(lake_name.1 == "Loon" & county == "noble" ~ "Unknown_ID_Loon",
+                             lake_name.1 == "Tamarack" & county == "noble" ~ "Unknown_ID_Tamarack",
+                             .default = lake_id))%>% #temporary fix for two lakes without an ID
+  relocate(lake_name.1, lake_id, county, year, sampling_method, total_effort_1, effort_units.1)
   
 ```
 
@@ -292,7 +311,8 @@ prep IN GL fish data
 - already one fish per row! yay!
 
 ```{r}
-#will need to clean up lake names and county names for merge
+#will need to clean up lake names and county names for merge (need Matthew Linn's help with this)
+  # instead have worked out kinks with lake ID and will use that instead for merge
 
 in_glaciallakes_fish_6Oct2021_2 <- in_glaciallakes_fish_6Oct2021 %>%
   rename(sampling_method_abbrev = sampling_method)%>% #this is an abbreviated name, make column with full name
@@ -301,7 +321,7 @@ in_glaciallakes_fish_6Oct2021_2 <- in_glaciallakes_fish_6Oct2021 %>%
                                   sampling_method_abbrev == "EF" ~ "nighttime electrofishing",
                                   .default = NA))%>%
   mutate(county = str_to_lower(county))%>%
-  mutate(sampling_method_abbrev = if_else(sampling_method == "unknown", NA, sampling_method_abbrev))%>%
+  mutate(sampling_method_abbrev = if_else(sampling_method == "unknown", NA, sampling_method_abbrev))%>% 
   relocate(lake_name.1, county, year, species.1, length.1, sampling_method, sampling_method_abbrev, targeted_or_standard)
 
 
@@ -309,7 +329,15 @@ in_glaciallakes_fish_6Oct2021_2 <- in_glaciallakes_fish_6Oct2021 %>%
 in_fish_prob_list <- in_glaciallakes_fish_6Oct2021_2 %>%
   select(lake_name.1, county, year)%>%
   distinct()%>%
-  left_join(in_lake_id_list_1Dec2023_fixed, by = c("lake_name.1", "county"))
+  left_join(in_lake_id_list_1Dec2023_fixed, by = c("lake_name.1", "county"))%>%
+  filter(is.na(lake_id)) # only probs are loon and tamarack (just like in effort)
+
+# get lake ID from FINFO lake ID list
+in_glaciallakes_fish_6Oct2021_ID <- in_glaciallakes_fish_6Oct2021_2 %>%
+  left_join(in_lake_id_list_1Dec2023_fixed, by = c("lake_name.1", "county"))%>%
+   mutate(lake_id = case_when(lake_name.1 == "Loon" & county == "noble" ~ "Unknown_ID_Loon",
+                             lake_name.1 == "Tamarack" & county == "noble" ~ "Unknown_ID_Tamarack",
+                             .default = lake_id))
 ```
 
 example for Matthew Linn about mismatched counties
@@ -325,7 +353,26 @@ in_list <- in_effort_prob_list %>%
 
 Set up Temporary merge with lake ID knowing that some won't match up so that a preliminary product can be created
 - Standard surveys for Glacial Lakes
+
 ```{r}
+in_glacial_lakes_standard_merge <- in_glaciallakes_fish_6Oct2021_ID %>%
+  full_join(in_glaciallakes_effort_6Oct2021_ID, by = c("lake_id", "sampling_method", "year"))
+# NOT SURE THIS IS A GOOD ENOUGH KEY, SUS IT OUT
+
+# tidy so columns match other parquet names
+in_glaciallakes_standard_tidy <- in_glacial_lakes_standard_merge%>%
+  mutate(waterbody_type = "Glacial Lake")
+
+
+  # check for surveys that have 0 catch
+  # check for instances of duplication, if this is bad, just use earlier match and flag
+  # choose one county and one lake name ifelse(if same print it, if different print effort name)
+  # flag problems/mismatches
+  # rename columns to match agreed upon names
+
+```
+
+## can delete if above works ____________________________________________________________
 in_glaciallakes_effort_6Oct2021_3 <- in_glaciallakes_effort_6Oct2021_2 %>%
   left_join(in_lake_id_list_1Dec2023_fixed, by = c("lake_name.1", "county"))%>%
   filter(is.na(lake_id))%>%
@@ -342,21 +389,8 @@ in_glaciallakes_fish_6Oct2021_3 <- in_glaciallakes_fish_6Oct2021 %>%
   left_join(in_lake_id_list_1Dec2023_fixed, by = c("lake_name.1", "county"))%>%
   relocate(lake_name.1, lake_id, county, year, species.1, length.1, sampling_method, sampling_method_abbrev, targeted_or_standard)
 
-## Note several fish and surveys do NOT have lake ID at this point, Matthew will have to provide info to sort this out
 
-in_glacial_lakes_standard <- in_glaciallakes_effort_6Oct2021_3 %>%
-  full_join(in_glaciallakes_fish_6Oct2021_3, by = c("lake_id", "sampling_method", "year"))
-
-in_glacial_lakes_standard2 <- in_glaciallakes_effort_6Oct2021_3 %>%
-  full_join(in_glaciallakes_fish_6Oct2021_3, by = c("lake_name.1", "county", "sampling_method", "year"))
-
-  # check for surveys that have 0 catch
-  # check for instances of duplication, if this is bad, just use earlier match and flag
-  # choose one county and one lake name ifelse(if same print it, if different print effort name)
-  # flag problems/mismatches
-  # rename columns to match agreed upon names
-
-```
+#_______________
 
 
 merge IN GL standard fish with effort

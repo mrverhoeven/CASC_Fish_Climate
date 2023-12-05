@@ -484,11 +484,22 @@ in_reservoir_fish_community_effort_16Aug2022 %>%
   glimpse()
 ```
 
-To do in reservoir:
-1. targeted - why are there no fish for survey 512 standard traps despite showing significant effort ?
-2. aged - can I just join to add age to the standard surveys? are they targeted surveys different?
+Notes about reservoir data:
+-Lake names between effort and fish files were not consistent 
+-The Lake ID and date are only found int the effort file
+-Given the two points above, I merged effort and fish files together using survey id and sampling method
+-total effort is stored in a wide format - conversion to long format was needed
+-ages that do not have a corresponding fish in the community or targeted surveys were left in the file and can be easily filtered out
 
-#Resivor effort merge
+Questions about the data themselves:
+- For standard fish community surveys cypress lake seems to have a miss match survey id (273 and 373)
+- In targeted surveys, 512 Dogwood has effort for standard trap nets but no fish are in the fish file
+- Only half of the ages found partners of fish using survey id, length, weight, species, sampling method 
+    -surveys that do not have any records besides age data: 373, 467, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490
+    -survey that have matching community record but no corresponding fish: 379
+    -surveys that have a matching survey id but mismatching survey info: 468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478, 479, 480
+
+#Reservoir effort merge
 ```{r}
 #steps to get effort and fish together:
 #1. generate sampling method for the effort file
@@ -669,14 +680,15 @@ in_reservoir_data_age <- in_reservoir_data_noage %>%
   mutate(age_id = row_number())
 
 #matching with community fish
-in_reservoir_data <- left_join(in_reservoir_data_age,
-                                    in_reservoir_age_fish_16Aug2022_merge,
+in_reservoir_data <- full_join(in_reservoir_data_age,
+                                  in_reservoir_age_fish_16Aug2022_merge,
                                     by = c("survey_id",
                                            "sampling_method",
                                            "species.1",
                                            "length.1",
                                            "weight.1",
                                            "age_id")) 
+glimpse(in_reservoir_data)
 
 #aged fish that do not have a match
 anti.age <- anti_join(in_reservoir_age_fish_16Aug2022_merge,
@@ -697,8 +709,10 @@ anti.age %>%
 #survey that have matching community record but no corresponding fish: 379
 #surveys that have a matching survey id but mismatching survey info: 468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478, 479, 480
 
+#currently all age data is put in - ages that did not match to surveyed fish can easily be filtered out but na lake name/survey id/ect. - you can also see that they have an original file for age but not for effort/fish 
+
 #I will wait to clean up data with glacial lakes 
-#Items that will need to be cleaned up: length/weight units, species 
+#Items that will need to be cleaned up: length/weight units, species, creation of a total effort ident
 ```
 
 

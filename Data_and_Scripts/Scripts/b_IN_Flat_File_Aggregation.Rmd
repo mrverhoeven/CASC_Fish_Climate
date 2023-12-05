@@ -479,7 +479,7 @@ keycols_INGL_target <- c("lake_id", "date.1")
 setkeyv(in_glaciallakes_targeted_effort_16Nov2023_2, keycols_INGL_target)
 setkeyv(in_glaciallakes_targeted_fish_16Nov2023_2, keycols_INGL_target)
 
-# merge IN glacial lakes standard surveys effort and fish data
+# merge IN glacial lakes targedted surveys effort and fish data
 in_glaciallakes_target_merge <- merge(in_glaciallakes_targeted_fish_16Nov2023_2, in_glaciallakes_targeted_effort_16Nov2023_2, by = keycols_INGL_target, all = T, suffixes = c("_catch", "_effort")) #, roll = "nearest"
 
 in_glaciallakes_target_merge_year <- in_glaciallakes_targeted_effort_16Nov2023_2 %>%
@@ -591,27 +591,39 @@ in_glaciallakes_targeted_inner_join_tidy <- in_glaciallakes_targeted_inner_join 
                            lake_name.1_catch != lake_name.1_effort ~ "mismatched lake names",
                           .default = NA))%>%
   mutate(lake_name_1 = if_else(lake_name.1_catch == lake_name.1_effort, lake_name.1_catch, lake_name.1_effort))%>%
-  mutate(county = if_else(county_catch == county_effort, county_catch, county_effort))
-
-
-#%>%rename(state = state_catch, #rename to match other parquet files
+  mutate(county = if_else(county_catch == county_effort, county_catch, county_effort))%>%
+  rename(state = state_catch, #rename to match other parquet files
          date_1 = date.1,
          total_effort_1_units = effort_units.1,
          species_1 = species.1,
          length_1 = length.1,
-         length_unit_1 = length_unit.1)%>%
-  mutate(date_1 = as.IDate(date_1))%>%
+         length_unit_1 = length_unit.1,
+         year = year_catch,
+         original_file_name_1_effort = original_file_name.1_effort,
+         original_file_name_1_indivfish = original_file_name.1_catch)%>%
+  mutate(date_1 = as.IDate(date_1))%>% #make date an IDate
+  mutate(species_1 = str_to_lower(species_1))%>% #make species name lowercase
+  mutate(species_1 = str_replace(species_1, " ", "_"))%>% #remove spaces from species name and put underscores
   mutate(survey_type = if_else(!is.na(targeted_or_standard_catch), targeted_or_standard_catch, targeted_or_standard_effort))%>%
+  mutate(waterbody_type = "Glacial Lake")%>%
   select(state, 
          county, 
          lake_name_1, 
          lake_id,
          date_1,
+         year,
          survey_type,
          sampling_method,
          total_effort_1,
          total_effort_1_units,
-         species_1)
+         species_1,
+         length_1,
+         length_unit_1,
+         original_file_name_1_indivfish,
+         original_file_name_1_effort,
+         waterbody_type)
+
+# do we want to add target species to targeted surveys..?
 ```
 
 

@@ -220,13 +220,16 @@ for(i in 1:n) {
 
 #write out the counties in all lowercase
 #in_glaciallakes_effort_6Oct2021[ , county:= str_to_lower(county)]
-in_lake_id_list_1Dec2023[ , county:= str_to_title(county)]
+#in_lake_id_list_1Dec2023[ , county:= str_to_title(county)]
 
 #re-check
 in_glaciallakes_effort_6Oct2021[ , .N, .(lake_name.1, county)] #129 unique lakes
 
 #link glacial lakes effort to lake ID
   #in_glaciallakes_effort_6Oct2021[in_lake_id_list_22Aug2022, on=.(lake_name.1, county), nomatch = NULL] #doesn't work
+
+
+# lots of things need to be specified in order for this merge to work to get lake IDs... but there doesn't seem to be a cleaner option
 
 in_lake_id_list_1Dec2023_fixed <- in_lake_id_list_1Dec2023 %>%
   mutate(county = str_to_title(county))%>%
@@ -280,6 +283,7 @@ Notes from Matthew Linn:
 GN: experimental gill net (250 x 6 ft; five 50-ft panel sections of 0.5-in, 1-in, 1.5-in, 2-in and 2.5-in mesh sizes)
 EF: Boat mounted DC nighttime electrofishing
 - all surveys were completed during the month of June
+
 ```{r}
 in_glaciallakes_effort_6Oct2021[ , .N, .(sampling_method)]
 # Three gears: standard trap net, experimental gill net and nighttime electrofishing
@@ -293,6 +297,7 @@ IN GL (glacial lakes)
 unify effort units into a single column
 ```{r}
 in_glaciallakes_effort_6Oct2021_2 <- in_glaciallakes_effort_6Oct2021 %>%
+  rename(sampling_method = sampling_method.1)%>%
   mutate(effort_units = case_when(sampling_method == "Standard Trap Net" ~ "overnight lifts",
                                   sampling_method == "Experimental Gill Net" ~ "overnight lifts",
                                   sampling_method == "Nighttime Electrofishing" ~ "hours")) %>%
@@ -328,6 +333,7 @@ prep IN GL fish data
   # instead have worked out kinks with lake ID and will use that instead for merge, counties are still a mess 
 
 in_glaciallakes_fish_6Oct2021_2 <- in_glaciallakes_fish_6Oct2021 %>%
+  rename(sampling_method = sampling_method.1)%>%
   rename(sampling_method_abbrev = sampling_method)%>% #this is an abbreviated name, make column with full name
   mutate(sampling_method = case_when(sampling_method_abbrev == "TN"~ "standard trap net",
                                   sampling_method_abbrev == "GN" ~ "experimental gill net",
@@ -357,6 +363,7 @@ in_glaciallakes_fish_6Oct2021_ID <- in_glaciallakes_fish_6Oct2021_2 %>%
 example for Matthew Linn about mismatched counties
 - will continue to work towards a product, and will flag mismatches
 ```{r}
+# this is just to provide an example of what is happening for Matthew Linn
 in_list <- in_effort_prob_list %>%
   full_join(in_fish_prob_list, by = c("lake_name.1", "county"), suffix = c(".effort", ".fish"))%>%
   distinct()
@@ -379,7 +386,7 @@ in_glacial_lakes_standard_merge <- in_glaciallakes_fish_6Oct2021_ID %>%
            length.1,
            sampling_method,
            sampling_method_abbrev,
-           total_effort_1)
+           total_effort_1) #relocate just specifies which columns to put first
 
 
   # five fish don't have a sampling method
@@ -420,13 +427,6 @@ in_glaciallakes_standard_tidy <- in_glacial_lakes_standard_merge%>%
          waterbody_type) #there is a warning about NAs being introduced when length is made a numeric, but they should be NAs
                             #were previously "_" (a blank) (11), "-" (25), "X" (1), or "FALSE" (2)
 
-
-  # check for surveys that have 0 catch
-  # check for instances of duplication, if this is bad, just use earlier match and flag
-  # choose one county and one lake name ifelse(if same print it, if different print effort name)
-  # flag problems/mismatches
-  # rename columns to match agreed upon names
-
 ```
 
 in_glaciallakes_fish_no_samp_method <- in_glaciallakes_fish_6Oct2021_2 %>%
@@ -438,6 +438,7 @@ IN Glacial Lakes (GL) targeted surveys
  #prepare data for merge
 
 in_glaciallakes_targeted_effort_16Nov2023_2 <- in_glaciallakes_targeted_effort_16Nov2023 %>%
+  rename(sampling_method = sampling_method.1)%>%
   mutate(effort_units = case_when(sampling_method == "Experimental gill net" ~ "overnight lifts",
                                   sampling_method == "Nighttime electrofishing" ~ "hours"))%>%
   mutate(date.1 = mdy(date.1))%>%
@@ -502,17 +503,21 @@ IN_GL_targeted_merge_check <- in_glaciallakes_targeted_fish_1Sep2022 %>%
   select(1:5)%>%
   left_join(IN_GL_targeted_GN, by = "lake_id")
 
+IN_targeted_same_year <- in_glaciallakes_targeted_effort_16Nov2023_2 %>%
+  group_by(year, lake_id)%>%
+  summarise(total = n()) #no cases of more than one targeted survey happening on the same lake in the same year
+
 ```
 email matt linn and ask about targeted survey gears (is EF just bass and GN just cisco)
 - nope cisco are caught with electrofishing... see lake Eve... 
-- ask about lake IDs too, email sent 11/10
+- ask about lake IDs too, email sent 11/10, got new file 11/16
 
 merge IN GL targeted fish with effort
 - 13,717 fish obs
 - 51 survey/gear 
 ```{r}
 # NOT WORKING BECAUSE SURVEY DATES DON'T MATCH
-
+    # will want to fix this eventually, but for now, we will proceed with only the ones that work 
 
 # set up key columns for merge
 keycols_INGL_target <- c("lake_id", "date.1")
@@ -622,12 +627,33 @@ in_glaciallakes_target_merge_tidy <- in_glaciallakes_target_merge %>%
 
 See line 395 for where data is prepped for merge
 ```{r}
-in_glaciallakes_targeted_inner_join <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
+# merging and leaving behind non-matches for now, will eventually want to try to get more of those surveys in 
+in_glaciallakes_targeted_full_join <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
+  full_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "date.1"),
+             suffix = c("_catch", "_effort"))
+    # lose 10,051 fish obs and 31 surveys, this isn't happening anymore..?
+
+in_glaciallakes_targeted_inner_join_2 <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
+  inner_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "year"),
+             suffix = c("_catch", "_effort"))%>%
+  filter(date.1_catch != date.1_effort) #yep all the dates match now... 
+
+in_glaciallakes_targeted_inner_join_3 <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
   inner_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "date.1"),
              suffix = c("_catch", "_effort"))
-    # lose 10,051 fish obs and 31 surveys
 
-in_glaciallakes_targeted_inner_join_tidy <- in_glaciallakes_targeted_inner_join %>%
+
+# Okay this works now and i have no idea why
+in_gl_target_date_mismatch <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
+  anti_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "date.1"))
+
+in_glacial_lakes_target_fish_group <- in_glaciallakes_targeted_fish_16Nov2023 %>%
+  group_by(lake_id, date.1)%>%
+  summarise(total = n())%>%
+  full_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "date.1"))#yep appears to be working now... 
+
+
+in_glaciallakes_targeted_full_join_tidy <- in_glaciallakes_targeted_full_join %>%
   mutate(flag = case_when(lake_name.1_catch != lake_name.1_effort ~ "mismatched lake names",
                            county_catch != county_effort ~ "mismatched county names",
                            lake_name.1_catch != lake_name.1_effort ~ "mismatched lake names",
@@ -671,7 +697,7 @@ in_glaciallakes_targeted_inner_join_tidy <- in_glaciallakes_targeted_inner_join 
 
 #Glacial Lakes Standard and Targeted
 ```{r}
-in_glaciallakes <- bind_rows(in_glaciallakes_standard_tidy, in_glaciallakes_targeted_inner_join_tidy)
+in_glaciallakes <- bind_rows(in_glaciallakes_standard_tidy, in_glaciallakes_targeted_full_join_tidy)
 ```
 
 
@@ -791,7 +817,10 @@ in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community
                                   sampling_method == "Gill net std exp" ~ "number of nets",
                                   sampling_method == "Trap net std" ~ "number of nets"))%>% # write out effort units
   relocate(survey_id, lake_name.1, lake_id, date.1, end_date, survey_type.1, sampling_method, total_effort, effort_units)%>% #bring these columns to the front 
-  select(-effort_units.1, -effort_units.2, -effort_units.3)
+  select(-effort_units.1, -effort_units.2, -effort_units.3)%>%
+  mutate(date.1 = as.Date(date.1, "%m/%d/%y"))%>%
+  mutate(date.1 = as.IDate(date.1))%>%
+  mutate(year = year(date.1))
 
 anti.effort <- anti_join(in_reservoir_fish_community_effort_16Aug2022_gear, 
                           in_reservoir_fish_community_fishdata_16Aug2022, 
@@ -806,6 +835,7 @@ anti.fish <- anti_join(in_reservoir_fish_community_fishdata_16Aug2022,
 
 #prepping fish data for merge
 in_reservoir_fish_community_fishdata_16Aug2022_prep <- in_reservoir_fish_community_fishdata_16Aug2022 %>% 
+  rename(sampling_method = sampling_method.1)%>%
   mutate(sampling_method = case_when(sampling_method == "Gill net STB exp" ~ "Gill net std exp",
                                      TRUE ~ sampling_method))  %>% #sampling method difference for a few records of fish
   mutate(survey_id = case_when((survey_id == 373 & lake_name.1 == "Cypress Lake") ~ 273,
@@ -813,12 +843,13 @@ in_reservoir_fish_community_fishdata_16Aug2022_prep <- in_reservoir_fish_communi
 
 in.community <- inner_join(in_reservoir_fish_community_effort_16Aug2022_gear, 
                           in_reservoir_fish_community_fishdata_16Aug2022_prep, 
-                          by = c("survey_id", "sampling_method")) %>% 
+                          by = c("survey_id", "sampling_method")) %>%
   select(state.x,
          survey_id,
          lake_name.1.x,
          lake_id,
          date.1,
+         year,
          end_date,
          survey_type.1,
          sampling_method,
@@ -855,13 +886,19 @@ in_reservoir_targeted_effort_1Sep2022_gear <- in_reservoir_targeted_effort_1Sep2
                                   sampling_method == "Large-mesh GN" ~ "number of nets")) %>% 
   relocate(survey_id, lake_name.1, lake_id, date.1, end_date, survey_type.1, sampling_method, total_effort, effort_units)%>% #bring these columns to the front 
   select(-effort_units.1, -effort_units.2, -effort_units.3, -effort_units.4, -effort_units.5) %>% 
-  filter(!is.na(total_effort))
+  filter(!is.na(total_effort))%>%
+  mutate(date.1 = as.Date(date.1, "%m/%d/%y"))%>%
+  mutate(date.1 = as.IDate(date.1))%>%
+  mutate(year = year(date.1))
+
+in_reservoir_targeted_fish_1Sep2022_2 <- in_reservoir_targeted_fish_1Sep2022 %>%
+  rename(sampling_method = sampling_method.1)
 
 anti.effort <- anti_join(in_reservoir_targeted_effort_1Sep2022_gear, 
-                         in_reservoir_targeted_fish_1Sep2022, 
+                         in_reservoir_targeted_fish_1Sep2022_2, 
                           by = c("survey_id", "sampling_method"))
 
-anti.fish <- anti_join(in_reservoir_targeted_fish_1Sep2022,
+anti.fish <- anti_join(in_reservoir_targeted_fish_1Sep2022_2,
                        in_reservoir_targeted_effort_1Sep2022_gear,
                        by = c("survey_id", "sampling_method"))
 
@@ -877,7 +914,7 @@ in_reservoir_targeted_fish_1Sep2022 %>%
 #200 records that have everything as just na - similar to what I have been seeing in the effort data
 
 #prepping fish data for merge
-in_reservoir_targeted_fish_1Sep2022_prep <- in_reservoir_targeted_fish_1Sep2022 %>% 
+in_reservoir_targeted_fish_1Sep2022_prep <- in_reservoir_targeted_fish_1Sep2022_2 %>% 
   filter(!is.na(survey_id))
 
 in.targeted <- inner_join(in_reservoir_targeted_effort_1Sep2022_gear, 
@@ -888,6 +925,7 @@ in.targeted <- inner_join(in_reservoir_targeted_effort_1Sep2022_gear,
          lake_name.1.x,
          lake_id,
          date.1,
+         year,
          end_date,
          survey_type.1,
          sampling_method,
@@ -923,6 +961,8 @@ in_reservoir_data_noage_tidy <- in_reservoir_data_noage %>%
          survey_id,
          lake_name.1,
          lake_id,
+         date_1,
+         year,
          end_date,
          survey_type.1,
          sampling_method,
@@ -950,10 +990,11 @@ in_reservoir_data_noage_tidy <- in_reservoir_data_noage %>%
          gear_data_notes_1 = gear_data_notes.1)
 ```  
 
-IN aged fish (only reservoirs)
-```{r}
+IN aged fish (only reservoirs) OLD
+
 #aged fish
-in_reservoir_age_fish_16Aug2022 %>% 
+in_reservoir_age_fish_16Aug2022 %>%
+  rename(sampling_method = sampling_method.1)%>% 
   group_by(sampling_method) %>% 
   count()
 
@@ -967,6 +1008,9 @@ in_reservoir_data_noage %>%
   print(n = nrow(.))
 
 in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
+  rename(sampling_method = sampling_method.1)%>%
+  mutate(survey_id = case_when((survey_id == 373 & lake_name.1 == "Cypress Lake") ~ 273,
+                               TRUE ~ survey_id))%>% #difference in survey id at cypress lake
   filter(!is.na(survey_id)) %>% 
   arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   group_by(survey_id,species.1, sampling_method, length.1, weight.1) %>% 
@@ -987,7 +1031,7 @@ in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
          original_file_name.1) %>% 
   rename(original_file_name.1_age = original_file_name.1)
 
-in_reservoir_data_age <- in_reservoir_data_noage %>% 
+in_reservoir_data_age <- in_reservoir_data_noage %>% #was in_reservoir_data_noage, but I changed it to age
   arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   group_by(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   mutate(age_id = row_number())
@@ -1000,7 +1044,8 @@ in_reservoir_data <- full_join(in_reservoir_data_age,
                                            "species.1",
                                            "length.1",
                                            "weight.1",
-                                           "age_id")) 
+                                           "age_id"))%>%
+  filter(!is.na(age))
 glimpse(in_reservoir_data)
 
 #aged fish that do not have a match
@@ -1026,21 +1071,187 @@ anti.age %>%
 
 #I will wait to clean up data with glacial lakes 
 #Items that will need to be cleaned up: length/weight units, species, creation of a total effort ident
+
+
+IN Reservoir age updated 12-7-2023
+```{r}
+in_reservoir_age_fish_16Aug2022 %>%
+  rename(sampling_method = sampling_method.1)%>%
+  group_by(sampling_method) %>%
+  count()
+
+in_reservoir_age_fish_16Aug2022 %>%
+  group_by(species.1) %>%
+  count()
+
+in_reservoir_data_noage %>%
+  group_by(species.1) %>%
+  count() %>%
+  print(n = nrow(.))
+
+#prepping age data for merge
+in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
+  #remove fish that do not have a survey id
+  filter(!is.na(survey_id)) %>%
+  #arrange fish in survey in a row, assign a number to them to ensure they join nicely with fish data
+  arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>%
+  group_by(survey_id,species.1, sampling_method, length.1, weight.1) %>%
+  mutate(age_id = row_number()) %>%
+  ungroup() %>%
+  mutate(length.1 = as.double(length.1),
+         weight.1 = as.double(weight.1)) %>%
+  mutate(sampling_method = case_when(sampling_method %in% c("IN Standard Net", "Gill net") ~ "Gill net std exp",
+                                     TRUE ~ sampling_method)) %>%
+  select(survey_id,
+         sampling_method,
+         species.1,
+         length.1,
+         weight.1,
+         age_id,
+         age,
+         aging_structure.1,
+         original_file_name.1) %>%
+  rename(original_file_name.1_age = original_file_name.1)
+#giving total data set a row number to join on
+
+
+in_reservoir_data_age <- in_reservoir_data_noage %>%
+  arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>%
+  group_by(survey_id, species.1, sampling_method, length.1, weight.1) %>%
+  mutate(age_id = row_number())
+#matching with community fish
+
+in_reservoir_data <- left_join(in_reservoir_data_age,
+                                  in_reservoir_age_fish_16Aug2022_merge,
+                                    by = c("survey_id",
+                                           "sampling_method",
+                                           "species.1",
+                                           "length.1",
+                                           "weight.1",
+                                           "age_id"))
 ```
 
-Bind IN Glacial Lakes and IN Reservoirs together
-```{r}
-#ASK DENVER ABOUT AGED FISH RESERVOIRS
 
-in_ALL <- bind_rows(in_glaciallakes, in_reservoir_data_noage_tidy)
+```{r}
+# prep data for row bind with glacial lakes
+in_reservoir_tidy <- in_reservoir_data %>%
+  mutate(original_file_name_1_indivfish = if_else(is.na(original_file_name.1_fish_standard),
+                                                  original_file_name.1_fish_targeted ,
+                                                  original_file_name.1_fish_standard))%>%
+  mutate(original_file_name_1_effort = if_else(is.na(original_file_name.1_effort_standard),
+                                                  original_file_name.1_effort_targeted ,
+                                                  original_file_name.1_effort_standard))%>%
+  mutate(date.1 = as.Date(date.1, "%m/%d/%y"))%>%
+  mutate(date_1 = as.IDate(date.1))%>%
+  select(state,
+         survey_id,
+         lake_name.1,
+         lake_id,
+         date_1,
+         year,
+         survey_type.1,
+         sampling_method,
+         total_effort,
+         effort_units,
+         lat_unspec,
+         lon_unspec,
+         species.1,
+         length.1,
+         length_unit.1,
+         weight.1,
+         weight_unit.1,
+         age,
+         aging_structure.1,
+         gear_data_notes.1,
+         original_file_name_1_indivfish,
+         original_file_name_1_effort,
+         original_file_name.1_age)%>%
+  rename(lake_name_1 = lake_name.1,
+         survey_type = survey_type.1,
+         total_effort_1 = total_effort,
+         total_effort_1_units = effort_units,
+         species_1 = species.1,
+         length_1 = length.1,
+         length_unit_1 = length_unit.1,
+         weight_1 = weight.1,
+         weight_unit_1 = weight_unit.1,
+         gear_data_notes_1 = gear_data_notes.1,
+         aging_structure_1 = aging_structure.1,
+         original_file_name_1_agedfish = original_file_name.1_age)
+```
+
+Bind IN Glacial Lakes and IN Reservoirs together without AGES
+```{r}
+in_no_age <- bind_rows(in_glaciallakes, in_reservoir_data_noage_tidy)
+
+in_no_age_tidy <- in_no_age %>%
+  relocate(state,
+           county,
+           lake_id,
+           lake_name_1,
+           date_1,
+           year,
+           survey_type,
+           survey_id,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           species_1)%>%
+  mutate(waterbody_type = if_else(is.na(waterbody_type), "Reservoir", waterbody_type))%>%
+  group_by(lake_id, year, survey_type, sampling_method, waterbody_type)%>%
+  mutate(survey_effort = sum(total_effort_1),
+         total_effort_ident = cur_group_id())%>%
+  mutate(species_1 = str_to_lower(species_1))%>%
+  mutate(species_1 = str_replace(species_1, " ", "_"))%>%
+  mutate(nothing_caught = if_else(is.na(species_1), T, F))
+```
+
+
+Bind IN Glacial Lakes and IN Reservoirs together WITH AGES
+```{r}
+in_ALL <- bind_rows(in_glaciallakes, in_reservoir_tidy)
 
 ## add total effort ident and nothing caught
 
 # make sure reservoirs are marked targeted and standard - DONE
 
+# note, standard glacial lake surveys do not have a date, just a year
 
 in_ALL_tidy <- in_ALL %>%
   mutate(waterbody_type = if_else(is.na(waterbody_type), "Reservoir", waterbody_type))%>%
+  group_by(lake_id, year, survey_type, sampling_method, waterbody_type)%>%
+  mutate(survey_effort = sum(total_effort_1),
+         total_effort_ident = cur_group_id())%>%
+  mutate(species_1 = str_to_lower(species_1))%>%
+  mutate(species_1 = str_replace(species_1, " ", "_"))%>%
+  mutate(nothing_caught = if_else(is.na(species_1), T, F))%>%
+  select(state,
+           county,
+           lake_id,
+           lake_name_1,
+           date_1,
+           year,
+           survey_id,
+           survey_type,
+           sampling_method,
+           total_effort_ident,
+           total_effort_1,
+           total_effort_1_units,
+           gear_data_notes_1,
+           species_1,
+           length_1,
+           length_unit_1,
+           age,
+           aging_structure_1,
+           weight_1,
+           weight_unit_1,
+           flag,
+           original_file_name_1_agedfish,
+           original_file_name_1_indivfish,
+           original_file_name_1_effort,
+           nothing_caught,
+           waterbody_type)
+
   
 
 ```
@@ -1062,16 +1273,14 @@ survey.effort <- il_effort_30Nov23 %>%
 
 Make IN Parquet
 ```{r}
+in_no_age_tidy <- as_arrow_table(in_no_age_tidy)
+write_dataset(dataset = in_no_age_tidy, path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_no_age_file_arrow")
+
 in_ALL_tidy <- as_arrow_table(in_ALL_tidy)
+write_dataset(dataset = in_ALL_tidy, path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
 
 ```
-mi_catch_eff_merge <- as_arrow_table(mi_catch_eff_merge)
 
-write_dataset(dataset = mi_catch_eff_merge, path = "Data_and_Scripts/Data/output/mi_file_arrow")
-
-mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
-
-glimpse(mi_data)
 
 
 

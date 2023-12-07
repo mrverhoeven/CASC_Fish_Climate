@@ -67,6 +67,10 @@ Here are a few outstanding notes I need before I can finish importing to the bro
 
 
 1. Amend original file names in data explainer to recognize sheet from which each dataset came
+2. Ensure nothing_caught is asisgned at the total_effort_ident level
+    - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
+3. Current parquet includes speiceis.1 == "<Null>"
+
 
 
 

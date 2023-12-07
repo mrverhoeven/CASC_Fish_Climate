@@ -32,7 +32,8 @@ DONE  13. cleannames() to colnames
       16. Why are no cisco showing up in WI?
             Currently we do have about 30 ish surveys in there  
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
-      17. 
+      17. Ensure nothing_caught is asisgned at the total_effort_ident level
+            - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
 
       
       

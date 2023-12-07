@@ -7,6 +7,11 @@ editor_options:
   chunk_output_type: console
 ---
 
+to do (12/4):
+1. figure out how to count nothing caught surveys
+   -our nothing caught is at the sub-survey level and causes issue counting for cpe when a survey has sub levels where some caught something and some caught nothing
+2. figure out if we have cisco data - if not remove cisco filter
+
 #Library
 ```{r}
 library(tidyverse)
@@ -16,26 +21,50 @@ library(arrow)
 #data
 ```{r}
 filter_table <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(state == "Indiana")
+  filter(state == "South Dakota")
 
-sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "ia_file_arrow"))
+sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "sd_file_arrow"))
 glimpse(sd_data)
+
+sd_data %>% 
+  group_by(sampling_method) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(desc(n)) %>% 
+  print(n = nrow(.))
+
+sd_data %>% 
+  group_by(sampling_method) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(desc(n)) %>% 
+  print(n = nrow(.))
+
+sd_data %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(total_effort_1), max = max(total_effort_1), mean = mean(total_effort_1)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+#looks like nets are in net night and efishing is in mintues
 ```
 
 #filtering walleye
 ```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
 filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
   filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "walleye") %>% 
-  rename(survey_type.1 = survey_type) %>% 
   select(-metric,
-         -survey_type.1,
          -species_1,
-         -month_min,
-         -month_max,
+         -survey_type,
+         -survey_type_effort,
+         -target_species_1,
+         -target_species_2,
+         -area_group,
          -water_temp_min,
          -water_temp_max,
          -area_group,
-         -effort_min)
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -44,4 +73,1126 @@ filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1v
   #fish level parameters of interest 
   select(state) %>% 
   distinct() 
+
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                         "sampling_method")) %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           effort_min,
+           month_min,
+           month_max) %>% 
+  filter(total_effort_1 >= effort_min,
+         month(date_1) >= month_min,
+        month(date_1) <= month_max) %>% 
+  collect()
+
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state", "sampling_method")) %>% 
+  group_by(lake_name_1, total_effort_ident) %>% 
+  arrange(date_1) %>%
+  ungroup() %>% 
+  collect() 
+  slice(1) %>%  
+  filter(total_effort_1 >= effort_min,
+         month(date_1) >= month_min,
+         month(date_1) <= month_max) 
+
+#checking filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#min effort
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(total_effort_1), max = max(total_effort_1), mean = mean(total_effort_1))
+
+adult_walleye <- sd_data %>% 
+  #filter for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  #filter for fish level items (length, etc)
+  right_join(filter_table_fish) %>% 
+  collect() 
+
+#checking final filter
+adult_walleye %>% 
+  group_by(species_1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_walleye %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_walleye %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_walleye %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  glimpse()
+  
+#creating cpue for species of interest
+adult_walleye_cpue <- adult_walleye %>% 
+  #grouping by variables to get survey fish count 
+  group_by(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count = sum(species_1 == 'walleye')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue = count/as.numeric(total_effort_1)) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           nothing_caught,
+           count,
+           cpue) %>% 
+  collect()
+
+#range of cpues?
+adult_walleye_cpue %>%
+  filter(!is.na(cpue)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue), max = max(cpue))
+
+#any na cpue?
+adult_walleye_cpue %>% 
+  filter(is.na(cpue)) %>% 
+  glimpse()
+
+#surveys that have nothing caught?
+adult_walleye_cpue %>% 
+  filter(nothing_caught == "TRUE") %>% 
+  group_by(cpue) %>% 
+  count()
+
+rm(adult_walleye)
+
+#problem with na counts
+check <- adult_walleye %>% 
+  filter(total_effort_ident == 4)
+#looks like I am having trouble when a total effort ident caught something but it has sub efforts that caught nothing
+#I can fix it by adding nothing caught in the grouping but then it reports multipule cpues for a given total effort ident
+```
+
+#filtering black crappie
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "black_crappie") %>% 
+  select(-metric,
+         -species_1,
+         -survey_type,
+         -survey_type_effort,
+         -target_species_1,
+         -target_species_2,
+         -area_group,
+         -water_temp_min,
+         -water_temp_max,
+         -area_group,
+         -effort_min,
+         -length_min,
+         -length_max)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "black_crappie") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  #fish level parameters of interest 
+  select(state) %>% 
+  distinct() 
+
+#date is not a good grouping variable for survey because some surveys span multiple dates 
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                         "sampling_method")) %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+#           effort_min,
+          month_min,
+          month_max
+           ) %>% 
+  filter(#total_effort_1.1 >= effort_min,
+         month(date_1) >= month_min,
+        month(date_1) <= month_max) %>% 
+  collect()
+
+#checking filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+
+adult_black_crappie <- sd_data %>% 
+  #filter for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  #filter for fish level items (length, etc)
+  right_join(filter_table_fish) %>% 
+  collect() 
+
+#checking final filter
+adult_black_crappie %>% 
+  group_by(species_1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_black_crappie %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_black_crappie %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_black_crappie %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  glimpse()
+  
+#creating cpue for species of interest
+adult_black_crappie_cpue <- adult_black_crappie %>% 
+  #grouping by variables to get survey fish count 
+  group_by(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count = sum(species_1 == 'black_crappie')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue = count/as.numeric(total_effort_1)) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           nothing_caught,
+           count,
+           cpue) %>% 
+  collect()
+
+#range of cpues?
+adult_black_crappie_cpue %>%
+  filter(!is.na(cpue)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue), max = max(cpue))
+
+#any na cpue?
+adult_black_crappie_cpue %>% 
+  filter(is.na(cpue)) %>% 
+  glimpse()
+
+#surveys that have nothing caught?
+adult_black_crappie_cpue %>% 
+  filter(nothing_caught == "TRUE") %>% 
+  group_by(cpue) %>% 
+  count()
+
+rm(adult_black_crappie)
+```
+
+#filtering bluegill
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "bluegill") %>% 
+  select(-metric,
+         -species_1,
+         -survey_type,
+         -survey_type_effort,
+         -target_species_1,
+         -target_species_2,
+         -area_group,
+         -water_temp_min,
+         -water_temp_max,
+         -area_group,
+         -effort_min,
+         -length_min,
+         -length_max)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "bluegill") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  #fish level parameters of interest 
+  select(state) %>% 
+  distinct() 
+
+#date is not a good grouping variable for survey because some surveys span multiple dates 
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                         "sampling_method")) %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+#           effort_min,
+          month_min,
+          month_max
+           ) %>% 
+  filter(#total_effort_1.1 >= effort_min,
+         month(date_1) >= month_min,
+        month(date_1) <= month_max) %>% 
+  collect()
+
+#checking filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+
+adult_bluegill <- sd_data %>% 
+  #filter for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  #filter for fish level items (length, etc)
+  right_join(filter_table_fish) %>% 
+  collect() 
+
+#checking final filter
+adult_bluegill %>% 
+  group_by(species_1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_bluegill %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_bluegill %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_bluegill %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  glimpse()
+  
+#creating cpue for species of interest
+adult_bluegill_cpue <- adult_bluegill %>% 
+  #grouping by variables to get survey fish count 
+  group_by(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count = sum(species_1 == 'bluegill')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue = count/as.numeric(total_effort_1)) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           nothing_caught,
+           count,
+           cpue) %>% 
+  collect()
+
+#range of cpues?
+adult_bluegill_cpue %>%
+  filter(!is.na(cpue)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue), max = max(cpue))
+
+#any na cpue?
+adult_bluegill_cpue %>% 
+  filter(is.na(cpue)) %>% 
+  glimpse()
+
+#surveys that have nothing caught?
+adult_bluegill_cpue %>% 
+  filter(nothing_caught == "TRUE") %>% 
+  group_by(cpue) %>% 
+  count()
+
+rm(adult_bluegill)
+```
+
+#filtering largemouth bass
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "largemouth_bass") %>% 
+  select(-metric,
+         -species_1,
+         -survey_type,
+         -survey_type_effort,
+         -target_species_1,
+         -target_species_2,
+         -area_group,
+         -water_temp_min,
+         -water_temp_max,
+         -area_group,
+         -effort_min,
+         -length_min,
+         -length_max)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "largemouth_bass") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  #fish level parameters of interest 
+  select(state) %>% 
+  distinct() 
+
+#date is not a good grouping variable for survey because some surveys span multiple dates 
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                         "sampling_method")) %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+#           effort_min,
+          month_min,
+          month_max
+           ) %>% 
+  filter(#total_effort_1.1 >= effort_min,
+         month(date_1) >= month_min,
+        month(date_1) <= month_max) %>% 
+  collect()
+
+#checking filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+
+adult_largemouth_bass <- sd_data %>% 
+  #filter for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  #filter for fish level items (length, etc)
+  right_join(filter_table_fish) %>% 
+  collect() 
+
+#checking final filter
+adult_largemouth_bass %>% 
+  group_by(species_1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_largemouth_bass %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_largemouth_bass %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_largemouth_bass %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  glimpse()
+  
+#creating cpue for species of interest
+adult_largemouth_bass_cpue <- adult_largemouth_bass %>% 
+  #grouping by variables to get survey fish count 
+  group_by(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count = sum(species_1 == 'largemouth_bass')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue = count/as.numeric(total_effort_1)) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           nothing_caught,
+           count,
+           cpue) %>% 
+  collect()
+
+#range of cpues?
+adult_largemouth_bass_cpue %>%
+  filter(!is.na(cpue)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue), max = max(cpue))
+
+#any na cpue?
+adult_largemouth_bass_cpue %>% 
+  filter(is.na(cpue)) %>% 
+  glimpse()
+
+#surveys that have nothing caught?
+adult_largemouth_bass_cpue %>% 
+  filter(nothing_caught == "TRUE") %>% 
+  group_by(cpue) %>% 
+  count()
+
+rm(adult_largemouth_bass)
+```
+
+#filtering largemouth bass
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "smallmouth_bass") %>% 
+  select(-metric,
+         -species_1,
+         -survey_type,
+         -survey_type_effort,
+         -target_species_1,
+         -target_species_2,
+         -area_group,
+         -water_temp_min,
+         -water_temp_max,
+         -area_group,
+         -effort_min,
+         -length_min,
+         -length_max)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "smallmouth_bass") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  #fish level parameters of interest 
+  select(state) %>% 
+  distinct() 
+
+#date is not a good grouping variable for survey because some surveys span multiple dates 
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                         "sampling_method")) %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+#           effort_min,
+          month_min,
+          month_max
+           ) %>% 
+  filter(#total_effort_1.1 >= effort_min,
+         month(date_1) >= month_min,
+        month(date_1) <= month_max) %>% 
+  collect()
+
+#checking filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+
+adult_smallmouth_bass <- sd_data %>% 
+  #filter for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  #filter for fish level items (length, etc)
+  right_join(filter_table_fish) %>% 
+  collect() 
+
+#checking final filter
+adult_smallmouth_bass %>% 
+  group_by(species_1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_smallmouth_bass %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_smallmouth_bass %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_smallmouth_bass %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  glimpse()
+  
+#creating cpue for species of interest
+adult_smallmouth_bass_cpue <- adult_smallmouth_bass %>% 
+  #grouping by variables to get survey fish count 
+  group_by(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count = sum(species_1 == 'smallmouth_bass')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue = count/as.numeric(total_effort_1)) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           nothing_caught,
+           count,
+           cpue) %>% 
+  collect()
+
+#range of cpues?
+adult_smallmouth_bass_cpue %>%
+  filter(!is.na(cpue)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue), max = max(cpue))
+
+#any na cpue?
+adult_smallmouth_bass_cpue %>% 
+  filter(is.na(cpue)) %>% 
+  glimpse()
+
+#surveys that have nothing caught?
+adult_smallmouth_bass_cpue %>% 
+  filter(nothing_caught == "TRUE") %>% 
+  group_by(cpue) %>% 
+  count()
+
+rm(adult_smallmouth_bass)
+```
+
+#filtering northern pike
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "northern_pike") %>% 
+  select(-metric,
+         -species_1,
+         -survey_type,
+         -survey_type_effort,
+         -target_species_1,
+         -target_species_2,
+         -area_group,
+         -water_temp_min,
+         -water_temp_max,
+         -area_group,
+         -effort_min,
+         -length_min,
+         -length_max)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "northern_pike") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  #fish level parameters of interest 
+  select(state) %>% 
+  distinct() 
+
+#date is not a good grouping variable for survey because some surveys span multiple dates 
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                         "sampling_method")) %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+#           effort_min,
+          month_min,
+          month_max
+           ) %>% 
+  filter(#total_effort_1.1 >= effort_min,
+         month(date_1) >= month_min,
+        month(date_1) <= month_max) %>% 
+  collect()
+
+#checking filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+
+adult_northern_pike <- sd_data %>% 
+  #filter for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  #filter for fish level items (length, etc)
+  right_join(filter_table_fish) %>% 
+  collect() 
+
+#checking final filter
+adult_northern_pike %>% 
+  group_by(species_1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_northern_pike %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_northern_pike %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_northern_pike %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  glimpse()
+  
+#creating cpue for species of interest
+adult_northern_pike_cpue <- adult_northern_pike %>% 
+  #grouping by variables to get survey fish count 
+  group_by(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count = sum(species_1 == 'northern_pike')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue = count/as.numeric(total_effort_1)) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           nothing_caught,
+           count,
+           cpue) %>% 
+  collect()
+
+#range of cpues?
+adult_northern_pike_cpue %>%
+  filter(!is.na(cpue)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue), max = max(cpue))
+
+#any na cpue?
+adult_northern_pike_cpue %>% 
+  filter(is.na(cpue)) %>% 
+  glimpse()
+
+#surveys that have nothing caught?
+adult_northern_pike_cpue %>% 
+  filter(nothing_caught == "TRUE") %>% 
+  group_by(cpue) %>% 
+  count()
+
+rm(adult_northern_pike)
+```
+
+#filtering yellow perch
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "yellow_perch") %>% 
+  select(-metric,
+         -species_1,
+         -survey_type,
+         -survey_type_effort,
+         -target_species_1,
+         -target_species_2,
+         -area_group,
+         -water_temp_min,
+         -water_temp_max,
+         -area_group,
+         -effort_min,
+         -length_min,
+         -length_max)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "yellow_perch") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  #fish level parameters of interest 
+  select(state) %>% 
+  distinct() 
+
+#date is not a good grouping variable for survey because some surveys span multiple dates 
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                         "sampling_method")) %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+#           effort_min,
+          month_min,
+          month_max
+           ) %>% 
+  filter(#total_effort_1.1 >= effort_min,
+         month(date_1) >= month_min,
+        month(date_1) <= month_max) %>% 
+  collect()
+
+#checking filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+
+adult_yellow_perch <- sd_data %>% 
+  #filter for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  #filter for fish level items (length, etc)
+  right_join(filter_table_fish) %>% 
+  collect() 
+
+#checking final filter
+adult_yellow_perch %>% 
+  group_by(species_1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_yellow_perch %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_yellow_perch %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_yellow_perch %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  glimpse()
+  
+#creating cpue for species of interest
+adult_yellow_perch_cpue <- adult_yellow_perch %>% 
+  #grouping by variables to get survey fish count 
+  group_by(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count = sum(species_1 == 'yellow_perch')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue = count/as.numeric(total_effort_1)) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           nothing_caught,
+           count,
+           cpue) %>% 
+  collect()
+
+#range of cpues?
+adult_yellow_perch_cpue %>%
+  filter(!is.na(cpue)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue), max = max(cpue))
+
+#any na cpue?
+adult_yellow_perch_cpue %>% 
+  filter(is.na(cpue)) %>% 
+  glimpse()
+
+#surveys that have nothing caught?
+adult_yellow_perch_cpue %>% 
+  filter(nothing_caught == "TRUE") %>% 
+  group_by(cpue) %>% 
+  count()
+
+rm(adult_yellow_perch)
+```
+
+#filtering cisco
+```{r}
+#filters for metric (adult abundance) and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "cisco") %>% 
+  select(-metric,
+         -species_1,
+         -survey_type,
+         -survey_type_effort,
+         -target_species_1,
+         -target_species_2,
+         -area_group,
+         -water_temp_min,
+         -water_temp_max,
+         -area_group,
+         -effort_min,
+         -length_min,
+         -length_max)
+
+#selects fish level filters to be applied in the second filtering step
+filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "South Dakota" & species_1 == "cisco") %>% 
+  rename(survey_type.1 = survey_type) %>% 
+  #fish level parameters of interest 
+  select(state) %>% 
+  distinct() 
+
+#date is not a good grouping variable for survey because some surveys span multiple dates 
+good_surveys <- sd_data %>% 
+  right_join(filter_table_effort, by = c("state",
+                                         "sampling_method")) %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+#           effort_min,
+          month_min,
+          month_max
+           ) %>% 
+  filter(#total_effort_1.1 >= effort_min,
+         month(date_1) >= month_min,
+        month(date_1) <= month_max) %>% 
+  collect()
+
+#checking filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+
+adult_cisco <- sd_data %>% 
+  #filter for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  #filter for fish level items (length, etc)
+  right_join(filter_table_fish) %>% 
+  collect() 
+
+#checking final filter
+adult_cisco %>% 
+  group_by(species_1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_cisco %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_cisco %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_1)), max.month = max(month(date_1)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_cisco %>% 
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  glimpse()
+  
+#creating cpue for species of interest
+adult_cisco_cpue <- adult_cisco %>% 
+  #grouping by variables to get survey fish count 
+  group_by(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count = sum(species_1 == 'cisco')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue = count/as.numeric(total_effort_1)) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(lake_name_1,
+           total_effort_ident,
+           date_1,
+           sampling_method,
+           total_effort_1,
+           total_effort_1_units,
+           nothing_caught,
+           count,
+           cpue) %>% 
+  collect()
+
+#range of cpues?
+adult_cisco_cpue %>%
+  filter(!is.na(cpue)) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue), max = max(cpue))
+
+#any na cpue?
+adult_cisco_cpue %>% 
+  filter(is.na(cpue)) %>% 
+  glimpse()
+
+#surveys that have nothing caught?
+adult_cisco_cpue %>% 
+  filter(nothing_caught == "TRUE") %>% 
+  group_by(cpue) %>% 
+  count()
+
+rm(adult_cisco)
+
+sd_data %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n= nrow(.))
+```
+
+#combining species
+```{r}
+mn_filtered_species <- bind_rows(adult_walleye_cpue %>% 
+                                   mutate(species_1 = "walleye"), 
+                                 adult_bluegill_cpue %>% 
+                                   mutate(species_1 = "bluegill"), 
+                                 adult_black_crappie_cpue %>% 
+                                   mutate(species_1 = "black_crappie"),
+                                 adult_largemouth_bass_cpue %>% 
+                                   mutate(species_1 = "largemouth_bass"), 
+                                 adult_smallmouth_bass_cpue %>% 
+                                   mutate(species_1 = "smallmouth_bass"), 
+                                 adult_cisco_cpue %>% 
+                                   mutate(species_1 = "cisco"), 
+                                 adult_northern_pike_cpue %>% 
+                                   mutate(species_1 = "northern_pike"), 
+                                 adult_yellow_perch_cpue %>% 
+                                   mutate(species_1 = "yellow_perch"))
+write_csv(mn_filtered_species, "MN_all_cpue_filtered.csv")
 ```

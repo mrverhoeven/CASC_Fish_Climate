@@ -66,9 +66,9 @@ flag - this column contains a character string with issues describing each row, 
 - ask about sampling method "x"
 - fish of length 0?
 - We don't have a sample date for the glacial lakes standard, but all surveys were done in June
-  - should we add a month column..?
-- Glacial lakes targeted surveys have several survey dates that don't match fish dates, why
-- do we want to add target species column for targeted surveys..?
+  - should we add a month column - yes!
+- Glacial lakes targeted surveys have several survey dates that don't match fish dates, why (seems fixed...)
+- do we want to add target species column for targeted surveys - no
 
 - reservior update (Denver 11/21)
   -community surveys mostly done 
@@ -143,7 +143,7 @@ for(i in 1:n) {
   cde %>% # call data explainer file
     filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
     select_if(~ !any(is.na(.))) %>% 
-    transpose(keep.names = "newname") %>% 
+    data.table::transpose(keep.names = "newname") %>% 
     rename("oldname" = V1) %>% 
     assign("names", ., envir = .GlobalEnv)
   
@@ -805,6 +805,8 @@ Questions about the data themselves:
 #2. link the effort to the fish via survey id and sampling method
 #3. retain or gather survey info from effort file or the lake id list
 
+in_reservoir_fish_community_fishdata_16Aug2022 <- in_reservoir_fish_community_fishdata_16Aug2022 %>% 
+  rename(sampling_method = sampling_method.1)
 
 #generating sampling method for the effort file
 in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community_effort_16Aug2022 %>%
@@ -821,6 +823,7 @@ in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community
   mutate(date.1 = as.Date(date.1, "%m/%d/%y"))%>%
   mutate(date.1 = as.IDate(date.1))%>%
   mutate(year = year(date.1))
+
 
 anti.effort <- anti_join(in_reservoir_fish_community_effort_16Aug2022_gear, 
                           in_reservoir_fish_community_fishdata_16Aug2022, 
@@ -871,6 +874,9 @@ in.community <- inner_join(in_reservoir_fish_community_effort_16Aug2022_gear,
          original_file_name.1_fish_standard = original_file_name.1.y)
 
 #targeted surveys
+in_reservoir_targeted_fish_1Sep2022<- in_reservoir_targeted_fish_1Sep2022 %>% 
+  rename(sampling_method = sampling_method.1)
+
 in_reservoir_targeted_effort_1Sep2022_gear <- in_reservoir_targeted_effort_1Sep2022 %>% 
   filter(!is.na(survey_id)) %>% 
   pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3, total_effort_4, total_effort_5), names_to = "sampling_method", values_to = "total_effort" ) %>% 
@@ -993,8 +999,15 @@ in_reservoir_data_noage_tidy <- in_reservoir_data_noage %>%
 IN aged fish (only reservoirs) OLD
 
 #aged fish
+<<<<<<< HEAD
+in_reservoir_age_fish_16Aug2022 <- in_reservoir_age_fish_16Aug2022 %>% 
+  rename(sampling_method = sampling_method.1)
+
+in_reservoir_age_fish_16Aug2022 %>% 
+=======
 in_reservoir_age_fish_16Aug2022 %>%
   rename(sampling_method = sampling_method.1)%>% 
+>>>>>>> c8cd73854b0f742ef34cbbd44d25aa8830bcaf94
   group_by(sampling_method) %>% 
   count()
 
@@ -1007,11 +1020,17 @@ in_reservoir_data_noage %>%
   count() %>% 
   print(n = nrow(.))
 
+#prepping age data for merge
 in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
+<<<<<<< HEAD
+  #remove fish that do not have a survey id
+=======
   rename(sampling_method = sampling_method.1)%>%
   mutate(survey_id = case_when((survey_id == 373 & lake_name.1 == "Cypress Lake") ~ 273,
                                TRUE ~ survey_id))%>% #difference in survey id at cypress lake
+>>>>>>> c8cd73854b0f742ef34cbbd44d25aa8830bcaf94
   filter(!is.na(survey_id)) %>% 
+  #arrange fish in survey in a row, assign a number to them to ensure they join nicely with fish data
   arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   group_by(survey_id,species.1, sampling_method, length.1, weight.1) %>% 
   mutate(age_id = row_number()) %>% 
@@ -1031,13 +1050,18 @@ in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
          original_file_name.1) %>% 
   rename(original_file_name.1_age = original_file_name.1)
 
+<<<<<<< HEAD
+#giving total data set a row number to join on
+in_reservoir_data_age <- in_reservoir_data_noage %>% 
+=======
 in_reservoir_data_age <- in_reservoir_data_noage %>% #was in_reservoir_data_noage, but I changed it to age
+>>>>>>> c8cd73854b0f742ef34cbbd44d25aa8830bcaf94
   arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   group_by(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   mutate(age_id = row_number())
 
 #matching with community fish
-in_reservoir_data <- full_join(in_reservoir_data_age,
+in_reservoir_data <- left_join(in_reservoir_data_age,
                                   in_reservoir_age_fish_16Aug2022_merge,
                                     by = c("survey_id",
                                            "sampling_method",
@@ -1057,6 +1081,11 @@ anti.age <- anti_join(in_reservoir_age_fish_16Aug2022_merge,
                                            "length.1",
                                            "weight.1",
                                            "age_id"))
+
+in_reservoir_data %>% 
+  filter(!is.na(age) & is.na(sampling_method)) %>% 
+  glimpse()
+
 #surveys of aged fish that do not have a match
 anti.age %>% 
   group_by(survey_id, sampling_method) %>% 
@@ -1279,10 +1308,14 @@ write_dataset(dataset = in_no_age_tidy, path = "G:/Shared drives/Hansen Lab/RESE
 in_ALL_tidy <- as_arrow_table(in_ALL_tidy)
 write_dataset(dataset = in_ALL_tidy, path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
 
+in_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
+glimpse(in_data)
 ```
 
 
+mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
 
+glimpse(mi_data)
 
 
 

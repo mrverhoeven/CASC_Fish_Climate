@@ -64,7 +64,7 @@ Here are a few outstanding notes I need before I can finish importing to the bro
 - if I want to count all the WAEcaught in a survey i should sum all from length_weight, aged, and binned, right?
 - is there any other data in the binned fish (specifically, length/size info would be useful) see line 230
 - one weird binned fish count (total count < 0)
-
+4. No cisco?
 
 1. Amend original file names in data explainer to recognize sheet from which each dataset came
 2. Ensure nothing_caught is asisgned at the total_effort_ident level

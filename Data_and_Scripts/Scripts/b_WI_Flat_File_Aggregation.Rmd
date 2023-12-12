@@ -34,6 +34,9 @@ DONE  13. cleannames() to colnames
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
       17. Ensure nothing_caught is asisgned at the total_effort_ident level
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
+      18. Drop extra columns.
+      19. Make sure all cols match the column names and descriptions thing
+      20. 
 
       
       

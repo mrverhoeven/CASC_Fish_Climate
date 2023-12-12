@@ -14,6 +14,9 @@ Things to keep in mind:
     -are we able to link fish obs with if it was captured in the sub sample?
     -are they capturing all fish before they sub sample (including sub sample species)?
 -make sure units on total effort make sense (seines might be hauls)
+- add sub_effort_nothing_caught
+- NHDids
+- have a new age file, see if it jives 
 
 
 ##Libraries

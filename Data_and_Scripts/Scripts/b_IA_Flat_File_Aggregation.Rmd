@@ -15,6 +15,17 @@ editor_options:
     4. lengths from binned fish need to be 1) moved over to length col, 2) units rectified (can do this using word and str_detect see code examples in this doc. then split rnage into min_length, max_length and convert those numerics, then re-paste those two cols into a single one. )
     5. Review fishcounts by species, currently very wonky numbers for many species (ia_data %>% group_by(species.1) %>% summarise(n = n()) %>% collect())
     
+## Questions for Data Provider:
+- why a bunch of records w/o any data: 
+    #why some with no sample ID? Doesn't matter-- we have no effort data for these, and no species info
+    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(species.1) ,]
+    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(total_effort_1) ,]
+    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(total_effort_2) ,]
+    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(sampling_method.1) ,]
+    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(sampling_method.2) ,]
+- Confirm my understanding of the bad total_count = 0 records was correct
+- Check on the units of effort
+
 
 
 ##Instructions
@@ -395,9 +406,190 @@ glimpse(ia_fishobs_30Nov2023)
 ia_fishobs_30Nov2023[total_count.1 == 0, .N] #Coool. 12k zeros!
 
 ## Data Identifiers
-#Here in these data, the survey_id is equivalent to our total_effort_ident. 
+#Here in these data, the *survey_id* is equivalent to our total_effort_ident. 
 ia_fishlengths_24Oct2023[ , .N , survey_id][ , summary(N)] #every survey has at least one line
 ia_fishlengths_24Oct2023[ , .("countfish" = sum(total_count.1)), survey_id][ , summary(countfish) ,] #none of the surveys show no fish caught
+
+
+#but there is no lake ID
+ia_fishobs_30Nov2023[, unique(site_id.1) , ]
+ia_fishobs_30Nov2023[ , unique(lake_name.1) , ]
+ia_fishobs_30Nov2023[ , length(unique(lat_unspec)) , .(lake_name.1,county) ][V1>1]
+#looks like we can get there with a county-lake key
+
+# The had a var called survey.SurveyID that we renamed to Secondary_Lake_ID -- this combines....???????????
+ia_fishobs_30Nov2023[ , length(unique(secondary_lake_id)) , .(lake_name.1, date.1, survey_type.1 ) ][V1>1]
+
+a <- ia_fishobs_30Nov2023[lake_name.1 == "Ada Hayden Heritage Park Lake" & date.1 == "10/4/2010"  & survey_type.1 == "General" ]
+  a[ , length(unique(secondary_lake_id)) , .(lake_name.1, date.1, survey_type.1 ) ][V1>1]
+
+setcolorder(ia_fishobs_30Nov2023, c("lake_name.1", "county", "lat_unspec", "lon_unspec",
+                                    "survey_type.1", "secondary_lake_id", "sampling_method.1", "sampling_method.2", "gear_data_notes.1", "date.1","start_time", "year", "site_id.1",
+                                    "survey_id","total_effort_1", "total_effort_2", "total_count.1",
+                                    "sample_id.1","notes.8","batch_count_ident","species.1" , "individual_count", "length.1", "weight.1", "batch_length", "batch_weight"
+                                       ))  
+# beacuse they drew together databases, there's a bit of craziness that happened with the survey_ident having 1 record that  says total_count = 0 (indicating that total_eff_ident has 0 indiv_fish observations), but one batch count record with N>0
+ia_fishobs_30Nov2023[ , .N , sample_id.1 ][N==1]
+
+b <- ia_fishobs_30Nov2023[ia_fishobs_30Nov2023[ , .N , sample_id.1 ][N==1], on = .(sample_id.1) , ]
+
+
+#for each sample_id, show me sum(total_count)for and sum(individual_count)for batchrows and count(unique(total_effort)) and count unique(Fish.Measurement>ID)
+ia_fishobs_30Nov2023[ , .(num_tot_eff_vals=length(unique(total_effort_1)), n_total_count_vals = length(unique(total_count.1)), summed_indiv_count = sum(individual_count, na.rm = T), length(unique(notes.8))),  , .(sample_id.1) ]
+#any sample that has >1 tot eff?
+ia_fishobs_30Nov2023[ , .(num_tot_eff_vals=length(unique(total_effort_1)), n_total_count_vals = length(unique(total_count.1)), summed_indiv_count = sum(individual_count, na.rm = T), length(unique(notes.8))),  , .(sample_id.1) ][num_tot_eff_vals>1]
+#any sample with >2 total_count cal? NO, if yes would have indicated that there were more than just the batch count row probs
+ia_fishobs_30Nov2023[ , .(num_tot_eff_vals=length(unique(total_effort_1)), n_total_count_vals = length(unique(total_count.1)), summed_indiv_count = sum(individual_count, na.rm = T), length(unique(notes.8))),  , .(sample_id.1) ][n_total_count_vals>2]
+
+# so to summarize what we think has happened here: the total_count value was assigned to each sample_id.1 based on the fish measurement table. That means that if only batch counted fish were pulled from a gear, it got a total_count that was 0 and a line in the data for that zero. TO rectify this, we want to find all total_count==0, where no batch_count data exist. For these there should be only one row (all fish came from the ind_fish data) 
+
+#if we eliminate the batch rows, does the problem go away? Yep!
+ia_fishobs_30Nov2023[ batch_count_ident == "" , .(num_tot_eff_vals=length(unique(total_effort_1)), n_total_count_vals = length(unique(total_count.1)), summed_indiv_count = sum(individual_count, na.rm = T), length(unique(notes.8))),  , .(sample_id.1) ][n_total_count_vals>1]
+
+#for sample.id's with only one total_count val, if the summed indiv count col == 0, that sample_id should be assigned a nothing_caught==T (note that total_count for these reocrds is NA)
+ia_fishobs_30Nov2023[   ,  n_sample_id.1_totalcount_vals := length(unique(total_count.1))  , sample_id.1 ]
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1]
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][is.na(V2)] #this line is garbage
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][V2==0]# These are our zeros!!!!!!
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][sample_id.1 == "000490DE-1F58-4596-922E-F578C4118D8E"] #investigate a known record
+
+
+##Funky Sample IDs?
+#why some with no sample ID? Doesn't matter-- we have no effort data for these, and no species info-- I 
+ia_fishobs_30Nov2023[sample_id.1 == "" , unique(species.1) ,]
+ia_fishobs_30Nov2023[sample_id.1 == "" , unique(total_effort_1) ,]
+ia_fishobs_30Nov2023[sample_id.1 == "" , unique(total_effort_2) ,]
+ia_fishobs_30Nov2023[sample_id.1 == "" , unique(sampling_method.1) ,]
+ia_fishobs_30Nov2023[sample_id.1 == "" , unique(sampling_method.2) ,]
+
+#dump these:
+ia_fishobs_30Nov2023 <- ia_fishobs_30Nov2023[!sample_id.1 == ""]
+
+##Now rename some things for clarity's sake
+#fix identifier names:
+setnames(ia_fishobs_30Nov2023, old = c("secondary_lake_id", "survey_id", "sample_id.1", "notes.8", "batch_count_ident"),
+         new = c("survey_id", "total_effort_ident", "sub_effort_ident", "fish_ident", "batch_count_ident"))
+#now peel garbage out of ifsh_ident col
+ia_fishobs_30Nov2023[ ,fish_ident := gsub("Fish.MeasurementId:", "", fish_ident) , ]
+ia_fishobs_30Nov2023[fish_ident == "", fish_ident := NA]
+#check others for ""
+ia_fishobs_30Nov2023[sub_effort_ident == ""]
+  ia_fishobs_30Nov2023[is.na(sub_effort_ident)]
+ia_fishobs_30Nov2023[total_effort_ident == ""]
+  ia_fishobs_30Nov2023[is.na(total_effort_ident)]
+ia_fishobs_30Nov2023[survey_id == ""]
+  ia_fishobs_30Nov2023[is.na(survey_id)]
+
+
+#okay, now stick in a sub_effort_nothing_caught
+
+#must deal with zero count batches:  
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sub_effort_ident][,summary(summed_indiv_count)]#make sure there are no NAs in here
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sub_effort_ident][summed_indiv_count == 0, V2]
+#are there any cases where the batch count record is there but was a zero?
+ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .N , sub_effort_ident]#yes
+#do all of these have another row holding them in?
+ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident]
+
+#peel off sub_eff IDs: 
+ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident][, sub_effort_ident]
+
+#see if all of these have a non-batch record: 
+match( ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident][, sub_effort_ident],
+       ia_fishobs_30Nov2023[ batch_count_ident == "" , sub_effort_ident]
+)
+#confirm that there are not any just batch count records fo sub_eff:
+ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 1 & !batch_count_ident == "" & individual_count == 0, .N ,] 
+
+#All of this means we can drop these 0 batch count records
+ia_fishobs_30Nov2023 <- ia_fishobs_30Nov2023[!(!batch_count_ident == "" & individual_count == 0),] 
+
+#back to the sub_eff_ident_nothing_caught:
+
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sub_effort_ident][,summary(summed_indiv_count)]#make sure there are no NAs in here
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sub_effort_ident]
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1, .N , is.na(total_count.1) ]
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1, .N , total_count.1 == 0 ]
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1, sub_effort_nothing_caught := total_count.1 == 0]
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals != 1, sub_effort_nothing_caught := FALSE ]
+ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals < 1 , .N]
+  ia_fishobs_30Nov2023[ , .N ,  n_sample_id.1_totalcount_vals]
+  ia_fishobs_30Nov2023[ , .N, sub_effort_nothing_caught]
+
+
+
+#now check out the cases where all batch counted fish were caught, and no indiv. fish records exist
+  #rebuild this column after dropping junk out:
+ia_fishobs_30Nov2023[   ,  n_sample_id.1_totalcount_vals := length(unique(total_count.1))  , sub_effort_ident ]
+ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals > 1 , "" %in% unique(batch_count_ident) == T ,  sub_effort_ident][ , .N , V1]
+
+ia_fishobs_30Nov2023[ , .("n_ind_fish" = length(unique(fish_ident)), "n_batch_counts" = length(unique(batch_count_ident))) , sub_effort_ident  ]
+
+ia_fishobs_30Nov2023[ , .N , is.na(fish_ident) ]
+ia_fishobs_30Nov2023[ , .N , is.na(batch_count_ident) ]
+ia_fishobs_30Nov2023[ , .N , batch_count_ident == "" ]
+ia_fishobs_30Nov2023[ , .N , .(fish_ident_na = is.na(fish_ident), (batch_countid_blank = batch_count_ident == ""), (sub_effort_nothing_caught))]
+#drop those goofy imported rows from the ind_fish table:
+# thats where sub_nothing_caught == F, fish_id is na, and batch_count is blank
+ia_fishobs_30Nov2023[sub_effort_nothing_caught == F & is.na(fish_ident) & batch_count_ident == "", .N , sub_effort_ident][N>1] #there should only be one row per sub if this is how they were generated...
+a <- ia_fishobs_30Nov2023[sub_effort_nothing_caught == F & is.na(fish_ident) & batch_count_ident == "", .N , sub_effort_ident][ , sub_effort_ident ] #every one of these sub eff idents should have one or more batch ID too
+any(is.na(match(a, 
+      ia_fishobs_30Nov2023[batch_count_ident != "", sub_effort_ident]))) # no unmatched survey idents means drop those beeeeatches
+ia_fishobs_30Nov2023 <- ia_fishobs_30Nov2023[!(sub_effort_nothing_caught == F & is.na(fish_ident) & batch_count_ident == ""),  ,]
+  ia_fishobs_30Nov2023[batch_count_ident == "", batch_count_ident := NA]  
+  ia_fishobs_30Nov2023[ , .N , .(fish_ident_na = is.na(fish_ident), (batch_countid_na = is.na(batch_count_ident)), (sub_effort_nothing_caught))]
+
+#so at this point we have eliminated all non true-zero fish and batch entries. 
+
+#can uncount the batch fish
+  
+  uncount(ia_fishobs_30Nov2023[!is.na(batch_count_ident)], weights = individual_count, .remove = TRUE, .id = "uncount_ident")
+ia_fishobs <- rbindlist(list(ia_fishobs_30Nov2023[is.na(batch_count_ident)],
+                        uncount(ia_fishobs_30Nov2023[!is.na(batch_count_ident)], weights = individual_count, .remove = TRUE, .id = "uncount_ident")),
+                        fill = TRUE)  
+
+#now total_effort_ident
+ia_fishobs[!is.na(total_effort_1) , length(unique(total_effort_1)) , total_effort_ident ][ , summary(V1) ]
+ia_fishobs[!is.na(total_effort_2) , length(unique(total_effort_2)) , total_effort_ident ]
+
+
+
+ia_fishobs[ , length(unique(total_effort_1)) , sub_effort_ident ]
+#as such, total_effort_1&2 are actually a sub_effort_ident
+  setnames(ia_fishobs, old = c("total_effort_1", "total_effort_2"),new = c("sub_effort_1", "sub_effort_2") )
+ia_fishobs[ , `:=` (sub_effort_1_units = "hours", sub_effort_2_units = "distance") ,]
+
+
+
+
+
+
+  
+#do we have any sub_effort_idents where the batch_count is the holder of that gear?
+  ia_fishobs_30Nov2023[ , .() , sub_effort_ident  ]
+  
+
+
+#consider: notes.8/fish.measurement.id changed so NA if no fish measure on that line (currently == "")
+ia_fishobs_30Nov2023[ species.1 == "", unique(notes.8) , ]
+
+
+
+
+
+#batch count idents & counts:
+ia_fishobs_30Nov2023[ , unique(batch_count_ident) , ]
+  ia_fishobs_30Nov2023[, .N , .(total_count.1,individual_count, batch_count_ident) ]
+ia_fishobs_30Nov2023[ batch_count_ident == "", .N , batch_length ]
+ia_fishobs_30Nov2023[ batch_count_ident == "", c("batch_count_ident", "batch_length", "batch_weight") := NA , ]
+  ia_fishobs_30Nov2023[ !is.na(batch_count_ident) , .(total_count.1, individual_count) , .(batch_count_ident) ][!is.na(total_count.1), , ] #looky there, now no cases of total count not NA in the batch measured fish. 
+  ia_fishobs_30Nov2023[is.na(batch_count_ident) & individual_count >1, .N , ] #any of the non-batch count data tagged as indiv count>1?  
+#total_count is a count of all fish in a survey_id?
+ia_fishobs_30Nov2023[is.na(batch_count_ident), .N , total_count.1]
+ia_fishobs_30Nov2023[, length(unique(total_count.1)), sample_id.1 ][V1>1]
+  a <- ia_fishobs_30Nov2023[sample_id.1 == "8D08DB00-389D-4B90-804E-B07CD6B530AC" ]
+
+
 #any_no_fish_caught in a gear within a survey situation?
 ia_fishlengths_24Oct2023[, .("countfish" = sum(total_count.1), "countspp" = length(unique(species.1))), site_id.1][ , summary(countfish)] #none of the site_ids seem to show zero either
 

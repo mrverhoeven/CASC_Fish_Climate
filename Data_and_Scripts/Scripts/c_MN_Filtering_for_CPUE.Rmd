@@ -48,7 +48,9 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -target_species_1,
          -target_species_2,
-         -survey_type_effort)
+         -survey_type_effort,
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -209,7 +211,9 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -target_species_1,
          -target_species_2,
-         -survey_type_effort)
+         -survey_type_effort,
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -356,7 +360,6 @@ adult_black_crappie_cpue %>%
 rm(adult_black_crappie)
 ```
 
-
 #bluegill filtering
 ```{r}
 #filters for metric (adult abundance) and selects columns needed for survey filtering
@@ -369,7 +372,9 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -target_species_1,
          -target_species_2,
-         -survey_type_effort)
+         -survey_type_effort,
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -528,7 +533,9 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -target_species_1,
          -target_species_2,
-         -survey_type_effort)
+         -survey_type_effort,
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -687,7 +694,9 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -target_species_1,
          -target_species_2,
-         -survey_type_effort)
+         -survey_type_effort,
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -847,7 +856,9 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -target_species_1,
          -target_species_2,
-         -survey_type_effort)
+         -survey_type_effort,
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -1003,7 +1014,9 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -target_species_1,
          -target_species_2,
-         -survey_type_effort)
+         -survey_type_effort,
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -1161,7 +1174,9 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -target_species_1,
          -target_species_2,
-         -survey_type_effort)
+         -survey_type_effort,
+         -length_min,
+         -length_max)
 
 #selects fish level filters to be applied in the second filtering step
 filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 

@@ -390,14 +390,12 @@ Process to merge goes as follows:
 #uncounting batch fish 
 #makes fish per row from batch counted fish
 il_catch_age_effort_30Nov23_uncount <- il_catch_age_effort_30Nov23 %>% 
-  filter(survey_id != "Survey_355") %>% #date difference between effort and fish data that needs to be verified with Vic
   uncount(total_count.1)
 
 #collapsing effort from the fish obs level file 
 #this file is checked for conflicts between the effort file in a later step - keeping effort in this file makes joining cleaner
 #I also retain surveys that didn't catch fish by finding surveys not present in the fish file that are present in the effort file and retaining them
 survey.effort <- il_effort_30Nov23 %>% 
-  filter(survey_id != "Survey_355") %>% 
   #groups all sub-survey level effort into the larger survey
   group_by(survey_id, lake_id, year, date.1, gear_data_notes.1, total_effort_2, total_effort_1, original_file_name.1) %>% 
   #count of obs in each survey grouping

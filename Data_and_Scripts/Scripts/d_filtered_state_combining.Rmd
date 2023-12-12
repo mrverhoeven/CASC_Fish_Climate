@@ -38,6 +38,146 @@ write_csv(cross_state, "mn_wi_mi_filtered_cpue_11NOV23.csv")
 glimpse(cross_state)
 ```
 
+#smashing cpes across states together
+```{r}
+wi <- read_csv("Filtered_CPEs/WI_all_cpue_filtered.csv") %>% 
+  select(lake_id,
+         lake_name_1,
+         nhdhr_id,
+         date_1,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         count,
+         cpue,
+         species_1) %>% 
+  mutate(state = "Wisconsin",
+         lake_id = as.character(lake_id))
+mn <- read_csv("Filtered_CPEs/MN_all_cpue_filtered.csv") %>% 
+  select(lake_id,
+         lake_name.1,
+         nhdhr.id,
+         date_clean,
+         sampling_method,
+         total_effort_1.1,
+         effort_units.1,
+         count,
+         cpue,
+         species_1) %>% 
+  rename(lake_name_1 = lake_name.1,
+         nhdhr_id = nhdhr.id,
+         date_1 = date_clean,
+         total_effort_1 = total_effort_1.1,
+         total_effort_1_units = effort_units.1) %>% 
+  mutate(state = "Minnesota",
+         lake_id = as.character(lake_id))
+mi <- read_csv("Filtered_CPEs/MI_all_cpue_filtered.csv") %>% 
+  select(lake_id,
+         lake_name.1,
+         nhdhr.id,
+         date.1,
+         sampling_method,
+         total_effort_1.1_effort,
+         effort_units.1,
+         count,
+         cpue,
+         species_1) %>% 
+  rename(lake_name_1 = lake_name.1,
+         nhdhr_id = nhdhr.id,
+         date_1 = date.1,
+         total_effort_1 = total_effort_1.1_effort,
+         total_effort_1_units = effort_units.1) %>% 
+  mutate(state = "Michigan")
+il <- read_csv("Filtered_CPEs/IL_all_cpue_filtered.csv") %>% 
+  select(state,
+         lake_id,
+         lake_name_1,
+         date_1,
+         sampling_method_2,
+         total_effort_1,
+         total_effort_1_units,
+         count,
+         cpue,
+         species_1) %>% 
+  rename(sampling_method = sampling_method_2) %>% 
+  mutate(lake_id = as.character(lake_id),
+         nhdhr_id = NA)
+sd <- read_csv("Filtered_CPEs/SD_all_cpue_filtered.csv") %>% 
+  select(state,
+         lake_id,
+         lake_name_1,
+         nhdhr_id,
+         date_1,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         count,
+         cpue,
+         species_1)
+ia <- read_csv("Filtered_CPEs/IA_all_cpue_filtered.csv") %>% 
+  mutate(state = "Iowa",
+         nhdhr_id = NA,
+         date_1 = as.Date(date.1)) %>% 
+  select(state,
+         lake_id,
+         lake_name.1,
+         nhdhr_id,
+         date_1,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         count,
+         cpue,
+         species_1) %>% 
+  rename(lake_name_1 = lake_name.1) 
+indy <- read_csv("Filtered_CPEs/IN_all_cpue_filtered.csv") %>% 
+  select(state,
+         lake_id,
+         lake_name_1,
+         date_1,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         count,
+         cpue,
+         species_1)
+
+#combining 
+cross_state <- bind_rows(wi, mn, mi, il, sd, ia, indy)
+
+write_csv(cross_state, "all_state_cpue_8Dec23.csv")
+```
+
+#basic review of combination
+```{r}
+cross_state %>% 
+  group_by(state, species_1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+cross_state %>% 
+  group_by(state, sampling_method) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+cross_state %>% 
+  group_by(state, species_1, sampling_method) %>% 
+  summarise(min.cpe = min(cpue), mean.cpe = mean(cpue), max.cpe = max(cpue), n = n()) %>% 
+  print(n = nrow(.))
+
+cross_state %>% 
+  ggplot() +
+  geom_histogram(aes(x = cpue), bins = 50) +
+  facet_grid(state ~ species_1, scales = "free")
+
+cross_state %>% 
+  ggplot() +
+  geom_violin(aes(x = species_1, y = cpue, color = species_1)) +
+  facet_wrap(~state, scales = "free")
+```
+
+
+
 
 #map of cpue by state
 ```{r}

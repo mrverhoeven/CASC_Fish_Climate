@@ -137,7 +137,7 @@ for(i in 1:n) {
   cde %>% # call data explainer file
     filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
     select_if(~ !any(is.na(.))) %>% 
-    transpose(keep.names = "newname") %>% 
+    data.table::transpose(keep.names = "newname") %>% 
     rename("oldname" = V1) %>% 
     assign("names", ., envir = .GlobalEnv)
   
@@ -506,6 +506,8 @@ Questions about the data themselves:
 #2. link the effort to the fish via survey id and sampling method
 #3. retain or gather survey info from effort file or the lake id list
 
+in_reservoir_fish_community_fishdata_16Aug2022 <- in_reservoir_fish_community_fishdata_16Aug2022 %>% 
+  rename(sampling_method = sampling_method.1)
 
 #generating sampling method for the effort file
 in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community_effort_16Aug2022 %>%
@@ -519,6 +521,7 @@ in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community
                                   sampling_method == "Trap net std" ~ "number of nets"))%>% # write out effort units
   relocate(survey_id, lake_name.1, lake_id, date.1, end_date, survey_type.1, sampling_method, total_effort, effort_units)%>% #bring these columns to the front 
   select(-effort_units.1, -effort_units.2, -effort_units.3)
+
 
 anti.effort <- anti_join(in_reservoir_fish_community_effort_16Aug2022_gear, 
                           in_reservoir_fish_community_fishdata_16Aug2022, 
@@ -567,6 +570,9 @@ in.community <- inner_join(in_reservoir_fish_community_effort_16Aug2022_gear,
          original_file_name.1_fish_standard = original_file_name.1.y)
 
 #targeted surveys
+in_reservoir_targeted_fish_1Sep2022<- in_reservoir_targeted_fish_1Sep2022 %>% 
+  rename(sampling_method = sampling_method.1)
+
 in_reservoir_targeted_effort_1Sep2022_gear <- in_reservoir_targeted_effort_1Sep2022 %>% 
   filter(!is.na(survey_id)) %>% 
   pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3, total_effort_4, total_effort_5), names_to = "sampling_method", values_to = "total_effort" ) %>% 
@@ -640,6 +646,9 @@ in_reservoir_data_noage <- bind_rows(in.community, in.targeted)
 
 
 #aged fish
+in_reservoir_age_fish_16Aug2022 <- in_reservoir_age_fish_16Aug2022 %>% 
+  rename(sampling_method = sampling_method.1)
+
 in_reservoir_age_fish_16Aug2022 %>% 
   group_by(sampling_method) %>% 
   count()
@@ -653,8 +662,11 @@ in_reservoir_data_noage %>%
   count() %>% 
   print(n = nrow(.))
 
+#prepping age data for merge
 in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
+  #remove fish that do not have a survey id
   filter(!is.na(survey_id)) %>% 
+  #arrange fish in survey in a row, assign a number to them to ensure they join nicely with fish data
   arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   group_by(survey_id,species.1, sampling_method, length.1, weight.1) %>% 
   mutate(age_id = row_number()) %>% 
@@ -674,13 +686,14 @@ in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
          original_file_name.1) %>% 
   rename(original_file_name.1_age = original_file_name.1)
 
+#giving total data set a row number to join on
 in_reservoir_data_age <- in_reservoir_data_noage %>% 
   arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   group_by(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   mutate(age_id = row_number())
 
 #matching with community fish
-in_reservoir_data <- full_join(in_reservoir_data_age,
+in_reservoir_data <- left_join(in_reservoir_data_age,
                                   in_reservoir_age_fish_16Aug2022_merge,
                                     by = c("survey_id",
                                            "sampling_method",
@@ -699,6 +712,11 @@ anti.age <- anti_join(in_reservoir_age_fish_16Aug2022_merge,
                                            "length.1",
                                            "weight.1",
                                            "age_id"))
+
+in_reservoir_data %>% 
+  filter(!is.na(age) & is.na(sampling_method)) %>% 
+  glimpse()
+
 #surveys of aged fish that do not have a match
 anti.age %>% 
   group_by(survey_id, sampling_method) %>% 

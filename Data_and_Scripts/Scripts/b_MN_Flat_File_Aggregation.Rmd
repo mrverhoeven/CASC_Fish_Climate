@@ -9,8 +9,13 @@ editor_options:
 # Preamble
 updated 11/29
 To Do:
-1. New dataset from Corey
-2. add obs id for linking to ulk data
+1. New dataset from Corey (in response to missing structure data in ages)
+2. add obs id for linking to Hulk data
+3. Historical WAE survey duplications
+4. Make sure all cols match the column names and descriptions thing
+
+
+
 
 
 libraries

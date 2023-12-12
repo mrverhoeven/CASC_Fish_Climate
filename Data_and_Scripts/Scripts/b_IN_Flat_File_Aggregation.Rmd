@@ -77,7 +77,7 @@ flag - this column contains a character string with issues describing each row, 
 
 - Can glacial lakes and reservoirs be filtered the same way? Or do they need different filtering mechanisms
 
-
+- add a month column, with all standard glacial lakes surveys set to June
 
 
 

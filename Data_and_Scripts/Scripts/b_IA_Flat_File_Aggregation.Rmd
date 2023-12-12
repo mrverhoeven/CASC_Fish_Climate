@@ -9,12 +9,10 @@ editor_options:
 # Preamble
 
 ## To Do List
-    1. Need to get a proper effort file. Current fish obs doesn't seem to have many zeros
-    2. Aged fish data need to be plugged in (after completing the organization & join of the multiple age files, BUT we think that we're getting a new age file)
+
     3. Total effort 2 ("distance") did not come to us with any units on it
     4. lengths from binned fish need to be 1) moved over to length col, 2) units rectified (can do this using word and str_detect see code examples in this doc. then split rnage into min_length, max_length and convert those numerics, then re-paste those two cols into a single one. )
-    5. Review fishcounts by species, currently very wonky numbers for many species (ia_data %>% group_by(species.1) %>% summarise(n = n()) %>% collect())
-    
+
 ## Questions for Data Provider:
 - why a bunch of records w/o any data: 
     #why some with no sample ID? Doesn't matter-- we have no effort data for these, and no species info
@@ -548,25 +546,65 @@ ia_fishobs <- rbindlist(list(ia_fishobs_30Nov2023[is.na(batch_count_ident)],
                         uncount(ia_fishobs_30Nov2023[!is.na(batch_count_ident)], weights = individual_count, .remove = TRUE, .id = "uncount_ident")),
                         fill = TRUE)  
 
-#now total_effort_ident
+#now total_effort_idents exist, but the total efforts within are actual sub_efforts
 ia_fishobs[!is.na(total_effort_1) , length(unique(total_effort_1)) , total_effort_ident ][ , summary(V1) ]
 ia_fishobs[!is.na(total_effort_2) , length(unique(total_effort_2)) , total_effort_ident ]
+#see here, these efforts belong to a sub_effort:
+ia_fishobs[ , length(unique(total_effort_1)) , sub_effort_ident ][ , summary(V1) ]
+ia_fishobs[ , length(unique(total_effort_2)) , sub_effort_ident ][ , summary(V1) ]
 
-
-
-ia_fishobs[ , length(unique(total_effort_1)) , sub_effort_ident ]
 #as such, total_effort_1&2 are actually a sub_effort_ident
   setnames(ia_fishobs, old = c("total_effort_1", "total_effort_2"),new = c("sub_effort_1", "sub_effort_2") )
 ia_fishobs[ , `:=` (sub_effort_1_units = "hours", sub_effort_2_units = "distance") ,]
 
 
+#now for each total_effort_ident, let's calc a total_effort_1 & 2
+ia_fishobs[   ,   ,  ]
+
+
+#now calc effort for each total_effort_ident
+ia_fishobs[ , length(unique(sub_effort_ident)) , .(total_effort_ident)  ]
+tot_eff_1 <- ia_fishobs[ , .N ,
+                         .(total_effort_ident,sub_effort_ident,sub_effort_1,sub_effort_2, sub_effort_nothing_caught)  ][ ,
+                                                                                                                          .("total_eff_1" = sum(sub_effort_1),
+                                                                                                                               "total_eff_2" = sum(sub_effort_2),
+                                                                                                                               "total_eff_nc" = all(sub_effort_nothing_caught)) ,.(total_effort_ident)]
+ia_fishobs[tot_eff_1, on = ("total_effort_ident"), `:=` ("total_effort_1" = total_eff_1, "total_effort_2" = total_eff_2, "total_effort_nothing_caught" = total_eff_nc) , ]
+ia_fishobs[ , `:=` (total_effort_1_units = "hours", total_effort_2_units = "distance") ,]
+rm(tot_eff_1)
+
+#check our work
+ia_fishobs[ , length(unique(total_effort_1)) , total_effort_ident ][V1>1]
+
+a <- ia_fishobs[total_effort_nothing_caught == T]
 
 
 
 
-  
-#do we have any sub_effort_idents where the batch_count is the holder of that gear?
-  ia_fishobs_30Nov2023[ , .() , sub_effort_ident  ]
+
+
+
+
+
+
+
+
+ia_fishobs[ , ]
+
+
+
+
+# get lake locs and codes:
+unique(sd_merged_ce$lake_id)
+
+mwlaxeref::lake_id_xref %>% filter(state == "sd") %>% 
+  group_by(local.id) %>% count() %>% print(n = nrow(.))
+
+
+
+
+
+
   
 
 

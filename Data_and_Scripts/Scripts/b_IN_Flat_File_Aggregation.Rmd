@@ -999,7 +999,6 @@ in_reservoir_data_noage_tidy <- in_reservoir_data_noage %>%
 IN aged fish (only reservoirs) OLD
 
 #aged fish
-<<<<<<< HEAD
 in_reservoir_age_fish_16Aug2022 <- in_reservoir_age_fish_16Aug2022 %>% 
   rename(sampling_method = sampling_method.1)
 
@@ -1007,7 +1006,6 @@ in_reservoir_age_fish_16Aug2022 %>%
 =======
 in_reservoir_age_fish_16Aug2022 %>%
   rename(sampling_method = sampling_method.1)%>% 
->>>>>>> c8cd73854b0f742ef34cbbd44d25aa8830bcaf94
   group_by(sampling_method) %>% 
   count()
 
@@ -1022,13 +1020,12 @@ in_reservoir_data_noage %>%
 
 #prepping age data for merge
 in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
-<<<<<<< HEAD
+
   #remove fish that do not have a survey id
 =======
   rename(sampling_method = sampling_method.1)%>%
   mutate(survey_id = case_when((survey_id == 373 & lake_name.1 == "Cypress Lake") ~ 273,
                                TRUE ~ survey_id))%>% #difference in survey id at cypress lake
->>>>>>> c8cd73854b0f742ef34cbbd44d25aa8830bcaf94
   filter(!is.na(survey_id)) %>% 
   #arrange fish in survey in a row, assign a number to them to ensure they join nicely with fish data
   arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
@@ -1050,12 +1047,10 @@ in_reservoir_age_fish_16Aug2022_merge  <-  in_reservoir_age_fish_16Aug2022 %>%
          original_file_name.1) %>% 
   rename(original_file_name.1_age = original_file_name.1)
 
-<<<<<<< HEAD
 #giving total data set a row number to join on
 in_reservoir_data_age <- in_reservoir_data_noage %>% 
 =======
 in_reservoir_data_age <- in_reservoir_data_noage %>% #was in_reservoir_data_noage, but I changed it to age
->>>>>>> c8cd73854b0f742ef34cbbd44d25aa8830bcaf94
   arrange(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   group_by(survey_id, species.1, sampling_method, length.1, weight.1) %>% 
   mutate(age_id = row_number())

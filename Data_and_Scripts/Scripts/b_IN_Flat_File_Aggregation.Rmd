@@ -66,9 +66,9 @@ flag - this column contains a character string with issues describing each row, 
 - ask about sampling method "x"
 - fish of length 0?
 - We don't have a sample date for the glacial lakes standard, but all surveys were done in June
-  - should we add a month column..?
-- Glacial lakes targeted surveys have several survey dates that don't match fish dates, why
-- do we want to add target species column for targeted surveys..?
+  - should we add a month column - yes!
+- Glacial lakes targeted surveys have several survey dates that don't match fish dates, why (seems fixed...)
+- do we want to add target species column for targeted surveys - no
 
 - reservior update (Denver 11/21)
   -community surveys mostly done 
@@ -1279,10 +1279,14 @@ write_dataset(dataset = in_no_age_tidy, path = "G:/Shared drives/Hansen Lab/RESE
 in_ALL_tidy <- as_arrow_table(in_ALL_tidy)
 write_dataset(dataset = in_ALL_tidy, path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
 
+in_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
+glimpse(in_data)
 ```
 
 
+mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
 
+glimpse(mi_data)
 
 
 

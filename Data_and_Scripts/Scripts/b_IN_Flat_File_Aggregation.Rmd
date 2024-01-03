@@ -202,25 +202,9 @@ for(i in 1:n) {
 
 
 #Data Review
-   - Holly has to re-do this with new data
-      - Got new files for targeted surveys that now have a survey date associated with individual fish lengths
-      - Got updated information on lake IDs and lake names, and updated the lake list files to reflect that information
    
 ```{r}
-
-# review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
-# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (possibly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
-
 # for IN, there are data from "glacial lakes" and there are data from "reservoirs" so will work with glacial lakes, then work with reservoirs, and then combine glacial lakes and reservoirs to make a single IN file
-
-#effort:
-  #mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
-
-
-
-#write out the counties in all lowercase
-#in_glaciallakes_effort_6Oct2021[ , county:= str_to_lower(county)]
-#in_lake_id_list_1Dec2023[ , county:= str_to_title(county)]
 
 #re-check
 in_glaciallakes_effort_6Oct2021[ , .N, .(lake_name.1, county)] #129 unique lakes
@@ -251,7 +235,23 @@ in_lake_id_list_1Dec2023_fixed <- in_lake_id_list_1Dec2023 %>%
                                  lake_name.1 == "Crooked (/Whitley)" ~ "Crooked (Noble/Whitley)",
                                  .default = lake_name.1))%>%
   distinct()
+
+rm(in_lake_id_list_1Dec2023) #can remove as we don't need it any more
 ```
+
+try to get NHD IDs
+```{r}
+# IN_DNR_nhdhr_xwalk <- readRDS("~/CASC/CASC_Fish_Climate/Data_and_Scripts/Scripts/Crosswalks/IN_DNR_nhdhr_xwalk.rds")
+
+in_lake_id_list_good <- in_lake_id_list_1Dec2023_fixed %>%
+  mutate(county = str_to_title(county))%>%
+  mutate(Lake_County_Name = paste(lake_name.1, county, sep = "_"))%>%
+  left_join(IN_DNR_nhdhr_xwalk, by = "Lake_County_Name")
+
+
+# okay this is going to be a mess... will revisit another day
+```
+
 
 ```{r}
 # list used to find which names and IDs that don't work
@@ -283,9 +283,10 @@ Notes from Matthew Linn:
 GN: experimental gill net (250 x 6 ft; five 50-ft panel sections of 0.5-in, 1-in, 1.5-in, 2-in and 2.5-in mesh sizes)
 EF: Boat mounted DC nighttime electrofishing
 - all surveys were completed during the month of June
+- could add this info in as "gear_data_notes_1"
 
 ```{r}
-in_glaciallakes_effort_6Oct2021[ , .N, .(sampling_method)]
+in_glaciallakes_effort_6Oct2021[ , .N, .(sampling_method.1)]
 # Three gears: standard trap net, experimental gill net and nighttime electrofishing
   # each gear is used in every survey. 152 surveys times 3 = 456
 
@@ -322,7 +323,13 @@ in_glaciallakes_effort_6Oct2021_ID <- in_glaciallakes_effort_6Oct2021_2 %>%
                              lake_name.1 == "Tamarack" & county == "noble" ~ "Unknown_ID_Tamarack",
                              .default = lake_id))%>% #temporary fix for two lakes without an ID
   relocate(lake_name.1, lake_id, county, year, sampling_method, total_effort_1, effort_units.1)
-  
+ 
+# remove data frames that we no longer need in the environment
+rm(in_glaciallakes_effort_6Oct2021, in_effort_prob_list, in_glaciallakes_effort_6Oct2021_2)
+
+ 
+# quick export of list and which do have working NHD IDs
+#write_csv(in_glaciallakes_effort_6Oct2021_ID, "IN_glaciallakes_NHD_attempt.csv")
 ```
 
 prep IN GL fish data
@@ -358,6 +365,9 @@ in_glaciallakes_fish_6Oct2021_ID <- in_glaciallakes_fish_6Oct2021_2 %>%
    mutate(lake_id = case_when(lake_name.1 == "Loon" & county == "noble" ~ "Unknown_ID_Loon",
                              lake_name.1 == "Tamarack" & county == "noble" ~ "Unknown_ID_Tamarack",
                              .default = lake_id)) #give a lake ID for joining purposes
+
+# remove dataframes that aren't needed any more
+rm(in_glaciallakes_fish_6Oct2021, in_glaciallakes_fish_6Oct2021_2)
 ```
 
 example for Matthew Linn about mismatched counties
@@ -405,6 +415,7 @@ in_glaciallakes_standard_tidy <- in_glacial_lakes_standard_merge%>%
   mutate(survey_type = if_else(is.na(targeted_or_standard.effort), targeted_or_standard.fish, targeted_or_standard.effort))%>%
   mutate(length_unit_1 = "inches")%>%
   mutate(length_1 = as.numeric(length.1))%>%
+  mutate(month = 6)%>%
   rename(total_effort_1_units = effort_units.1,
          species_1 = species.1,
          original_file_name_1_indivfish = original_file_name.1.fish,
@@ -414,6 +425,7 @@ in_glaciallakes_standard_tidy <- in_glacial_lakes_standard_merge%>%
          lake_name_1,
          lake_id,
          year,
+         month,
          survey_type,
          sampling_method,
          total_effort_1,
@@ -427,6 +439,7 @@ in_glaciallakes_standard_tidy <- in_glacial_lakes_standard_merge%>%
          waterbody_type) #there is a warning about NAs being introduced when length is made a numeric, but they should be NAs
                             #were previously "_" (a blank) (11), "-" (25), "X" (1), or "FALSE" (2)
 
+# rm(in_glacial_lakes_effort_06Oct2021_ID, in_glaciallakes_fish_06Oct2021_ID, in_glacial_lakes_standard_merge)
 ```
 
 in_glaciallakes_fish_no_samp_method <- in_glaciallakes_fish_6Oct2021_2 %>%
@@ -442,6 +455,7 @@ in_glaciallakes_targeted_effort_16Nov2023_2 <- in_glaciallakes_targeted_effort_1
   mutate(effort_units = case_when(sampling_method == "Experimental gill net" ~ "overnight lifts",
                                   sampling_method == "Nighttime electrofishing" ~ "hours"))%>%
   mutate(date.1 = mdy(date.1))%>%
+  mutate(month = month(date.1))%>%
   mutate(year = year(date.1))%>% #make column for year to match non-targeted
   mutate(sampling_method = str_to_lower(sampling_method))%>% #make sampling method consistent for std and targeted
   rename(effort_units.1 = effort_units)%>%
@@ -515,135 +529,29 @@ email matt linn and ask about targeted survey gears (is EF just bass and GN just
 merge IN GL targeted fish with effort
 - 13,717 fish obs
 - 51 survey/gear 
-```{r}
-# NOT WORKING BECAUSE SURVEY DATES DON'T MATCH
-    # will want to fix this eventually, but for now, we will proceed with only the ones that work 
-
-# set up key columns for merge
-keycols_INGL_target <- c("lake_id", "date.1")
-
-setkeyv(in_glaciallakes_targeted_effort_16Nov2023_2, keycols_INGL_target)
-setkeyv(in_glaciallakes_targeted_fish_16Nov2023_2, keycols_INGL_target)
-
-# merge IN glacial lakes targedted surveys effort and fish data
-in_glaciallakes_target_merge <- merge(in_glaciallakes_targeted_fish_16Nov2023_2, in_glaciallakes_targeted_effort_16Nov2023_2, by = keycols_INGL_target, all = T, suffixes = c("_catch", "_effort")) #, roll = "nearest"
-
-in_glaciallakes_target_merge_year <- in_glaciallakes_targeted_effort_16Nov2023_2 %>%
-  group_by(lake_id, year,sampling_method)%>%
-  summarise(number = n()) #have two targeted surveys with the same gear done twice in a year on a lake
-
-in_glaciallakes_target_merge_2 <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
-  full_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", closest(date.1)))
-```
 
 Check merge product for IN GL Targeted
-ignore below
+# Merge of IN Glacial Lakes targeted surveys
+
+- note, at one point, the dates were not matching, and we were losting 10,051 fish obs and 31 surveys. However, this seems to be resolved after making the dates IDates.
+
 ```{r}
-# NOT WORKING BECAUSE SURVEY DATES DON'T MATCH
-
-# did we retain all surveys
-
-in_glaciallakes_target_merge_survey <- in_glaciallakes_target_merge %>%
-  group_by(lake_id, sampling_method, date.1)%>%
-  summarise(Total = n()) 
-    #yes all surveys were retained
-    # fish were caught in every survey, makes sense because they are targeted
-
-in_glaciallakes_target_merge_mismatch_f <- in_glaciallakes_target_merge %>%
-   mutate(flag = case_when(lake_name.1_catch != lake_name.1_effort ~ "mismatched lake names",
-                           county_catch != county_effort ~ "mismatched county names",
-                          .default = NA))%>%
-  mutate(lake_name_1 = if_else(lake_name.1_catch == lake_name.1_effort, lake_name.1_catch, lake_name.1_effort))%>%
-  mutate(county = if_else(county_catch == county_effort, county_catch, county_effort))%>%
-  filter(is.na(species.1))
-
-in_glaciallakes_target_merge_mismatch_e <- in_glaciallakes_target_merge %>%
-   mutate(flag = case_when(lake_name.1_catch != lake_name.1_effort ~ "mismatched lake names",
-                           county_catch != county_effort ~ "mismatched county names",
-                          .default = NA))%>%
-  mutate(lake_name_1 = if_else(lake_name.1_catch == lake_name.1_effort, lake_name.1_catch, lake_name.1_effort))%>%
-  mutate(county = if_else(county_catch == county_effort, county_catch, county_effort))%>%
-  filter(is.na(sampling_method))%>%
-  mutate(year = year(date.1))%>%
-  distinct()
-
-in_glaciallakes_target_fish_dates <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
-  mutate(year = year(date.1))%>%
-  select(lake_id, year, date.1)%>%
-  rename(fish_catch_date = date.1)%>%
-  distinct()
-
-in_glaciallakes_target_effort_dates <- in_glaciallakes_targeted_effort_16Nov2023_2 %>%
-  mutate(year = year(date.1))%>%
-  select(lake_id, year, date.1)%>%
-  rename(effort_date = date.1)%>%
-  distinct()
-
-in_glaciallakes_target_date_compare <- in_glaciallakes_target_fish_dates %>%
-  full_join(in_glaciallakes_target_effort_dates, by = c("lake_id", "year"))%>%
-  mutate(result = case_when(fish_catch_date == effort_date))
-
-in_GL_targ_date_mismatch <- in_glaciallakes_target_merge_mismatch_e%>%
-  full_join(in_glaciallakes_target_merge_mismatch_f, by = c("lake_id", "year"))%>%
-  select(lake_id, year, date.1.x, date.1.y,county_catch.x, county_catch.y, county_effort.x, county_effort.y)%>%
-  distinct()
-#Date isn't matching up... see if we can match on year, and if year isn't sufficient, match on month and Year
-
-# tidy column order and names
-in_glaciallakes_target_merge_tidy <- in_glaciallakes_target_merge %>%
-   mutate(flag = case_when(lake_name.1_catch != lake_name.1_effort ~ "mismatched lake names",
-                           county_catch != county_effort ~ "mismatched county names",
-                           lake_name.1_effort == "Golden" & year == "2017" ~ "fish date off by one day of effort date",
-                          .default = NA))%>%
-  mutate(lake_name_1 = if_else(lake_name.1_catch == lake_name.1_effort, lake_name.1_catch, lake_name.1_effort))%>%
-  mutate(county = if_else(county_catch == county_effort, county_catch, county_effort))%>%
-  rename(state = state_catch, #rename to match other parquet files
-         date_1 = date.1,
-         total_effort_1_units = effort_units.1,
-         species_1 = species.1,
-         length_1 = length.1,
-         length_unit_1 = length_unit.1)%>%
-  mutate(date_1 = as.IDate(date_1))%>%
-  mutate(survey_type = if_else(!is.na(targeted_or_standard_catch), targeted_or_standard_catch, targeted_or_standard_effort))%>%
-  select(state, 
-         county, 
-         lake_name_1, 
-         lake_id,
-         date_1,
-         survey_type,
-         sampling_method,
-         total_effort_1,
-         total_effort_1_units,
-         species_1) #re-order columns, and remove irrelevant columns, can add more columns in this line too
-```
-    
-    # still needs nhd IDs and lat longs if possible
-    # add "total_effort_ident" after r bind with reservoirs
-
-
-### temporary merge of IN Glacial Lakes targeted surveys
-
-- survey dates aren't matching, will email Matthew about it, for now, just gathering ones that DO match so we can get a preliminary IN product
-
-See line 395 for where data is prepped for merge
-```{r}
-# merging and leaving behind non-matches for now, will eventually want to try to get more of those surveys in 
 in_glaciallakes_targeted_full_join <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
   full_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "date.1"),
              suffix = c("_catch", "_effort"))
-    # lose 10,051 fish obs and 31 surveys, this isn't happening anymore..?
+    
 
 in_glaciallakes_targeted_inner_join_2 <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
   inner_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "year"),
              suffix = c("_catch", "_effort"))%>%
-  filter(date.1_catch != date.1_effort) #yep all the dates match now... 
+  filter(date.1_catch != date.1_effort) #yep all the dates match now... this is good!
 
 in_glaciallakes_targeted_inner_join_3 <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
   inner_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "date.1"),
              suffix = c("_catch", "_effort"))
 
 
-# Okay this works now and i have no idea why
+# Okay this works now, thank goodness
 in_gl_target_date_mismatch <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
   anti_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "date.1"))
 
@@ -679,6 +587,7 @@ in_glaciallakes_targeted_full_join_tidy <- in_glaciallakes_targeted_full_join %>
          lake_name_1, 
          lake_id,
          date_1,
+         month,
          year,
          survey_type,
          sampling_method,
@@ -691,7 +600,6 @@ in_glaciallakes_targeted_full_join_tidy <- in_glaciallakes_targeted_full_join %>
          original_file_name_1_effort,
          waterbody_type)
 
-# do we want to add target species to targeted surveys..?
 ```
 
 

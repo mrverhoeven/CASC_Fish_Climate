@@ -7,9 +7,20 @@ editor_options:
   chunk_output_type: console
 ---
 
-Things to note:
--DNR suggests having a filter for water temp for GN set in shallow stratifed assessment
-  -it is not implimented below but should be explored further 
+12/29 filter cleaning:
+1. selecting columns to retain for filtering... is that necessary? 
+2. order of operation in creation of good surveys
+      -could call the distinct function first
+      -then I could join by filter table by specific columns and values (even numeric)
+      -collect
+      -could minimize the number of things I call to make a survey distintic (only include total effort ident)
+3. I have realized filtering by fish level parameters is not the best way to go
+      -instead, if a fish level parameter is of intrest - include that variable in counting for cpue
+4. only use total effort ident in the grouping for cpue
+5. change the call of na species to nothing caught
+6. collect first before calling the distinct function
+  -that way we can retain all columns with .keep_all = T
+
 
 
 #Library
@@ -18,27 +29,26 @@ library(tidyverse)
 library(arrow)
 ```
 
-#data
+#Data
 ```{r}
-#the filter table for Minnesota contains gill net and trap net data for all species
-#although some gears might not be a good measure of abundance for that species - all surveys are paired
-#due to paired surveys, we can generate "catch ability" for a species-gear-lake-survey
-filter_table <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(state == "Minnesota")
-
 mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "mn_file_arrow"))
-glimpse(mn_data)
 
-mn_data %>% 
-  group_by(sampling_method) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
+glimpse(mn_data)
 ```
+
+General structure for each filtering chunks:
+1. gather the filter tables (survey level and fish level)
+2. filter for "good surveys"
+3. gather fish data from the good surveys
+4. calculate cpue - ensuring you are counting fish of the correct parameters
+5. check survey level filtering
+6. check filtering post gathering fish
+7. check cpue generation
+8. remove large individual fish object to save memory 
 
 #walleye filtering
 ```{r}
-#filters for metric (adult abundance) and selects columns needed for survey filtering
+#filters for metric and selects columns needed for survey filtering
 filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
   filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "walleye") %>% 
   rename(survey_type.1 = survey_type) %>% 
@@ -60,6 +70,10 @@ filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1v
   select(state) %>% 
   distinct() 
 
+#filters for surveys that are good measures of abundance for given fish species
+#first, merge the filter table with the data - selects for non-numeric parameters important for abundance 
+#second, collapse the data into survey level
+#third, filter the surveys based on numeric values 
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",
                                         "survey_type.1",
@@ -80,71 +94,15 @@ good_surveys <- mn_data %>%
          month(date_clean) <= month_max) %>% 
   collect()
 
-
-#checking filtering
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
-
-#min effort by grouping
-good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
-
+#gather fish from the surveys deemed good for abundance of the given species
 adult_walleye <- mn_data %>% 
-  #filter the Wisconsin data set for surveys that were good for species abundance
+  #filter the data for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  #filter for fish level items (length, etc)
-  right_join(filter_table_fish) %>% 
   collect() 
 
-#checking final filter
-adult_walleye %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_walleye %>% 
-  group_by(state) %>% 
-  count()
-
-#is each sampling method correct for the filter?
-adult_walleye %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#do I retain all of the good surveys? - rows here should match good surveys 
-adult_walleye %>% 
-  distinct(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
-  group_by(sampling_method) %>% 
-  glimpse()
-
-#creating cpue for species of interest
+#create cpue for species of interest
 adult_walleye_cpue <- adult_walleye %>% 
-  #grouping by variables to get survey fish count 
+  #grouping by survey level parameters to get survey level counts
   group_by(lake_id,
            date_clean,
            survey_type.1,
@@ -176,6 +134,69 @@ adult_walleye_cpue <- adult_walleye %>%
            cpue) %>% 
   collect()
 
+
+#checking filtering
+
+#survey level checks
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+#do I have all area groupings?
+good_surveys %>% 
+  group_by(sampling_method, area_group) %>% 
+  count()
+
+#min effort by grouping
+good_surveys %>% 
+  group_by(area_group, sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1.1))
+
+
+#checks after collecting all fish data
+
+#checking final filter
+adult_walleye %>% 
+  group_by(species.1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_walleye %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_walleye %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_walleye %>% 
+  distinct(lake_id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+
+
+#checks after calculating cpue
+
 #range of cpues?
 adult_walleye_cpue %>% 
   group_by(sampling_method) %>% 
@@ -196,12 +217,13 @@ adult_walleye %>%
   count() %>% 
   print(n = nrow(.))
 
+#removes individual fish object to save memory
 rm(adult_walleye)
 ```
 
 #black crappie filtering
 ```{r}
-#filters for metric (adult abundance) and selects columns needed for survey filtering
+#filters for metric and selects columns needed for survey filtering
 filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
   filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "black_crappie") %>% 
   rename(survey_type.1 = survey_type) %>% 
@@ -243,70 +265,11 @@ good_surveys <- mn_data %>%
          month(date_clean) <= month_max) %>% 
   collect()
 
-#checking filtering
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
-
-#min effort by grouping
-good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
-#there is only 1 lake in the <100 area grouping that has an effort of 4
-#this explains why the min effort for this group is not the same as the min we set
-good_surveys %>% 
-  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
-
+#gathering fish from good surveys
 adult_black_crappie <- mn_data %>% 
-  #filter the Wisconsin data set for surveys that were good for species abundance
+  #gathering fish surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  #filter for fish level items (length, etc)
-  right_join(filter_table_fish) %>% 
   collect() 
-
-#checking final filter
-adult_black_crappie %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_black_crappie %>% 
-  group_by(state) %>% 
-  count()
-
-#is each sampling method correct for the filter?
-adult_black_crappie %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#do I retain all of the good surveys? - rows here should match good surveys 
-adult_black_crappie %>% 
-  distinct(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
-  group_by(sampling_method) %>% 
-  glimpse()
 
 #creating cpue for species of interest
 adult_black_crappie_cpue <- adult_black_crappie %>% 
@@ -342,6 +305,71 @@ adult_black_crappie_cpue <- adult_black_crappie %>%
            cpue) %>% 
   collect()
 
+
+#checking filtering
+
+#survey level checks
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+#do I have all area groupings?
+good_surveys %>% 
+  group_by(sampling_method, area_group) %>% 
+  count()
+
+#min effort by grouping
+good_surveys %>% 
+  group_by(area_group, sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1.1))
+#there is only 1 lake in the <100 area grouping that has an effort of 4
+#this explains why the min effort for this group is not the same as the min we set
+good_surveys %>% 
+  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
+
+
+
+#checks after gathering all fish
+adult_black_crappie %>% 
+  group_by(species.1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_black_crappie %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_black_crappie %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_black_crappie %>% 
+  distinct(lake_id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+
+
+#checks after calculating cpue
 #range of cpues?
 adult_black_crappie_cpue %>% 
   group_by(sampling_method) %>% 
@@ -357,6 +385,7 @@ adult_black_crappie_cpue %>%
   group_by(cpue) %>% 
   count()
 
+#removing large fish level object to save memory
 rm(adult_black_crappie)
 ```
 
@@ -404,70 +433,11 @@ good_surveys <- mn_data %>%
          month(date_clean) <= month_max) %>% 
   collect()
 
-#checking filtering
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
-
-#min effort by grouping
-good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
-#there is only 1 lake in the <100 area grouping that has an effort of 4
-#this explains why the min effort for this group is not the same as the min we set
-good_surveys %>% 
-  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
-
+#gathering fish from good surveys
 adult_bluegill <- mn_data %>% 
-  #filter the Wisconsin data set for surveys that were good for species abundance
+  #gathering fish from surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  #filter for fish level items (length, etc)
-  right_join(filter_table_fish) %>% 
   collect() 
-
-#checking final filter
-adult_bluegill %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_bluegill %>% 
-  group_by(state) %>% 
-  count()
-
-#is each sampling method correct for the filter?
-adult_bluegill %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#do I retain all of the good surveys? - rows here should match good surveys 
-adult_bluegill %>% 
-  distinct(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
-  group_by(sampling_method) %>% 
-  glimpse()
 
 #creating cpue for species of interest
 adult_bluegill_cpue <- adult_bluegill %>% 
@@ -503,6 +473,67 @@ adult_bluegill_cpue <- adult_bluegill %>%
            cpue) %>% 
   collect()
 
+#checking survey level filterings
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+#do I have all area groupings?
+good_surveys %>% 
+  group_by(sampling_method, area_group) %>% 
+  count()
+
+#min effort by grouping
+good_surveys %>% 
+  group_by(area_group, sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1.1))
+#there is only 1 lake in the <100 area grouping that has an effort of 4
+#this explains why the min effort for this group is not the same as the min we set
+good_surveys %>% 
+  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
+
+
+#checking filtering after collecting fish
+adult_bluegill %>% 
+  group_by(species.1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_bluegill %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_bluegill %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_bluegill %>% 
+  distinct(lake_id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+
+
+#checks after calculating cpue
 #range of cpues?
 adult_bluegill_cpue %>% 
   group_by(sampling_method) %>% 
@@ -518,6 +549,7 @@ adult_bluegill_cpue %>%
   group_by(cpue) %>% 
   count()
 
+#removing large fish data object to save memory
 rm(adult_bluegill)
 ```
 
@@ -565,70 +597,10 @@ good_surveys <- mn_data %>%
          month(date_clean) <= month_max) %>% 
   collect()
 
-#checking filtering
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
-
-#min effort by grouping
-good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
-#there is only 1 lake in the <100 area grouping that has an effort of 4
-#this explains why the min effort for this group is not the same as the min we set
-good_surveys %>% 
-  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
-
 adult_largemouth <- mn_data %>% 
   #filter the Wisconsin data set for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  #filter for fish level items (length, etc)
-  right_join(filter_table_fish) %>% 
-  collect() 
-
-#checking final filter
-adult_largemouth %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_largemouth %>% 
-  group_by(state) %>% 
-  count()
-
-#is each sampling method correct for the filter?
-adult_largemouth %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#do I retain all of the good surveys? - rows here should match good surveys 
-adult_largemouth %>% 
-  distinct(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
-  group_by(sampling_method) %>% 
-  glimpse()
+  collect()
 
 #creating cpue for species of interest
 adult_largemouth_cpue <- adult_largemouth %>% 
@@ -664,6 +636,67 @@ adult_largemouth_cpue <- adult_largemouth %>%
            cpue) %>% 
   collect()
 
+#checking survey level filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+#do I have all area groupings?
+good_surveys %>% 
+  group_by(sampling_method, area_group) %>% 
+  count()
+
+#min effort by grouping
+good_surveys %>% 
+  group_by(area_group, sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1.1))
+#there is only 1 lake in the <100 area grouping that has an effort of 4
+#this explains why the min effort for this group is not the same as the min we set
+good_surveys %>% 
+  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
+
+ 
+#checks after gathering fish
+adult_largemouth %>% 
+  group_by(species.1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_largemouth %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_largemouth %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_largemouth %>% 
+  distinct(lake_id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+
+
+#checks after calculating cpue
 #range of cpues?
 adult_largemouth_cpue %>% 
   group_by(sampling_method) %>% 
@@ -679,6 +712,7 @@ adult_largemouth_cpue %>%
   group_by(cpue) %>% 
   count()
 
+#remove fish object to save memory
 rm(adult_largemouth)
 ```
 
@@ -726,71 +760,10 @@ good_surveys <- mn_data %>%
          month(date_clean) <= month_max) %>% 
   collect()
 
-#checking filtering
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
-
-#min effort by grouping
-good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
-#there is only 1 lake in the <100 area grouping that has an effort of 4
-#this explains why the min effort for this group is not the same as the min we set
-good_surveys %>% 
-  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
-
 adult_smallmouth <- mn_data %>% 
-  #filter the Wisconsin data set for surveys that were good for species abundance
+  #gather fish from surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  #filter for fish level items (length, etc)
-  right_join(filter_table_fish) %>% 
   collect() 
-
-
-#checking final filter
-adult_smallmouth %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_smallmouth %>% 
-  group_by(state) %>% 
-  count()
-
-#is each sampling method correct for the filter?
-adult_smallmouth %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#do I retain all of the good surveys? - rows here should match good surveys 
-adult_smallmouth %>% 
-  distinct(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
-  group_by(sampling_method) %>% 
-  glimpse()
 
 #creating cpue for species of interest
 adult_smallmouth_cpue <- adult_smallmouth %>% 
@@ -826,6 +799,67 @@ adult_smallmouth_cpue <- adult_smallmouth %>%
            cpue) %>% 
   collect()
 
+#survey level checks
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+#do I have all area groupings?
+good_surveys %>% 
+  group_by(sampling_method, area_group) %>% 
+  count()
+
+#min effort by grouping
+good_surveys %>% 
+  group_by(area_group, sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1.1))
+#there is only 1 lake in the <100 area grouping that has an effort of 4
+#this explains why the min effort for this group is not the same as the min we set
+good_surveys %>% 
+  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
+
+
+#checks after gathering fish
+adult_smallmouth %>% 
+  group_by(species.1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_smallmouth %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_smallmouth %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_smallmouth %>% 
+  distinct(lake_id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+
+
+#checks after calculating cpue
 #range of cpues?
 adult_smallmouth_cpue %>% 
   group_by(sampling_method) %>% 
@@ -841,6 +875,7 @@ adult_smallmouth_cpue %>%
   group_by(cpue) %>% 
   count()
 
+#remove large fish object to save memory
 rm(adult_smallmouth)
 ```
 
@@ -888,67 +923,10 @@ good_surveys <- mn_data %>%
          month(date_clean) <= month_max) %>% 
   collect()
 
-#checking filtering
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
-
-#min effort by grouping
-good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
-
 adult_cisco <- mn_data %>% 
-  #filter the Wisconsin data set for surveys that were good for species abundance
+  #gathering fish from surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  #filter for fish level items (length, etc)
-  right_join(filter_table_fish) %>% 
   collect() 
-
-
-#checking final filter
-adult_cisco %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_cisco %>% 
-  group_by(state) %>% 
-  count()
-
-#is each sampling method correct for the filter?
-adult_cisco %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#do I retain all of the good surveys? - rows here should match good surveys 
-adult_cisco %>% 
-  distinct(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
-  group_by(sampling_method) %>% 
-  glimpse()
 
 #creating cpue for species of interest
 adult_cisco_cpue <- adult_cisco %>% 
@@ -984,6 +962,64 @@ adult_cisco_cpue <- adult_cisco %>%
            cpue) %>% 
   collect()
 
+#checking survey level filtering
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+#do I have all area groupings?
+good_surveys %>% 
+  group_by(sampling_method, area_group) %>% 
+  count()
+
+#min effort by grouping
+good_surveys %>% 
+  group_by(area_group, sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1.1))
+
+
+
+#checks after gathering fish data
+adult_cisco %>% 
+  group_by(species.1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_cisco %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_cisco %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_cisco %>% 
+  distinct(lake_id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+
+
+#checks after calculating cpue
 #range of cpues?
 adult_cisco_cpue %>% 
   group_by(sampling_method) %>% 
@@ -999,6 +1035,7 @@ adult_cisco_cpue %>%
   group_by(cpue) %>% 
   count()
 
+#remove fish object to save memory
 rm(adult_cisco)
 ```
 
@@ -1046,69 +1083,10 @@ good_surveys <- mn_data %>%
          month(date_clean) <= month_max) %>% 
   collect()
 
-#checking filtering
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
-
-#min effort by grouping
-good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
-#this explains why the min effort for this group is not the same as the min we set
-good_surveys %>% 
-  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
-
 adult_northern_pike <- mn_data %>% 
-  #filter the Wisconsin data set for surveys that were good for species abundance
+  #gather fish from surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  #filter for fish level items (length, etc)
-  right_join(filter_table_fish) %>% 
   collect() 
-
-#checking final filter
-adult_northern_pike %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_northern_pike %>% 
-  group_by(state) %>% 
-  count()
-
-#is each sampling method correct for the filter?
-adult_northern_pike %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#do I retain all of the good surveys? - rows here should match good surveys 
-adult_northern_pike %>% 
-  distinct(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
-  group_by(sampling_method) %>% 
-  glimpse()
 
 #creating cpue for species of interest
 adult_northern_pike_cpue <- adult_northern_pike %>% 
@@ -1144,6 +1122,66 @@ adult_northern_pike_cpue <- adult_northern_pike %>%
            cpue) %>% 
   collect()
 
+#survey level checks
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+#do I have all area groupings?
+good_surveys %>% 
+  group_by(sampling_method, area_group) %>% 
+  count()
+
+#min effort by grouping
+good_surveys %>% 
+  group_by(area_group, sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1.1))
+#this explains why the min effort for this group is not the same as the min we set
+good_surveys %>% 
+  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
+
+
+#checks after gathering fish data
+adult_northern_pike %>% 
+  group_by(species.1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_northern_pike %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_northern_pike %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_northern_pike %>% 
+  distinct(lake_id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+
+
+#checks after calculating cpue
 #range of cpues?
 adult_northern_pike_cpue %>% 
   group_by(sampling_method) %>% 
@@ -1159,6 +1197,7 @@ adult_northern_pike_cpue %>%
   group_by(cpue) %>% 
   count()
 
+#remove large fish object to save memory
 rm(adult_northern_pike)
 ```
 
@@ -1206,70 +1245,10 @@ good_surveys <- mn_data %>%
          month(date_clean) <= month_max) %>% 
   collect()
 
-#checking filtering
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
-
-#min effort by grouping
-good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
-#this explains why the min effort for this group is not the same as the min we set
-good_surveys %>% 
-  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
-
 adult_yellow_perch <- mn_data %>% 
-  #filter the Wisconsin data set for surveys that were good for species abundance
+  #gather fish from surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  #filter for fish level items (length, etc)
-  right_join(filter_table_fish) %>% 
   collect() 
-
-
-#checking final filter
-adult_yellow_perch %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_yellow_perch %>% 
-  group_by(state) %>% 
-  count()
-
-#is each sampling method correct for the filter?
-adult_yellow_perch %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
-
-#do I retain all of the good surveys? - rows here should match good surveys 
-adult_yellow_perch %>% 
-  distinct(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
-  group_by(sampling_method) %>% 
-  glimpse()
 
 #creating cpue for species of interest
 adult_yellow_perch_cpue <- adult_yellow_perch %>% 
@@ -1305,6 +1284,67 @@ adult_yellow_perch_cpue <- adult_yellow_perch %>%
            cpue) %>% 
   collect()
 
+#survey level checks
+#month range
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#sampling method
+good_surveys %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+#survey purpose
+good_surveys %>% 
+  group_by(survey_type.1) %>% 
+  count()
+
+#do I have all area groupings?
+good_surveys %>% 
+  group_by(sampling_method, area_group) %>% 
+  count()
+
+#min effort by grouping
+good_surveys %>% 
+  group_by(area_group, sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1.1))
+#this explains why the min effort for this group is not the same as the min we set
+good_surveys %>% 
+  filter(sampling_method == "Standard gill nets, set shallow in stratified assessment" & area_group == "<100")
+
+
+
+#checks after gathering fish data
+adult_yellow_perch %>% 
+  group_by(species.1) %>% 
+  count()
+
+#is the state label the same for all fish
+adult_yellow_perch %>% 
+  group_by(state) %>% 
+  count()
+
+#is each sampling method correct for the filter?
+adult_yellow_perch %>% 
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+adult_yellow_perch %>% 
+  distinct(lake_id,
+           date_clean,
+           survey_type.1,
+           sampling_method,
+           total_effort_1.1,
+           effort_units.1,
+           area_group,
+           effort_min) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+
+
+#checks after calculating cpue
 #range of cpues?
 adult_yellow_perch_cpue %>% 
   group_by(sampling_method) %>% 
@@ -1320,6 +1360,7 @@ adult_yellow_perch_cpue %>%
   group_by(cpue) %>% 
   count()
 
+#removing large fish object to retain memory
 rm(adult_yellow_perch)
 ```
 

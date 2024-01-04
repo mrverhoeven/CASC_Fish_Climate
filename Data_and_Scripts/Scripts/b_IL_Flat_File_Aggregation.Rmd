@@ -8,15 +8,14 @@ editor_options:
 ---
 # Preamble
 
-
-Things to keep in mind:
--Need to explore subsample time 
-    -are we able to link fish obs with if it was captured in the sub sample?
-    -are they capturing all fish before they sub sample (including sub sample species)?
--make sure units on total effort make sense (seines might be hauls)
-- add sub_effort_nothing_caught
-- NHDids
-- have a new age file, see if it jives 
+Notes as of 12/19:
+-targeted species with the associated subsample time were moved to targeted species and subsample time columns
+-no nhdids exist currently for Illinois lakes - lat and long were retained for future crosswalking 
+-all efforts are currently in minutes (filter tables will have to be adjusted if they are in net nights)
+-sub effort ident is currently a "net or run number" 
+   -this could be problematic when they resample a net in a survey (two net 1s)
+   -retain the current sub effort ident as a net number and then make a new sub effort ident column that is unique for each piece 
+    (could probably be just total effort ident, net/run number/ and date - bc its unlikely to resample the same net in the same day)
 
 
 ##Libraries
@@ -30,7 +29,7 @@ library(janitor)
 library(tidyr)
 library(lubridate)
 library(bit64)
-
+library(mwlaxeref)
 options(scipen = 999)
 ```
 
@@ -49,7 +48,7 @@ files_list
 n <- length(files_list)
 
 for(i in 1:n) {
-  #i = 3
+  #i = 1
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
@@ -143,28 +142,23 @@ for(i in 1:n) {
 
 
 #aged fish
-glimpse(il_aged_fish_surveys_28Dec2022)
+glimpse(il_aged_fish_surveys_12Dec2023)
 
-il_aged_fish_surveys_28Dec2022 %>% 
+il_aged_fish_surveys_12Dec2023 %>% 
   group_by(lake_name.1) %>% 
   count() 
 
-#any na lengths? 
-il_aged_fish_surveys_28Dec2022 %>% 
-  filter(is.na(length.1)) %>% 
-  group_by(survey_id) %>% 
-  count()
 
 #do the catch and aged data match for the surveys?
-il_aged_fish_surveys_28Dec2022 %>% 
+il_aged_fish_surveys_12Dec2023 %>% 
   group_by(year, survey_id, lake_name.1) %>% 
   count() %>% 
   print(n = nrow(.))
 #only clinton and rend lake from 1985 - 2003
 
 il_catch_age_effort_30Nov23 %>% 
-  filter(lake_name.1 == "Clinton Lake" | lake_name.1 == "Rend Lake") %>% 
-  group_by(survey_id, year) %>% 
+  filter(survey_id %in% il_aged_fish_surveys_12Dec2023$survey_id) %>% 
+  group_by(survey_id, lake_name.1, year) %>% 
   count() %>% 
   print(n = nrow(.))
 #they aren't going to jive
@@ -393,20 +387,57 @@ Process to merge goes as follows:
 #uncounting batch fish 
 #makes fish per row from batch counted fish
 il_catch_age_effort_30Nov23_uncount <- il_catch_age_effort_30Nov23 %>% 
-  uncount(total_count.1)
+  uncount(total_count.1) 
 
 #collapsing effort from the fish obs level file 
 #this file is checked for conflicts between the effort file in a later step - keeping effort in this file makes joining cleaner
 #I also retain surveys that didn't catch fish by finding surveys not present in the fish file that are present in the effort file and retaining them
-survey.effort <- il_effort_30Nov23 %>% 
+
+#In this step, I make a targeted species columns the effort spent sub sampling for surveys that have sub sample associated with them
+#this keeps the data in a format so each survey is one row with associated sub sampling tagged 
+il_effort_30Nov23_target <- il_effort_30Nov23 %>% 
+  group_by(
+    survey_id,
+    lake_id,
+    year,
+    date.1,
+    gear_data_notes.1,
+    total_effort_2,
+    total_effort_1,
+    original_file_name.1) %>% 
+  mutate(subspecies_order = row_number()) %>% 
+  pivot_wider(names_from = subspecies_order,
+              values_from = c(garbage_bin_notes.4, garbage_bin_notes.3)) %>% 
+  rename_with(~str_replace(., 'garbage_bin_notes.4', 'target_species'), contains("garbage_bin_notes.4")) %>% 
+  rename_with( ~str_replace(., 'garbage_bin_notes.3', 'subsample_time'), contains("garbage_bin_notes.3"))
+  
+  
+survey.effort <- il_effort_30Nov23_target %>% 
   #groups all sub-survey level effort into the larger survey
-  group_by(survey_id, lake_id, year, date.1, gear_data_notes.1, total_effort_2, total_effort_1, original_file_name.1) %>% 
+  group_by(survey_id, 
+           lake_id, 
+           year, 
+           date.1, 
+           gear_data_notes.1, 
+           total_effort_2, 
+           total_effort_1, 
+           target_species_1,
+           target_species_2,
+           target_species_3,
+           subsample_time_1,
+           subsample_time_2,
+           subsample_time_3,
+           original_file_name.1) %>% 
   #count of obs in each survey grouping
-  count() %>% #this count gives an idea of how many sub-survey go into a total survey but is dropped later
+  count() %>%  #this count gives an idea of how many sub-survey go into a total survey but is dropped later
   #grouping by the survey id, year, and method to get survey level effort from sub-survey level 
-  group_by(survey_id, lake_id, year, gear_data_notes.1, original_file_name.1) %>% 
+  group_by(survey_id, 
+           lake_id, 
+           year, 
+           gear_data_notes.1, 
+           original_file_name.1) %>% 
   mutate(survey_effort = sum(total_effort_1),
-         survey_effort_id = cur_group_id()) %>%  #gives a unique ident for total effort 
+         survey_effort_id = cur_group_id()) %>%   #gives a unique ident for total effort 
   rename(original_file_name.1_effort = original_file_name.1) %>% 
   select(-n)
 
@@ -457,33 +488,35 @@ il_data_all <- il_data_merged %>%
 #this first step takes out surveys with no fish in the merged data so they can be returned with the object that returns all the survey information associated with surveys that did not catch fish
 
 #this new object contains all fish data with associated effort and the surveys that did not catch fish 
-il_data <- bind_rows(il_data_all, no_fish) %>% 
-  ungroup() 
+il_data.catch <- bind_rows(il_data_all, no_fish) %>% 
+  ungroup()  %>% 
+  select(-survey_type.1) %>% 
+  rename(survey_type.1 = garbage_bin_notes.4)
 
 #quick glance to see how net efforts are calculating to survey efforts
-effort.check <- il_data %>% 
+effort.check <- il_data.catch %>% 
   distinct(lake_id, year, date.1, sampling_method.1, total_effort_2, total_effort_1, .keep_all = T) %>% 
-  select(lake_id, lake_name.1, year, date.1, sampling_method.1, total_effort_2, total_effort_1, survey_effort)
+  select(survey_id, lake_id, lake_name.1, year, date.1, gear_data_notes.1, survey_effort_id, total_effort_2, total_effort_1, survey_effort)
 
 #Are my original file names tracking?
-il_data %>% 
+il_data.catch %>% 
   group_by(original_file_name.1_indvifish) %>% 
   count() %>% 
   print(n = nrow(.))
 #shows all fish records come from the original file for fish
 
-na <- il_data %>% 
+na <- il_data.catch %>% 
   filter(is.na(original_file_name.1_indvifish))
 #all nas here are surveys that did not catch fish
 
-il_data %>% 
+il_data.catch %>% 
   group_by(original_file_name.1_effort) %>% 
   count() %>% 
   print(n = nrow(.))
 #all obs have effort associated with them from the effort file
 
 #fish that are in the catch but are not in the effort?
-excluded <- anti_join(il_catch_age_effort_30Nov23, il_data, by = c("lake_id",
+excluded <- anti_join(il_catch_age_effort_30Nov23, il_data.catch, by = c("lake_id",
                                                                    "year", 
                                                                    "date.1",
                                                                    "gear_data_notes.1",
@@ -493,11 +526,181 @@ excluded <- anti_join(il_catch_age_effort_30Nov23, il_data, by = c("lake_id",
 surveys.excluded <- excluded %>% 
   group_by(lake_id, lake_name.1, survey_id, year, gear_data_notes.1, total_effort_2, total_effort_1, species.1) %>% 
   count() 
-#one survey that has file records without any effort in the file 
-#it looks like there is a difference in the date associated between the effort record and the fish records
+#all joining columns combine correctly between the effort and catch file
 ``` 
           
-          
+#Age data - effort and catch
+```{r}
+il_aged_fish_surveys_12Dec2023 %>% 
+  group_by(lake_id, lake_name.1) %>% 
+  count()
+
+il_data.catch %>% 
+  filter(lake_id %in% il_aged_fish_surveys_12Dec2023$lake_id) %>% 
+  group_by(lake_id, lake_name.1) %>% 
+  count()
+#lake names and survey ids are consistent between age and catch files
+#survey ids are not the same across age and survey files
+
+il_aged_fish_surveys_12Dec2023 %>% 
+  filter(total_count.1 == 1) %>% 
+  filter(is.na(age)) %>% 
+  count()
+#most of this data is unaged but we also have 20,000 records of age
+
+il_aged_fish_surveys_12Dec2023 %>% 
+  group_by(survey_id, lake_name.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#surveyid seems worthless here because there are multiple lakes within a given survey?
+
+il_aged_fish_surveys_12Dec2023 %>% 
+  group_by(garbage_bin_notes.1) %>% 
+  count()
+#no subsample times so we don't have to worry about that
+
+il_aged_fish_surveys_12Dec2023 %>% 
+  group_by(lake_id, 
+           lake_name.1, 
+           date.1, 
+           sampling_method.1, 
+           total_effort_1,
+           total_effort_2,
+           ) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_aged_fish_surveys_12Dec2023 %>% 
+  group_by(lake_name.1) %>% 
+  count()
+#data from 13 lakes
+############starting the merge################
+
+#uncounting aged fish surveys
+#no surveys have sub-sampling associated with them - thus I am just making a subsample time 1 columns where all values will be 0
+il_aged_fish_surveys_12Dec2023_uncount <- il_aged_fish_surveys_12Dec2023 %>% 
+  uncount(total_count.1) %>% 
+  rename(subsample_time_1 = garbage_bin_notes.1)
+
+survey.effort.age <- il_aged_fish_surveys_12Dec2023_uncount %>% 
+  #groups all sub-survey level effort into the larger survey
+  group_by(lake_id, 
+           year, 
+           date.1, 
+           gear_data_notes.1, 
+           total_effort_2, 
+           total_effort_1, 
+           subsample_time_1, 
+           original_file_name.1) %>% 
+  #count of obs in each survey grouping
+  count() %>% #this count gives an idea of how many sub-survey go into a total survey but is dropped later
+  #grouping by the survey id, year, and method to get survey level effort from sub-survey level 
+  group_by(lake_id, 
+           year, 
+           gear_data_notes.1, 
+           original_file_name.1) %>% 
+  mutate(survey_effort = sum(total_effort_1),
+         survey_effort_id = cur_group_id()) %>%  #gives a unique ident for total effort 
+  rename(original_file_name.1_agedfish = original_file_name.1) %>% 
+  select(-n) %>% 
+  ungroup()
+
+#quick gut check on survey-effort aggregation 
+#are there any surveys that have more than one survey level effort?
+survey.effort.age %>% 
+  group_by(survey_effort_id, survey_effort) %>% 
+  count() %>% 
+  group_by(survey_effort_id) %>% 
+  count() %>% 
+  filter(n >1)
+
+#joining the survey level effort with the individual fish obs
+#this join adds the survey level effort and survey effort ident for each grouping
+il_data_merged_age <- left_join(survey.effort.age, il_aged_fish_surveys_12Dec2023_uncount, by = c("lake_id",
+                                                                                       "year",
+                                                                                       "date.1",
+                                                                                       "gear_data_notes.1",
+                                                                                       "total_effort_2",
+                                                                                       "total_effort_1",
+                                                                                       "subsample_time_1")) %>% 
+  select(-original_file_name.1,
+         -new_file_name)
+#this works, but what about surveys that might not have caught fish?
+#finds surveys that are in the effort file but do not have associated fish
+no_matches <- anti_join(survey.effort.age, il_aged_fish_surveys_12Dec2023_uncount, by = c("lake_id",
+                                                                                   "year",
+                                                                                   "date.1",
+                                                                                   "gear_data_notes.1",
+                                                                                   "total_effort_2",
+                                                                                   "total_effort_1",
+                                                                                   "subsample_time_1"))
+
+effort.check <- survey.effort.age %>% 
+  distinct(survey_effort_id, lake_id, year, date.1, gear_data_notes.1, total_effort_2, total_effort_1, .keep_all = T) %>% 
+  select(survey_effort_id, lake_id, year, date.1, gear_data_notes.1, total_effort_2, total_effort_1, survey_effort)
+#everything seems to be adding up alright, but a ton of sub surveys effort (and total effort) have 0
+
+excluded <- anti_join(il_aged_fish_surveys_12Dec2023_uncount, il_data_merged_age, by = c("lake_id",
+                                                                   "year", 
+                                                                   "date.1",
+                                                                   "gear_data_notes.1",
+                                                                   "total_effort_2", 
+                                                                   "total_effort_1",
+                                                                   "subsample_time_1"))
+
+il_data_merged_age <- il_data_merged_age %>% 
+  mutate(flag = "no zero catches reported in aged data file") %>% #flagging surveys because we are not certain we have true 0s
+  mutate(survey_type.1 = garbage_bin_notes.2) %>% #making survey time consistent with the first catch file
+  mutate(flag = case_when(total_effort_1 == 0 ~ "effort not reported, typical sets are for 1440 min but cannot be certain",
+                          TRUE ~ flag)) #flagging surveys without any effort reported 
+#this could be merged with the other fish file now, however we likely do not have representative nothing caught surveys and there is an overlap of total effort idents and survey ids
+```
+
+#merging age fish and standard catch fish
+```{r}
+#row binding the two data frames together
+#I am creating a source column so that I can retain unique total effort idents from the previous creation in separate chunks
+il_data <- bind_rows(il_data_merged_age %>% 
+                            mutate(source = 1),
+                          il_data.catch %>% 
+                            mutate(source = 2)) %>% 
+  #creating a new survey effort id so that all survey ids are unique to a survey
+  #If i were to leave it as it is, there would be a survey effort 1 for both the catch and age fish
+  mutate(survey_effort_id = paste0(survey_effort_id, "_", source))
+
+#does the total effort id work?
+il_data %>% 
+  group_by(survey_effort_id, original_file_name.1_agedfish, original_file_name.1_indvifish, original_file_name.1_effort) %>% 
+  count()
+#looks good - all surveys from the age file have an x_1 while all surveys from the catch file have an an x_2
+
+#hows how many fish came from catch and aged fish surveys (with the caveat that some nas produced here are from surveys that did not catch fish)
+il_data %>% 
+  group_by(original_file_name.1_indvifish) %>% 
+  count()
+
+il_data %>% 
+  group_by(original_file_name.1_agedfish) %>% 
+  count()
+
+il_data %>% 
+  group_by(survey_id, original_file_name.1_agedfish, lake_name.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#here we can see many files from the aged fish data share a survey id - checking with vic about that
+
+effort.check <- il_data %>% 
+  distinct(survey_effort_id, lake_id, year, date.1, gear_data_notes.1, total_effort_2, total_effort_1, .keep_all = T) %>% 
+  select(survey_effort_id, lake_id, year, date.1, gear_data_notes.1, total_effort_2, total_effort_1, survey_effort)
+
+#surveys with 0 effort
+no_effort <- il_aged_fish_surveys_12Dec2023 %>% 
+  distinct(survey_id, lake_id, date.1, gear_data_notes.1, total_effort_2, total_effort_1, .keep_all = T) %>% 
+  filter(total_effort_1 == 0) %>%
+  select(lake_name.1, lake_id, survey_id, date.1, gear_data_notes.1, total_effort_2, total_effort_1)
+```
+
+
 # Data tidying                        
 ```{r}                       
 glimpse(il_data)
@@ -517,10 +720,18 @@ il_data %>%
   print(n = nrow(.))
 
 il_data %>% 
+  group_by(lake_name.1, lake_id) %>% 
+  count() %>% 
+  group_by(lake_id) %>% 
+  count() %>% 
+  filter(n >1)
+
+il_data %>% 
   filter(lake_name.1 == "Pistakee Lake") %>% 
-  group_by(lake_name.1, lake_id, survey_id, date.1, total_effort_1, survey_effort) %>% 
+  group_by(survey_effort_id, gear_data_notes.1, survey_id, year, total_effort_2, total_effort_1, survey_effort) %>% 
   count() %>% 
   print(n = nrow(.))
+#It appears there are subtle differences in the survey method spelling which led to differences 
 
 il_data %>% 
   group_by(date.1) %>% 
@@ -534,7 +745,7 @@ il_data %>%
 #they are all impoundment surveys?
 
 il_data %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method.1) %>% 
   count() %>% 
   print(n = nrow(.))
 #sampling method seems to be more sampling method agg
@@ -552,16 +763,34 @@ il_data %>%
 #this column needs to be renamed to sub-survey level effort id (net/shocking period)
 
 il_data %>% 
-  group_by(garbage_bin_notes.4) %>% 
+  group_by(survey_type.1) %>% 
   count() %>% 
   print(n = nrow(.))
-#garbage bin 4 gives us a general survey purpose 
 
 il_data %>% 
   group_by(garbage_bin_notes.1) %>% 
   count() %>% 
   print(n = nrow(.))
 #gives subsample times 
+
+il_data %>% 
+  group_by(target_species_1, subsample_time_1) %>%
+  mutate(subsample_time_1 = gsub("Subsample Time:", "", subsample_time_1)) %>% 
+  mutate(target_species_1 = gsub("Subsample Species:", "", target_species_1)) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(target_species_2, subsample_time_2) %>% 
+  mutate(subsample_time_2 = gsub("Subsample Time:", "", subsample_time_2)) %>% 
+  mutate(target_species_2 = gsub("Subsample Species:", "", target_species_2)) %>%
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(target_species_3, subsample_time_3) %>% 
+  count() %>% 
+  print(n = nrow(.))
 
 il_data %>% 
   mutate(species.1 = str_to_lower(species.1),
@@ -576,7 +805,7 @@ il_data %>%
   summarise(min = min(length.1), mean = mean(length.1), max = max(length.1))
 
 il_data %>% 
-  group_by(weight_unit.1) %>% 
+  group_by(species.1) %>% 
   filter(!is.na(weight.1)) %>% 
   summarise(min = min(weight.1), mean = mean(weight.1), max = max(weight.1))
 
@@ -611,13 +840,13 @@ il_data %>%
   print(n = nrow(.))
 #hardly any age data
 
-il_data %>% 
-  group_by(survey_id, total_effort_2, total_effort_1) %>% 
-  count(survey_effort) %>% 
-  print(n = nrow(.))
-#how are sub effort s and total efforts looking?
-
 #####################final tidy#########################################
+#nhdids
+crosswalks <- mwlaxeref::lake_id_xref %>%  
+  group_by(state) %>% 
+  count()
+#no crosswalks exist for il
+
 il_data <- il_data %>% 
   #lower case with no spaces for species name
   mutate(species.1 = str_to_lower(species.1),
@@ -625,17 +854,17 @@ il_data <- il_data %>%
   #shorten unit to just g
   mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
                                    TRUE ~ NA)) %>%
+  mutate(flag = case_when(weight.1 > 2560000000000 ~ "unlikely weight",
+                          TRUE ~ flag)) %>% 
   #effort units
   mutate(total_effort_1_units = "minutes",
          sub_effort_1_units = "minutes") %>% 
-  #drop survey type and replace with garbage bin notes 4 for survey type
-  select(-survey_type.1) %>% 
-  rename(survey_type.1 = garbage_bin_notes.4,
-         sub_sample_effort = garbage_bin_notes.1) %>% 
-  mutate(survey_type.1 = gsub("Sample Type:", "", survey_type.1)) %>%  #cleans up column name
+  #survey type
+  mutate(survey_type.1 = gsub("Sample Type:", "", survey_type.1),
+         survey_type.1 = gsub("Sample_Type:", "", survey_type.1)) %>%  #cleans up column name
   #adding in length units
   #no units were specified within data but general assumption is mm
-  mutate(length_unit.1 = "mm") %>% 
+  mutate(length_unit.1 = "unspecified") %>% 
   #renaming sampling hierarchy
   rename(sampling_method.1 = sampling_method.1) %>% 
   rename(sampling_method.2 = gear_data_notes.1) %>% 
@@ -648,37 +877,87 @@ il_data <- il_data %>%
   rename(sub_effort_1 = total_effort_1) %>% 
   rename(total_effort_1 = survey_effort) %>% 
   #making a caught nothing column to flag when no fish species were caught in a net/survey
-  mutate(nothing_caught = case_when(is.na(original_file_name.1_indvifish) ~ TRUE,
-                                    TRUE ~ FALSE)) %>%
+  #this is done at the survey and sub survey level
+  mutate(sub_survey_nothing_caught = case_when(is.na(species.1) ~ TRUE,
+                                    TRUE ~ FALSE),
+         sub_survey_nothing_caught = as.logical(sub_survey_nothing_caught)) %>%
+  group_by(total_effort_ident) %>% 
+  mutate(total_survey_nothing_caught = all(sub_survey_nothing_caught)) %>% 
+  ungroup() %>% 
   #retaining lake area in acres - can be removed if desired
   rename(lake_area_acres = garbage_bin_notes.3) %>% 
   mutate(lake_area_acres = gsub("Acres:", "", lake_area_acres)) %>% 
   #cleaning date
   mutate(date.1 = mdy(date.1)) %>% 
-  #units of total effort - making net nights and hauls for nets/seines
-  mutate(total_effort_1 = case_when(sampling_method.1 == "Nets" ~ total_effort_1/1440,
-                                    TRUE ~ total_effort_1)) %>% 
-  mutate(total_effort_1_units = case_when(sampling_method.1 == "Nets" ~ "net_nights",
-                                          sampling_method.1 == "Seine Hauls" ~ "hauls",
-                                          TRUE ~ total_effort_1_units)) %>% 
+  #cleaning up sub sample species and time
+  mutate(subsample_time_1 = gsub("Subsample Time:", "", subsample_time_1),
+         subsample_time_2 = gsub("Subsample Time:", "", subsample_time_2),
+         subsample_time_3 = gsub("Subsample Time:", "", subsample_time_3)) %>% 
+  mutate(target_species_1 = gsub("Subsample Species:", "", target_species_1),
+        target_species_2 = gsub("Subsample Species:", "", target_species_2),
+        target_species_3 = gsub("Subsample Species:", "", target_species_3)) %>% 
+  mutate(target_species_1 = case_when(target_species_1 %in% c("", "0") ~ NA,
+                                      TRUE ~ target_species_1),
+         target_species_2 = case_when(target_species_2 %in% c("") ~ NA,
+                                      TRUE ~ target_species_2)) %>% 
+  #columns that still need to be added
+  mutate(nhdr_id = NA,
+         year = year(date.1),
+         month = month(date.1),
+         survey_type_2 = NA,
+         survey_type_3 = NA,
+         survey_type_4 = NA,
+         distance = NA,
+         distance_units = NA,
+         water_temp = NA,
+         water_temp_units = NA,
+         water_clarity = NA,
+         Water_clarity_units = NA,
+         lat_start = NA,
+         lon_start = NA,
+         lat_end = NA,
+         lon_end = NA,
+         aging_structure_2 = NA) %>% 
   #selecting columns to retain
   select(state, 
          county, 
          lake_name.1,
          lake_id,
+         nhdr_id,
          date.1,
+         year,
+         month,
          survey_id,
          lat_unspec,
          lon_unspec,
          survey_type.1,
+         survey_type_2,
+         survey_type_3,
+         survey_type_4,
          sampling_method.1,
          sampling_method.2,
+         target_species_1,
+         target_species_2,
+         target_species_3,
+         subsample_time_1,
+         subsample_time_2,
+         subsample_time_3,
          total_effort_ident,
          total_effort_1,
          sub_effort_ident,
          sub_effort_1,
-         sub_sample_effort,
-         nothing_caught,
+         distance,
+         distance_units,
+         water_temp,
+         water_temp_units,
+         water_clarity,
+         Water_clarity_units,
+         lat_start,
+         lon_start,
+         lat_end,
+         lon_end,
+         sub_survey_nothing_caught,
+         total_survey_nothing_caught,
          total_effort_1_units,
          sub_effort_1_units,
          species.1,
@@ -688,17 +967,20 @@ il_data <- il_data %>%
          weight_unit.1,
          age,
          aging_structure.1,
+         aging_structure_2,
          sex,
          lake_area_acres,
          original_file_name.1_indvifish,
-         original_file_name.1_effort)
+         original_file_name.1_effort,
+         original_file_name.1_agedfish,
+         flag)
 #no crosswalk for lake id exists for nhdids
 #lat and long is retained for future cross walking
 
 #all the columns appear to be present that we need
 #need to clean up column naming (underscores for periods)
 il_data <- il_data %>% 
-  clean_names() 
+  clean_names()
 ```                        
                         
  
@@ -710,24 +992,39 @@ glimpse(il_data)
 
 #how does the caught nothing column look?
 il_data %>% 
-  filter(nothing_caught == "TRUE") %>% 
-  group_by(survey_id, total_effort_ident, sub_effort_ident, date_1) %>% 
-  count() %>% 
+  filter(total_survey_nothing_caught == "TRUE") %>% 
+  select(total_effort_ident, total_survey_nothing_caught, sub_survey_nothing_caught) %>% 
   print(n = nrow(.))
 #the only columns with an na lake name do not have a catch - this tell us the merge was done correctly
 #important to note here - sub_effort_ident is taken from the agency itself (net number) - date is important to include because they could have sampled the same net or location several times in a total effort ident (within the same year)
 
-#how do the original file names track? - we should have 174 records of effort data without fish
 il_data %>% 
-  filter(is.na(original_file_name_1_indvifish)) %>% 
-  glimpse()
-#looks good
+  filter(total_effort_ident == "14_2") %>% 
+  distinct(total_effort_ident, total_survey_nothing_caught, sub_survey_nothing_caught) %>% 
+  select(total_effort_ident, total_survey_nothing_caught, sub_survey_nothing_caught)
 
-cpue <- il_data %>% 
-  group_by(total_effort_ident, species_1) %>% 
-  mutate(n = n(),
-         cpue = n/total_effort_1) %>% 
-  distinct(sampling_method_2, total_effort_ident, total_effort_1, n, species_1, cpue)
+il_data %>% 
+  group_by(survey_type_1) %>% 
+  count()
+
+il_data %>% 
+  group_by(target_species_1, subsample_time_1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(target_species_2, subsample_time_2) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(target_species_3, subsample_time_3) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_data %>% 
+  group_by(flag) %>% 
+  count()
 ```
 
 
@@ -744,4 +1041,11 @@ il_data <- open_dataset("Data_and_Scripts/Data/output/il_file_arrow")
 glimpse(il_data)
 ```
 
+#check 
+```{r}
+check <- il_data %>% 
+  filter(total_effort_ident == "1_1") %>% 
+  collect() %>% 
+  distinct(date_1, total_effort_ident, total_effort_1, sub_effort_ident, sub_effort_1)
+```
 

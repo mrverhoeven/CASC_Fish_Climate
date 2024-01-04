@@ -3874,3 +3874,27 @@ problem_surveys %>%
   print(n = nrow(.))
 ```
 
+#prop of fish in gears
+```{r}
+lake <- mn_data %>% 
+  filter(lake_id == 27003100) %>% 
+  filter(species.1 == "northern_pike") %>% 
+  filter(sampling_method %in% c("Standard gill net sets", "Standard 3/4-in mesh, double frame trap net sets")) %>% 
+  collect()
+
+prop <- lake %>% 
+  group_by(year(date_clean), sampling_method) %>% 
+  count() %>% 
+  pivot_wider(names_from = "sampling_method", values_from = "n") %>% 
+  rename(trap = `Standard 3/4-in mesh, double frame trap net sets`,
+         gill = `Standard gill net sets`,
+         year = `year(date_clean)`) %>% 
+  filter(!(is.na(gill) | is.na(trap))) %>% 
+  mutate(prop = gill/trap)
+
+prop %>% 
+  ggplot() +
+  geom_point(aes(year, prop)) +
+  geom_smooth(aes(year, prop))
+```
+

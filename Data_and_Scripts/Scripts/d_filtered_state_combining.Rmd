@@ -36,6 +36,11 @@ mi <- read_csv("MI_all_cpue_filtered.csv") %>%
 cross_state <- bind_rows(wi, mn, mi)
 write_csv(cross_state, "mn_wi_mi_filtered_cpue_11NOV23.csv")
 glimpse(cross_state)
+
+cross_state <- read_csv("all_state_cpue_8Dec23.csv")
+cross_state %>% 
+  filter(!is.na(nhdhr_id)) %>% 
+  count()
 ```
 
 #smashing cpes across states together
@@ -174,6 +179,14 @@ cross_state %>%
   ggplot() +
   geom_violin(aes(x = species_1, y = cpue, color = species_1)) +
   facet_wrap(~state, scales = "free")
+
+cross_state %>% 
+  filter(state == "Minnesota" & species_1 %in%  c("walleye", "northern_pike", "black_crappie", "largemouth_bass")) %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  filter(total_effort_1 < 20) %>% 
+  ggplot() +
+  geom_smooth(aes(x = total_effort_1, y = cpue)) +
+  facet_wrap(species_1~sampling_method, scales = "free")
 ```
 
 
@@ -352,3 +365,27 @@ cross_state %>%
   print(n = nrow(.))
 ```
 
+#plot for presentation
+```{r}
+plot <- mn_data %>% 
+  filter(sampling_method_abbrev == "GN") %>% 
+  filter(species.1 %in% c("walleye", "northern_pike", "largemouth_bass", "black_crappie")) %>% 
+  collect() %>% 
+  group_by(effort_ident, species.1) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method = unique(sampling_method), area_group = unique(area_group), date.1 = unique(date_clean), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort)
+
+plot %>% 
+  ungroup() %>% 
+  filter(effort <= 20) %>% 
+ggplot() +
+  geom_smooth(aes(x = effort, y = cpue, color = area_group)) +
+  facet_wrap(~ species.1, scales = "free")
+
+plot %>% 
+  ungroup() %>% 
+  filter(effort <= 20) %>% 
+ggplot() +
+  geom_smooth(aes(x = effort, y = cpue)) +
+  facet_wrap(~ species.1, scales = "free")
+```

@@ -13,7 +13,7 @@ editor_options:
       -could call the distinct function first
       -then I could join by filter table by specific columns and values (even numeric)
       -collect
-      -could minimize the number of things I call to make a survey distintic (only include total effort ident)
+      -could minimize the number of things I call to make a survey distinct (only include total effort ident)
 3. I have realized filtering by fish level parameters is not the best way to go
       -instead, if a fish level parameter is of intrest - include that variable in counting for cpue
 4. only use total effort ident in the grouping for cpue
@@ -41,6 +41,7 @@ General structure for each filtering chunks:
 2. filter for "good surveys"
 3. gather fish data from the good surveys
 4. calculate cpue - ensuring you are counting fish of the correct parameters
+   -if fish level counting within certain parameters is desired (bin lengths) apply that here
 5. check survey level filtering
 6. check filtering post gathering fish
 7. check cpue generation
@@ -61,14 +62,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type_effort,
          -length_min,
          -length_max)
-
-#selects fish level filters to be applied in the second filtering step
-filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "walleye") %>% 
-  rename(survey_type.1 = survey_type) %>% 
-  #fish level parameters of interest 
-  select(state) %>% 
-  distinct() 
 
 #filters for surveys that are good measures of abundance for given fish species
 #first, merge the filter table with the data - selects for non-numeric parameters important for abundance 
@@ -237,14 +230,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -length_min,
          -length_max)
 
-#selects fish level filters to be applied in the second filtering step
-filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "black_crappie") %>% 
-  rename(survey_type.1 = survey_type) %>% 
-  #fish level parameters of interest 
-  select(state) %>% 
-  distinct() 
-
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",
                                         "survey_type.1",
@@ -405,14 +390,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -length_min,
          -length_max)
 
-#selects fish level filters to be applied in the second filtering step
-filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "bluegill") %>% 
-  rename(survey_type.1 = survey_type) %>% 
-  #fish level parameters of interest 
-  select(state) %>% 
-  distinct() 
-
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",
                                         "survey_type.1",
@@ -569,13 +546,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -length_min,
          -length_max)
 
-#selects fish level filters to be applied in the second filtering step
-filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "largemouth_bass") %>% 
-  rename(survey_type.1 = survey_type) %>% 
-  #fish level parameters of interest 
-  select(state) %>% 
-  distinct() 
 
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",
@@ -732,14 +702,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -length_min,
          -length_max)
 
-#selects fish level filters to be applied in the second filtering step
-filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "smallmouth_bass") %>% 
-  rename(survey_type.1 = survey_type) %>% 
-  #fish level parameters of interest 
-  select(state) %>% 
-  distinct() 
-
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",
                                         "survey_type.1",
@@ -895,14 +857,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -length_min,
          -length_max)
 
-#selects fish level filters to be applied in the second filtering step
-filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "cisco") %>% 
-  rename(survey_type.1 = survey_type) %>% 
-  #fish level parameters of interest 
-  select(state) %>% 
-  distinct() 
-
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",
                                         "survey_type.1",
@@ -1054,14 +1008,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type_effort,
          -length_min,
          -length_max)
-
-#selects fish level filters to be applied in the second filtering step
-filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "northern_pike") %>% 
-  rename(survey_type.1 = survey_type) %>% 
-  #fish level parameters of interest 
-  select(state) %>% 
-  distinct() 
 
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",
@@ -1216,14 +1162,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type_effort,
          -length_min,
          -length_max)
-
-#selects fish level filters to be applied in the second filtering step
-filter_table_fish <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "yellow_perch") %>% 
-  rename(survey_type.1 = survey_type) %>% 
-  #fish level parameters of interest 
-  select(state) %>% 
-  distinct() 
 
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",

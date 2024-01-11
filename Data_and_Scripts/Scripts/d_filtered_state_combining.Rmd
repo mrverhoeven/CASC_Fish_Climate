@@ -10,6 +10,7 @@ editor_options:
 #library 
 ```{r}
 library(tidyverse)
+library(arrow)
 ```
 
 #data
@@ -189,6 +190,35 @@ cross_state %>%
   facet_wrap(species_1~sampling_method, scales = "free")
 ```
 
+#mergeing cross-state to covariates
+-data taken from temp projections summaries
+ -clarity form the metadata
+ -temp data from the temp metrics feather file
+```{r}
+#cross state cpue data
+cross_state <- read_csv("all_state_cpue_8Dec23.csv") %>% 
+  mutate(year = year(date_1))
+
+#covariate data
+temp <- read_feather("lake_temperature_metrics_GLM_NLDAS.feather", col_select = NULL, as_data_frame = TRUE, mmap = TRUE) %>% 
+  select(site_id, year, stratification_onset_yday, stratification_duration, mean_surf_JulAugSep, ice_on_date, ice_off_date) %>% 
+  rename(nhdhr_id = site_id)
+
+clarity <- read_csv("glm_lake_metadata.csv") %>% 
+  select(site_id, max_depth, area, clarity, elevation) %>% 
+  rename(nhdhr_id = site_id)
+
+cross_state_covary <- cross_state %>% 
+  left_join(clarity) %>% 
+  left_join(temp, by = c("nhdhr_id",
+                         "year"))
+
+cross_state_covary %>% 
+  filter(is.na(nhdhr_id)) %>% 
+  glimpse()
+
+write_csv(cross_state_covary, "all_state_cpue_covariates.csv")
+```
 
 
 

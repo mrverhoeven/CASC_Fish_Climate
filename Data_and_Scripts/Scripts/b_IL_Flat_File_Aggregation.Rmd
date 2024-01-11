@@ -15,7 +15,7 @@ Notes as of 12/19:
 -sub effort ident is currently a "net or run number" 
    -this could be problematic when they resample a net in a survey (two net 1s)
    -retain the current sub effort ident as a net number and then make a new sub effort ident column that is unique for each piece 
-    (could probably be just total effort ident, net/run number/ and date - bc its unlikely to resample the same net in the same day)
+    (could probably be just total effort ident, net/run number/ and date - bc its unlikely to resample the same net in the same day) 
 
 
 ##Libraries

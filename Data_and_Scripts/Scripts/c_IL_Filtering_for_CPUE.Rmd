@@ -9,7 +9,9 @@ editor_options:
 
 To do:
 -targeted species surveys filtering?
--sub sample in electrofishing?
+-sub sample in electrofishing
+   -non subsampled species should use the total effort associated with the total effort ident
+   -subsampled species should use the sub sample times
 
 #Library
 ```{r}

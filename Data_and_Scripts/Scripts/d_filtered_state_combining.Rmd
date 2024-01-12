@@ -10,6 +10,7 @@ editor_options:
 #library 
 ```{r}
 library(tidyverse)
+library(arrow)
 ```
 
 #data
@@ -36,6 +37,11 @@ mi <- read_csv("MI_all_cpue_filtered.csv") %>%
 cross_state <- bind_rows(wi, mn, mi)
 write_csv(cross_state, "mn_wi_mi_filtered_cpue_11NOV23.csv")
 glimpse(cross_state)
+
+cross_state <- read_csv("all_state_cpue_8Dec23.csv")
+cross_state %>% 
+  filter(!is.na(nhdhr_id)) %>% 
+  count()
 ```
 
 #smashing cpes across states together
@@ -174,8 +180,45 @@ cross_state %>%
   ggplot() +
   geom_violin(aes(x = species_1, y = cpue, color = species_1)) +
   facet_wrap(~state, scales = "free")
+
+cross_state %>% 
+  filter(state == "Minnesota" & species_1 %in%  c("walleye", "northern_pike", "black_crappie", "largemouth_bass")) %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  filter(total_effort_1 < 20) %>% 
+  ggplot() +
+  geom_smooth(aes(x = total_effort_1, y = cpue)) +
+  facet_wrap(species_1~sampling_method, scales = "free")
 ```
 
+#mergeing cross-state to covariates
+-data taken from temp projections summaries
+ -clarity form the metadata
+ -temp data from the temp metrics feather file
+```{r}
+#cross state cpue data
+cross_state <- read_csv("all_state_cpue_8Dec23.csv") %>% 
+  mutate(year = year(date_1))
+
+#covariate data
+temp <- read_feather("lake_temperature_metrics_GLM_NLDAS.feather", col_select = NULL, as_data_frame = TRUE, mmap = TRUE) %>% 
+  select(site_id, year, stratification_onset_yday, stratification_duration, mean_surf_JulAugSep, ice_on_date, ice_off_date) %>% 
+  rename(nhdhr_id = site_id)
+
+clarity <- read_csv("glm_lake_metadata.csv") %>% 
+  select(site_id, max_depth, area, clarity, elevation) %>% 
+  rename(nhdhr_id = site_id)
+
+cross_state_covary <- cross_state %>% 
+  left_join(clarity) %>% 
+  left_join(temp, by = c("nhdhr_id",
+                         "year"))
+
+cross_state_covary %>% 
+  filter(is.na(nhdhr_id)) %>% 
+  glimpse()
+
+write_csv(cross_state_covary, "all_state_cpue_covariates.csv")
+```
 
 
 
@@ -352,3 +395,27 @@ cross_state %>%
   print(n = nrow(.))
 ```
 
+#plot for presentation
+```{r}
+plot <- mn_data %>% 
+  filter(sampling_method_abbrev == "GN") %>% 
+  filter(species.1 %in% c("walleye", "northern_pike", "largemouth_bass", "black_crappie")) %>% 
+  collect() %>% 
+  group_by(effort_ident, species.1) %>% 
+  summarise(lake_id = unique(lake_id), sampling_method = unique(sampling_method), area_group = unique(area_group), date.1 = unique(date_clean), effort = unique(total_effort_1.1), n = n()) %>% 
+  mutate(cpue = n/effort)
+
+plot %>% 
+  ungroup() %>% 
+  filter(effort <= 20) %>% 
+ggplot() +
+  geom_smooth(aes(x = effort, y = cpue, color = area_group)) +
+  facet_wrap(~ species.1, scales = "free")
+
+plot %>% 
+  ungroup() %>% 
+  filter(effort <= 20) %>% 
+ggplot() +
+  geom_smooth(aes(x = effort, y = cpue)) +
+  facet_wrap(~ species.1, scales = "free")
+```

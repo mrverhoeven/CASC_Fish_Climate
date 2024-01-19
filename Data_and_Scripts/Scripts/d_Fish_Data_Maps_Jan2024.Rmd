@@ -93,22 +93,22 @@ mn_filtered <- mn_data %>%
 
 # WI all data
 ```{r}
-wi_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/wi_file_arrow")
+wi_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/wi_file_arrow")
 glimpse(wi_data) #12,798,306 rows (fish obs)
 
 
-wi_lat_long <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
+wi_lat_long <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
   mutate(lake.id = as.character(lake.id))
 
 # downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
 WI_hydro_list <- read_csv("24k_Hydro_Waterbodies_(Open_Water).csv")
 
-WI_rivers_all_names <- WI_hydro_list %>% #ignore
-  select(WATERBODY_NAME, RIVER_SYS_NAME, RIVER_SYS_WBIC, WATERBODY_WBIC)%>%
-  mutate(River_Flag = if_else(RIVER_SYS_WBIC > 0, 1, 0))%>% #if it has a river sys wbic it is a river
-  mutate(waterbody_name = if_else(is.na(WATERBODY_NAME), RIVER_SYS_NAME, WATERBODY_NAME))%>%
-  mutate(waterbody_name = na_if(waterbody_name, "Unnamed"))%>%
-  mutate(wbic = as.character(WATERBODY_WBIC)) #didn't work for lakes that a river flows through, only had 1,000 s0
+#WI_rivers_all_names <- WI_hydro_list %>% #ignore
+  #select(WATERBODY_NAME, RIVER_SYS_NAME, RIVER_SYS_WBIC, WATERBODY_WBIC)%>%
+  #mutate(River_Flag = if_else(RIVER_SYS_WBIC > 0, 1, 0))%>% #if it has a river sys wbic it is a river
+  #mutate(waterbody_name = if_else(is.na(WATERBODY_NAME), RIVER_SYS_NAME, WATERBODY_NAME))%>%
+  #mutate(waterbody_name = na_if(waterbody_name, "Unnamed"))%>%
+  #mutate(wbic = as.character(WATERBODY_WBIC)) #didn't work for lakes that a river flows through, only had 1,000 s0
 
 WI_names_lotic_flag <- WI_hydro_list %>%
   select(WATERBODY_NAME, HYDROTYPE, WATERBODY_WBIC)%>%
@@ -138,7 +138,7 @@ wi_filtered <- wi_data %>%
   rename(state_id = lake_id,
          total_obs = n,
          lon = long)%>%
-  filter(lotic_flag %in% (706:707))%>%
+  filter(lotic_flag %in% (706:707))%>% #filters to keep only lakes/reservoirs
   select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
   print(n = nrow(.)) #6908 lakes before removing lotic, now 2126
 
@@ -312,6 +312,8 @@ library(viridis)
 library(sp)
 library(tidyr)
 
+all_lat_lons <- read_csv("all_lat_lons_9Jan2024.csv")
+
 # remove points outside of midwest
 lat_longs_edit <- all_lat_lons %>%
   filter(state_id != "4232")%>%
@@ -349,7 +351,7 @@ All_Lakes_map_obs
 
 ```{r}
 # Load in data dump for Chris Custer to make CPUE maps
-CC_Dat <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Data for Collaborators/Preliminary_CPUE_Data/all_state_cpue_8Dec23.csv")
+CC_Dat <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Data for Collaborators/Preliminary_CPUE_Data/all_state_cpue_8Dec23.csv")
 ```
 
 
@@ -362,6 +364,8 @@ NOP_CPUE_2010 <- CC_Dat %>%
   filter(year >= 2010)%>%
   group_by(lake_id)%>%
   summarise(Ave_CPUE_NOP_2010 = mean(cpue))%>%
+  filter(Ave_CPUE_NOP_2010 > 0)%>%
+  mutate(log_Ave_CPUE = (log(Ave_CPUE_NOP_2010)))%>%
   left_join(lat_longs_edit, by = c("lake_id" = "state_id"))
 ```
 
@@ -371,14 +375,52 @@ NOP_CPUE_2010_map <- ggplot()+
   geom_polygon(data = Midwest_noND, aes(x = long, y = lat, group = group,), color = "black", fill = "azure1")+
   coord_fixed(1.3)+
   guides(fill = FALSE)+
-  geom_point(data = NOP_CPUE_2010, aes(x = lon, y = lat, color = Ave_CPUE_NOP_2010), alpha = 0.5)+
+  geom_point(data = NOP_CPUE_2010, aes(x = lon, y = lat, color = log_Ave_CPUE), alpha = 0.5)+
   theme_void()+
-  scale_color_viridis(option = "H")+
-  labs(title = "Average CPUE for Northern Pike, 2010 - 2023", color = "average CPUE", alpha = "average CPUE")
+  labs(title = "log Average CPUE for Northern Pike, 2010 - 2023", color = "log(average CPUE)", alpha = "average CPUE")+
+  scale_color_continuous(type = "viridis")
 
 NOP_CPUE_2010_map
 
 ```
+try to scale within states
+```{r}
+NOP_CPUE_2010_2 <- CC_Dat %>%
+  filter(species_1 == "northern_pike") %>%
+  mutate(year = year(date_1))%>%
+  filter(year >= 2010)%>%
+  group_by(lake_id, state)%>%
+  summarise(Ave_CPUE_NOP_2010 = mean(cpue))%>%
+  mutate(log_Ave_CPUE = (log(Ave_CPUE_NOP_2010)))%>%
+  left_join(lat_longs_edit, by = c("lake_id" = "state_id"))%>%
+  group_by(state)%>%
+  mutate(Percentile = percent_rank(Ave_CPUE_NOP_2010))%>%
+  ungroup(state)%>%
+  mutate(zero_flag = if_else(Ave_CPUE_NOP_2010 == 0, T, F))%>%
+  mutate(CPUE_no_0 = na_if(Ave_CPUE_NOP_2010, 0))
+
+  
+```
+
+
+```{r}
+NOP_CPUE_2010_map_2 <- ggplot()+
+  geom_polygon(data = Midwest_noND, aes(x = long, y = lat, group = group,), color = "black", fill = "white")+
+  coord_fixed(1.3)+
+  guides(fill = FALSE)+
+  geom_point(data = NOP_CPUE_2010_2, aes(x = lon, y = lat, color = Percentile, shape = zero_flag, alpha = zero_flag))+
+  theme_void()+
+  labs(color = "Within State CPUE Percentile", alpha = "Within State CPUE Percentile", shape = NA)+
+  scale_color_viridis(begin = 0, end = .95, direction = -1, option = "C")+
+  scale_shape_manual(values = c(19,4), guide = "none")+
+  scale_alpha_manual(values = c(.5, .25), guide = "none")
+
+NOP_CPUE_2010_map_2
+
+```
+
+
+
 
 ```{r}
 library(lubridate)

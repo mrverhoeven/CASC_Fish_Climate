@@ -41,6 +41,9 @@ cross_state <- read_csv("all_state_cpue_8Dec23.csv")
 cross_state %>% 
   filter(!is.na(nhdhr_id)) %>% 
   count()
+cross_state %>% 
+  group_by(state) %>% 
+  count()
 ```
 
 #smashing cpes across states together

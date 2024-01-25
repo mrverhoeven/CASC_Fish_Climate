@@ -35,81 +35,50 @@ library(mwlaxeref)
 options(scipen = 999)
 ```
 
-Update 15 Sep 2023
 
-We recieved a new data rip from MN DNR in three pieces: effort, catch, and cpue. Why catch and CPUE you ask? Because the DNR tells me that there are historical surveys (pre ~1985) that have CPUEs but no data for the indiv fish caught in those surveys. 
 
 
 # Load Data
 
 * note depending on your local settings, file paths need correction to match local GDrive letter
-* loop not breaking when last file has name issues (adjust locations of the confirmation messages)
 
 ```{r}
+##build functions  
+remove_unnecessary_suffixes <- function(dt) {
+  # Identify columns with numeric suffixes
+  numeric_suffix_cols <- grep("\\.\\d+$", names(dt), value = TRUE)
+  
+  # Create a list to store prefixes
+  prefixes <- unique(sub("\\.\\d+$", "", numeric_suffix_cols))
+  
+  # Remove unnecessary numeric suffixes
+  for (prefix in prefixes) {
+    cols <- grep(paste0("^", prefix, "\\.\\d+$"), names(dt), value = TRUE)
+    if (length(cols) == 1) {
+      setnames(dt, cols, sub("\\.\\d+$", "", cols))
+    }
+  }
+  
+  return(dt)
+}
 
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
-files_list
-
-n <- length(files_list)
-
-for(i in 1:n) {
-  #i = 3
-  filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
-  #this does those two steps in one package
-  assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
-                                          files_list[i])))
+remove_unnecessary_suffixes_2 <- function(dt) {
+  # Identify columns with numeric suffixes
+  numeric_suffix_cols <- grep("\\_\\d+$", names(dt), value = TRUE)
   
-  # note we want to review a sorted list of column names to check misspelling etc.
-  # we still need to use the columns with names like col_name_length_in, or known_units
+  # Create a list to store prefixes
+  prefixes <- unique(sub("\\_\\d+$", "", numeric_suffix_cols))
   
+  # Remove unnecessary numeric suffixes
+  for (prefix in prefixes) {
+    cols <- grep(paste0("^", prefix, "\\_\\d+$"), names(dt), value = TRUE)
+    if (length(cols) == 1) {
+      setnames(dt, cols, sub("\\_\\d+$", "", cols))
+    }
+  }
   
-  cde %>% # call data explainer file
-    filter(`new_file_name`== filei)%>% #keep only the row relevant to this file
-    select_if(~ !any(is.na(.))) %>% 
-    transpose(keep.names = "newname") %>% 
-    rename("oldname" = V1) %>% 
-    assign("names", ., envir = .GlobalEnv)
-  
-  #see if any column names will not have a match! 
-  # IF any pop FALSE, force stop and revist of data explainer ()
-  # - e.g., named something "total catch" when actual column name was "total_catch"
-  print(
-    cbind(colnames(get(filei)),
-          colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]
-    )
-  )
-  
-  #this line is where the warnings are coming from
-  # break the loop if the current file has column names not in the data explainer
-  if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
-  
-  # append old col names into new "notes" columns:
-  get(filei)[ , (names[ str_detect(newname, "notes") , oldname   ,  ]) := Map(paste, colnames(.SD), .SD, sep = ':') , .SDcols =  names[ str_detect(newname, "notes") , oldname   ,  ] ]
-  
-  #now rename that file's colnames
-  setnames(get(filei), colnames(get(filei)), names[!str_detect(newname,"unique_row_key")] [match(names(get(filei)),names[!str_detect(newname,"unique_row_key"),oldname]), newname] )
-  
-  #append all other data from data explainer
-  unusedbits <- 
-    data.table(
-      matrix(
-        rep(names[ !newname %in% colnames(get(filei)) , oldname , ],
-            each = nrow(get(filei))
-        ),
-        nrow = nrow(get(filei)),
-        dimnames = list(rep(NA,nrow(get(filei))),
-                        names[ !newname %in% colnames(get(filei)) , newname , ])
-        )
-      )
-  
-  #add all not yet used columns from data explainer:
-  get(filei)[ , (names[ !newname %in% colnames(get(filei)) , newname , ]) := unusedbits[] ]
-
-  #confirm import of files:  
-  print(paste(filei ,"added to workspace" ))  
-  
-} 
+  return(dt)
+}
 
 #generate a file list to import
 files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
@@ -156,7 +125,10 @@ for(i in 1:n) {
   
   # break the loop if the current file has column names not in the data explainer
   # if (all(cbind(colnames(get(filei)),  colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ])[,2]) == FALSE ) break
-  if (all(colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]) == FALSE ) break
+  if (all(colnames(get(filei)) %in% names[ !str_detect(newname,"unique_row_key"), oldname, ]) == FALSE ) {
+    warning(paste("Warning: Import renaming failed at file", filei))
+    outer_break <-  TRUE
+    break}
   
   
   # append old col names into new "notes" columns:
@@ -183,6 +155,10 @@ for(i in 1:n) {
 
   rm(names, unusedbits)
   
+  
+  #remove the unneeded suffixes from data
+  assign(filei, remove_unnecessary_suffixes_2(remove_unnecessary_suffixes(get(filei))))
+  
   #confirm import of files:  
   print(paste(filei ,"added to workspace" ))  
   #confirm import of files:  
@@ -190,11 +166,15 @@ for(i in 1:n) {
 
   
 } 
+if (outer_break) {print("Data import issue")
+  } else {
   #confirm import of files:  
   print(paste(i ,"files added to workspace" ))
   #confirm import of files:  
   print(paste(n-i ,"remaining to be added" )) 
-
+}
+  
+  
 ```
 
 
@@ -299,6 +279,7 @@ ggplot( mn_effort_18aug2023[!total_effort_1.1 < 0 ], aes(total_effort_1.1, group
 
 # CPUE 2(3) ways
 We have CPUE directly form the DNR, we can generate our own cpue using the individual fish data (both including and excluding the fish marked for CPUE inclusion)
+Update 15 Sep 2023: We recieved a new data rip from MN DNR in three pieces: effort, catch, and cpue. Why catch and CPUE you ask? Because the DNR tells me that there are historical surveys (pre ~1985) that have CPUEs but no data for the indiv fish caught in those surveys. 
 
 ```{r}
 

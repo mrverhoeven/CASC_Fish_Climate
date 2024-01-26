@@ -701,14 +701,19 @@ names(ia_fishobs)[str_detect(names(ia_fishobs), "notes")]
 names(ia_fishobs)      
       
       
-# clean up these names
+# clean up these names and match overall schema
 #need to 1. fix current cols to match 2. add missing cols 3.drop all extras 
-# a <- ia_fishobs
-ia_fishobs <- clean_names(ia_fishobs)
+ia_fishobs <- clean_names(ia_fishobs) #clean up names a touch
 
-#then print names, and paste into excel
+#then open into excel an align with the schema (see these IA example files)
 # fwrite(as.data.table(names(ia_fishobs)), file = "Data_and_scripts/Data/output/ia_names.csv")
-ia_renamer <- fread( file = "Data_and_scripts/Data/input/ia_renamer.csv")
+
+# use the exported csv to align with the column names in the column schema GSheet (https://docs.google.com/spreadsheets/d/1zfevASMxRMxMYNWm3Hq1yR2Qk0zcJV_JnO0LBeODaPQ/edit#gid=0) . 
+# - if you delete a column from your state's names in the sheet, the code below will drop those cols automatically from the data product.
+# - put an NA in the table in each place where your data have no equivalent col and the code below will fill those with NAs in the data product
+# - keep the order of the table in line with the column schema GSheet and that will automatically reorder your data to match the schema GSheet
+# after aligning the names with the schema bring that back in (note that the )
+ia_renamer <- fread( file = "Data_and_scripts/Data/input/ia_renamer.csv") #read in 
 
 #drop extras
 dropcols <- names(ia_fishobs)[!(names(ia_fishobs) %in% ia_renamer[,  iowa])]
@@ -1052,6 +1057,25 @@ glimpse(ia_data)
 # Review & QC datasets
 ```{r}
 #here I do some very basic checks on what the data structure and general outputs look like (i.e., s this thing behaving like the obs-level file I think it is?). MI work left here as an idea of a previous state's work. In my opinion, it is not our job to QC the actual observations at this point (like, is a WAE really going to be 500mm at age zero), but instead to use this QC as a check on the operations performed in this script.  
+
+
+
+
+#export a list of lake locations/nhds
+ia_data %>% 
+  group_by(waterbody_type) %>% 
+  count() %>% 
+  collect()
+
+
+ia_data %>%
+  # filter(waterbody_type %in% c(""))
+  group_by(state, county, lake_name, lake_id, nhdhr_id, waterbody_type) %>% 
+  # slice(which(!is.na(lat_unspec) & !is.na(lon_unspec))) %>%
+  summarize(mean_lat = mean(lat_unspec, na.rm = TRUE),
+            mean_lon = mean(lon_unspec, na.rm = TRUE)) %>%
+  collect() %>% 
+  {. ->> ia_lake_locs_25Jan}
 
 
 

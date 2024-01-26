@@ -475,15 +475,17 @@ flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_ty
   
 #now roll the catch CPUE data back to this bigger file:
 
-   mn_cpue_21aug2023[ 
-     flatfish[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ], 
+  #subset of MN_cpue where lake/date/method/type are not matched:
+   glimpse(mn_cpue_21aug2023[ 
+     !flatfish[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ], 
      on = .(lake_id, date_clean, sampling_method_abbrev, survey_type) , 
-   ]
-  
-  mn_cpue_21aug2023[is.na(surveyXgear_indfish) , .N]
+   ])
   
   #trim to only the not already covered data:
-  mn_cpue_21aug2023 <- mn_cpue_21aug2023[is.na(surveyXgear_indfish) , ]
+  mn_cpue_21aug2023 <- mn_cpue_21aug2023[ 
+     !flatfish[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ], 
+     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type) , 
+   ]
   
   mn_cpue_21aug2023[ , summary(total_count) , ]
   
@@ -497,22 +499,29 @@ rbind(
 names(flatfish)
 
 
+  #MEMORY HOG STEP
   #now bring that together with the flatfish data:
   flatfish <- rbindlist(list(flatfish, mn_cpue_21aug2023 ),
                                fill = TRUE,
                                use.names = TRUE)
   
-  
+  rm(mn_cpue_21aug2023)
   
   #for each of those with both effort and fish data, summarize catch by species (bring effort along too!)   
-flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type.1, species, total_effort_1.1, effort_units.1) ]
+flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type, species, total_effort_1) ]
+
+
+  
+```
+
+
+# Save an rds to work from 
+```{r}
 
 
 
 
-#save to disk:
 
-# saveRDS(mn_cpue_21aug2023, file = "Data_and_Scripts\\Data\\output\\mn_hist_data_flat.rds")
 # saveRDS(flatfish, file = "Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_merge.rds")
 
 

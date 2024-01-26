@@ -10,9 +10,12 @@ editor_options:
 updated 11/29
 To Do:
 1. New dataset from Corey (in response to missing structure data in ages)
-2. add obs id for linking to Hulk data
+2. add obs id for linking to Halk data
 3. Historical WAE survey duplications
 4. Make sure all cols match the column names and descriptions thing
+5. Make sure only CPUE yes records count towards the totals (see lines 213-225 for those counts from the DNR)
+6. Retrieve effort units data (L.273)
+7. 
 
 
 
@@ -89,6 +92,8 @@ n <- length(files_list)
 
 for(i in 1:n) {
   #i = 3
+  outer_break <- FALSE# clean up so that break tool will refresh
+  
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
@@ -166,7 +171,7 @@ for(i in 1:n) {
 
   
 } 
-if (outer_break) {print("Data import issue")
+if (outer_break) {print("Data import issue");rm(outer_break)
   } else {
   #confirm import of files:  
   print(paste(i ,"files added to workspace" ))
@@ -183,7 +188,7 @@ if (outer_break) {print("Data import issue")
 ```{r}
 
 # effort dataset has a unique key in the combo of (lake_id, date.2(survey date), gear, survey type)
-mn_effort_18aug2023[          , .N , .(lake_id, date.1, sampling_method, survey_type.1) ]
+mn_effort_18aug2023[          , .N , .(lake_id, date.1, sampling_method, survey_type) ]
 
 #note that there is a component count column in here that seems like it's related to effort, but not exactly clear to me:
 mn_effort_18aug2023[ , summary(as.numeric(gsub("COMPONENT_COUNT:","",gear_data_notes.2))) ,]
@@ -196,12 +201,13 @@ mn_effort_18aug2023[ total_effort_2 == "NA" , total_effort_2 := NA  ,]
 mn_effort_18aug2023[  , total_effort_2 := as.numeric(total_effort_2) ,]
 
 
-mn_effort_18aug2023[ , .N , .(is.na(total_effort_2), is.na(total_effort_1.1))] # any cases where all dat in total.effort.2
+mn_effort_18aug2023[ , .N , .("te2NA" = is.na(total_effort_2), "te1NA" = is.na(total_effort_1))] # any cases where all dat in total.effort.2
+#NOPE
 
-#here we can see that ef time is essentially covered by the total effeort 1 column (and probably more complete in that column)
-plot(mn_effort_18aug2023[ !is.na(total_effort_2) , total_effort_2,]/3600~ mn_effort_18aug2023[ !is.na(total_effort_2) , total_effort_1.1 ,])
+#here we can see that ef time is essentially covered by the total effort 1 column (and probably more complete in that column)
+plot(mn_effort_18aug2023[ !is.na(total_effort_2) , total_effort_2,]/3600~ mn_effort_18aug2023[ !is.na(total_effort_2) , total_effort_1 ,])
 #what about the one's where they don't jive?
-mn_effort_18aug2023[ round(total_effort_2/3600, 2) != total_effort_1.1, plot(total_effort_2/3600~total_effort_1.1), ]
+mn_effort_18aug2023[ round(total_effort_2/3600, 2) != total_effort_1, plot(total_effort_2/3600~total_effort_1), ]
 abline(0,1)
 
 #we don't need that extra total eff column
@@ -213,10 +219,10 @@ mn_effort_18aug2023[total_count.2>0 , .(total_count.1,total_count.2) , ]
 mn_effort_18aug2023[ , plot(total_count.1~total_count.2) , ]
 
 #are there any effort data with NO associated count (i.e., nothing caught)? 
-mn_effort_18aug2023[   , .N , .(total_count.1 == 0, total_count.2 == 0) ]
+mn_effort_18aug2023[   , .N , .("tc1_0" = total_count.1 == 0, "tc2_0" = total_count.2 == 0) ]
 #NOPE
 
-#Thus, because these data are gear level, this is agg'd across species so relatively useless.
+# Crazy that there are "no zeros". However, because these data are gear level, this is agg'd across species so relatively useless.
 
 #drop these columns
 mn_effort_18aug2023[ , `:=` ("total_count.1" = NULL,"total_count.2" = NULL) , ]
@@ -242,7 +248,7 @@ mn_effort_18aug2023[ , .N , sampling_method_abbrev , ]
 mn_cpue_21aug2023[ , .N , sampling_method_abbrev]
 
 any(is.na(match(mn_effort_18aug2023[ , unique(sampling_method_abbrev),], mn_cpue_21aug2023[ , unique(sampling_method_abbrev) , ])))
-#all abbreviations are covered (we could come back to that to add full gears to the cpues)
+#all abbreviations are covered (we could come back to that to add full gears names field to the cpues)
 
 sort(names(mn_effort_18aug2023))
 
@@ -251,19 +257,17 @@ mn_effort_18aug2023[ , unique(year) , ]
 mn_effort_18aug2023[ is.na(year),]
  sum(mn_effort_18aug2023[ ,year != year(date_clean)])
 #non-issue, delete year column
- 
 mn_effort_18aug2023[ , year := NULL] 
- 
 
 #effort units
 mn_effort_18aug2023[ , .N , sampling_method ]
 
 
-mn_effort_18aug2023[ , summary(total_effort_1.1) ,]
+mn_effort_18aug2023[ , summary(total_effort_1) ,]
 
-mn_effort_18aug2023[ total_effort_1.1 <0 , , ]
+mn_effort_18aug2023[ total_effort_1 <0 , , ]
 
-ggplot( mn_effort_18aug2023[!total_effort_1.1 < 0 ], aes(total_effort_1.1, group = sampling_method))+
+ggplot( mn_effort_18aug2023[!total_effort_1 < 0 ], aes(total_effort_1, group = sampling_method))+
   geom_density()+
   facet_wrap(~sampling_method, scales = "free")
 
@@ -284,35 +288,38 @@ Update 15 Sep 2023: We recieved a new data rip from MN DNR in three pieces: effo
 ```{r}
 
   #cpue data
-  mn_cpue_21aug2023[  , .N , .(lake_id, date.1, sampling_method_abbrev, survey_type.1, species.1) ]
+  mn_cpue_21aug2023[  , .N , .(lake_id, date, sampling_method_abbrev, survey_type, species) ]
   sum(duplicated(mn_cpue_21aug2023))
   #not really sure why there would be duplicated cpues in there... 
-  mn_cpue_21aug2023[duplicated(mn_cpue_21aug2023) , .N, .(lake_name.1, lake_id, date.1) ]
+  mn_cpue_21aug2023[duplicated(mn_cpue_21aug2023) , .N, .(lake_name, lake_id, date) ]
   #if these cpues are calc'd per net or instance, that could cause it. how many of each gear in each survey?
-  mn_cpue_21aug2023[ , .N, .(lake_name.1, lake_id, date.1, species.1, sampling_method_abbrev) ][, summary(N)]
-  mn_cpue_21aug2023[ ,mean(total_effort_1.1), .(sampling_method_abbrev) ]
-  mn_cpue_21aug2023[ , .N, .(lake_name.1, lake_id, date.1, species.1, sampling_method_abbrev) ][N>1, ]
+  mn_cpue_21aug2023[ , .N, .(lake_name, lake_id, date, species, sampling_method_abbrev) ][, summary(N)]
+  mn_cpue_21aug2023[ ,mean(total_effort), .(sampling_method_abbrev) ]
+  mn_cpue_21aug2023[ , .N, .(lake_name, lake_id, date, species, sampling_method_abbrev) ][N>1, ]
 
-  #not likely a problem. I think sometimes multiple rows are reported for a given gear on a survey, when the catch is == between two of them you get an aparrent "duplicate"
+  #not likely a problem. I think sometimes multiple rows are reported for a given gear on a survey, when the catch is == between two of them you get an aparrent "duplicate". This would be mitigated by a sub_effort_ident coming from the db. 
   
   #we'll be circling back to this dataset as a way to get the historical un-lengthed fish data into our fish-obs-as-rows format
   
   
   #fix up dates
-  mn_cpue_21aug2023[ , date_clean :=  as.IDate(date.1),]
+  mn_cpue_21aug2023[ , date_clean :=  as.IDate(date),]
   mn_cpue_21aug2023[ is.na(date_clean), ]
 
   mn_cpue_21aug2023[ , hist(yday(date_clean)) ,]
   mn_cpue_21aug2023[ , hist(year(date_clean)) ,]
   
+  #compared to the effort file, it's obvious there is overlap in these and that the CPUE stuff has more old data
+  mn_effort_18aug2023[ , hist(year(date_clean)) ,]
+  
   
   #check overlap betweek effort and CPUE:
-  mn_cpue_21aug2023[            , .N , .(lake_id, date.1, sampling_method_abbrev, survey_type.1) ]
-  mn_effort_18aug2023[          , .N , .(lake_id, date.1, sampling_method_abbrev, survey_type.1) ]
+  mn_cpue_21aug2023[            , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ]
+  mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ]
 
-   mn_cpue_21aug2023[            , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type.1) ][
-     mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type.1) ], 
-     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type.1) , 
+   mn_cpue_21aug2023[            , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ][
+     mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ], 
+     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type) , 
    ]
   
   # Awesome-- the effort data are entirely contained in the cpue file. So here's a plan: 
@@ -329,89 +336,94 @@ Update 15 Sep 2023: We recieved a new data rip from MN DNR in three pieces: effo
 ```{r}
 
 #inspect data
-colnames(mn_indiv_fish_23aug2023)
-sort(colnames(mn_indiv_fish_23aug2023))
+colnames(mn_indiv_fish_23nov2023)
+sort(colnames(mn_indiv_fish_23nov2023))
 
-setcolorder(mn_indiv_fish_23aug2023, c("lake_id", "date.2", "date.1", "sampling_method_abbrev", "survey_type.1")) 
+setcolorder(mn_indiv_fish_23nov2023, c("lake_id", "date.2", "date.1", "sampling_method_abbrev", "survey_type")) 
 
-mn_indiv_fish_23aug2023[ , .N , .(sampling_method_abbrev, species.1)  ]
-mn_indiv_fish_23aug2023[ species.1 == "WAE", .N , .(sampling_method_abbrev)  ] 
-mn_indiv_fish_23aug2023[ species.1 == "WAE", .N , .(sampling_method_abbrev)  ][ , sum(N) , ]
+mn_indiv_fish_23nov2023[ , .N , .(sampling_method_abbrev, species)  ]
+mn_indiv_fish_23nov2023[ species == "WAE", .N , .(sampling_method_abbrev)  ] 
+mn_indiv_fish_23nov2023[ species == "WAE", .N , .(sampling_method_abbrev)  ][ , sum(N) , ]
 
 #to-do:
 # make these clean: "lake_id", "date_clean", "sampling_method", "survey_type.1"
 
 #dates (from data explainer we know that date.2 is survey date, we prob want to join on that one to connect to the effort data)
-mn_indiv_fish_23aug2023[ , .(date.2, date.1), ]
-mn_indiv_fish_23aug2023[ , .N , .(date1=is.na(date.1), date2=is.na(date.2)) ]
+mn_indiv_fish_23nov2023[ , .(date.2, date.1), ]
+mn_indiv_fish_23nov2023[ , .N , .(date1=is.na(date.1), date2=is.na(date.2)) ]
 
 #change dates to Idate:
-mn_indiv_fish_23aug2023[ , date_clean := as.IDate(date.2, format = "%m/%d/%Y") ,]
+mn_indiv_fish_23nov2023[ , date_clean := as.IDate(date.2, format = "%m/%d/%Y") ,]
 
-mn_indiv_fish_23aug2023[ , summary(date_clean) , ]
-mn_indiv_fish_23aug2023[is.na(date_clean) , .N ]
+mn_indiv_fish_23nov2023[ , summary(date_clean) , ]
+mn_indiv_fish_23nov2023[is.na(date_clean) , .N ]
 #no missingness!
 
 
 #lake_id
-mn_indiv_fish_23aug2023[ , summary(lake_id) ,]
-mn_indiv_fish_23aug2023[ , str(lake_id), ]
+mn_indiv_fish_23nov2023[ , summary(lake_id) ,]
+mn_indiv_fish_23nov2023[ , str(lake_id), ]
 mn_effort_18aug2023[ , str(lake_id) ,]
 #no issues here
 
 
 #tidy sampling methods
-mn_indiv_fish_23aug2023[ , .N , .(sampling_method_abbrev)]
+mn_indiv_fish_23nov2023[ , .N , .(sampling_method_abbrev)]
 mn_effort_18aug2023[ , .N , .(sampling_method, sampling_method_abbrev)]
 
 
-any(is.na(match(mn_effort_18aug2023[ , unique(sampling_method_abbrev),], mn_indiv_fish_23aug2023[ , unique(sampling_method_abbrev) , ])))
+any(is.na(match(mn_effort_18aug2023[ , unique(sampling_method_abbrev),], mn_indiv_fish_23nov2023[ , unique(sampling_method_abbrev) , ])))
 #all abbreviations are covered (we could come back to that to add full gears to the indiv fish, but that'll hapen in the merge, so skipped here. )
 
 
-
 #survey.type
-mn_indiv_fish_23aug2023[ , .N , survey_type.1 ]
-mn_effort_18aug2023[ , .N , survey_type.1]
+mn_indiv_fish_23nov2023[ , .N , survey_type ]
+mn_effort_18aug2023[ , .N , survey_type]
 
-mn_indiv_fish_23aug2023[ , .N , survey_type.1 ][ ,survey_type.1 , ]
+mn_indiv_fish_23nov2023[ , .N , survey_type ][ ,survey_type, ]
 
 
 # generate a type table (these codes can be found in MN_Data folder)
-survey_type <- data.table(code = mn_indiv_fish_23aug2023[ , .N , survey_type.1 ][ ,survey_type.1],
-                          fullname = mn_effort_18aug2023[ , .N , survey_type.1][ ,survey_type.1 ][c(6,2,4,5,8,7,13,9,1,11,10,3,12,14) ]
-)
+# Assuming you have the data in a vector or a data frame column named 'codes'
+codes <- c("IS", "RS", "PA", "SA", "CR", "WK", "DO", "GM", "CP", "LL", "SS", "NR", "OT", "RE", "XM", "XR", "SD", "TS")
+full_names <- c("Initial Survey", "Re-Survey", "Population Assessment", "Special Assessment", "Creel Survey", "Winter Kill Assessment", 
+                "Dissolved Oxygen Check", "Game Survey", "Collectors Permit", "Large Lake Survey", "Subsurvey", "Natural Reproduction Check", 
+                "Investigational Survey", "Research Survey", "External Mgmt Survey", "External Research Survey", "Standard Survey", "Targeted Survey")
 
-#save to file
-# fwrite(survey_type, file = "Data_and_Scripts\\Data\\output\\mn_survey_type_code_key.csv")
+# Create a data.table
+survey_type_key <- data.table(code = codes, fullname = full_names)
+
+# Print the resulting data.table
+print(survey_type_key)
+
 
 #execute
-any(is.na(match(mn_indiv_fish_23aug2023[ , survey_type.1], survey_type[,code])))
-survey_type[match(mn_indiv_fish_23aug2023[ , survey_type.1], survey_type[,code]), fullname]
+any(is.na(match(mn_indiv_fish_23nov2023[ , survey_type], survey_type_key[,code]))) #add codes are in key
+# survey_type_key[match(mn_indiv_fish_23nov2023[ , survey_type], survey_type_key[,code]), fullname]
 
-mn_indiv_fish_23aug2023[ , survey_type.1 := survey_type[match(mn_indiv_fish_23aug2023[ , survey_type.1], survey_type[,code]), fullname]   ,]
-rm(survey_type)
+mn_indiv_fish_23nov2023[ , survey_type := survey_type_key[match(mn_indiv_fish_23nov2023[ , survey_type], survey_type_key[,code]), fullname]   ,]
+rm(survey_type_key)
 
 #uncount indiv_fish
-mn_indiv_fish_23aug2023[, summary(total_count.1) , ]
-mn_indiv_fish_23aug2023[total_count.1 == 0 , .N , ]
+mn_indiv_fish_23nov2023[, summary(total_count) , ]
+mn_indiv_fish_23nov2023[total_count == 0 , .N , ]
 
 #expected result size:
-mn_indiv_fish_23aug2023[ , sum(total_count.1) , ] + mn_indiv_fish_23aug2023[total_count.1 == 0 , .N , ]
+mn_indiv_fish_23nov2023[ , sum(total_count) , ] + mn_indiv_fish_23nov2023[total_count == 0 , .N , ]
 
 
 #execute dataset expansion/uncount
-mn_indiv_fish_23aug2023 <- 
+mn_indiv_fish_23nov2023 <- 
 rbind(
-  mn_indiv_fish_23aug2023[total_count.1 == 0 , , ], 
-  uncount(mn_indiv_fish_23aug2023, weights = total_count.1, .remove = F)
+  mn_indiv_fish_23nov2023[total_count == 0 , , ], 
+  uncount(mn_indiv_fish_23nov2023, weights = total_count, .remove = F)
 )
 
 
 
 #summarize ages
-mn_indiv_fish_23aug2023[ , .N , age ]
-mn_indiv_fish_23aug2023[ , .N , .(age=!is.na(age))]
+mn_indiv_fish_23nov2023[ , .N , age ]
+mn_indiv_fish_23nov2023[ , .N , .(age=!is.na(age))]
 
 
 ```
@@ -426,43 +438,46 @@ mn_indiv_fish_23aug2023[ , .N , .(age=!is.na(age))]
 
 #scope the merge:
 #99% of the wb in the effort data are represneted in indiv fish data
-sum(mn_indiv_fish_23aug2023[ , unique(lake_id) , ] %in% mn_effort_18aug2023[ , unique(lake_id)])/mn_effort_18aug2023[, length(unique(lake_id)) ,] 
+sum(mn_indiv_fish_23nov2023[ , unique(lake_id) , ] %in% mn_effort_18aug2023[ , unique(lake_id)])/mn_effort_18aug2023[, length(unique(lake_id)) ,] 
 
 #100% of the wb in the indiv fish data are represneted in  effort data
-sum(mn_indiv_fish_23aug2023[ , unique(lake_id) , ] %in% mn_effort_18aug2023[ , unique(lake_id)])/mn_indiv_fish_23aug2023[, length(unique(lake_id)) ,] 
+sum(mn_indiv_fish_23nov2023[ , unique(lake_id) , ] %in% mn_effort_18aug2023[ , unique(lake_id)])/mn_indiv_fish_23nov2023[, length(unique(lake_id)) ,] 
 
 #merge the effort and indiv fish data
 
-intersect(names(mn_effort_18aug2023), names(mn_indiv_fish_23aug2023))
+intersect(names(mn_effort_18aug2023), names(mn_indiv_fish_23nov2023))
 
 
-#we know that dates are a problem, can we schmooze that join?
-#we leave many column names out of this mereg to avoid disconnecting things where one dataset has empty info
-flatfish <- merge(mn_effort_18aug2023,mn_indiv_fish_23aug2023, by = c("lake_id", "date_clean" , "sampling_method_abbrev", "survey_type.1"), suffixes = c("_effort", "_indivfish"), all = T)
+#we know that dates are a problem, can we schmooze that join? MEMORY HOG PINCH POINT
+#we leave many column names out of this merge key to avoid disconnecting things where one dataset has empty info
+flatfish <- merge(mn_effort_18aug2023,mn_indiv_fish_23nov2023, by = c("lake_id", "date_clean" , "sampling_method_abbrev", "survey_type"), suffixes = c("_effort", "_indivfish"), all = T)
+
+rm(mn_indiv_fish_23nov2023,mn_effort_18aug2023)
 
 flatfish[ , .N , sampling_method]
-flatfish[ , .N, species.1]
-
-flatfish[ (species.1 == "WAE" & sampling_method %in% c("Standard gill net sets")), .N, .(year = year(date_clean), age = !is.na(age), length = !is.na(length.1))][order(year, -N)]
+flatfish[ , .N, species]
 
 
-#this chunk is what Mike thinks GH wants for today
+#check on the annual #s of aged, lengthed, both, and neither numbers
+a <- setnames(dcast(flatfish[ (species == "WAE" & sampling_method %in% c("Standard gill net sets")), .N, .(year = year(date_clean), age = !is.na(age), length = !is.na(length))][order(year, -N)],
+      formula = year ~ age + length, fill = 0 ), old = c("FALSE_FALSE", "FALSE_TRUE", "TRUE_TRUE"), new = c("neither", "age_only", "length_only"))
+
+
 names(flatfish)
 
 #how many unique surveys exist for each category of has effort and has indiv fish data?
-flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type.1))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ]
+flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ]
   
 #sum of all
-  flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type.1))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ][ , sum(V1) , ]
+  flatfish[ , length(unique(paste(lake_id, date_clean , sampling_method, survey_type))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ][ , sum(V1) , ]
 
-rm(mn_indiv_fish_23aug2023,mn_effort_18aug2023)
   
   
 #now roll the catch CPUE data back to this bigger file:
 
    mn_cpue_21aug2023[ 
-     flatfish[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type.1) ], 
-     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type.1) , 
+     flatfish[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ], 
+     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type) , 
    ]
   
   mn_cpue_21aug2023[is.na(surveyXgear_indfish) , .N]
@@ -470,13 +485,13 @@ rm(mn_indiv_fish_23aug2023,mn_effort_18aug2023)
   #trim to only the not already covered data:
   mn_cpue_21aug2023 <- mn_cpue_21aug2023[is.na(surveyXgear_indfish) , ]
   
-  mn_cpue_21aug2023[ , summary(total_count.1) , ]
+  mn_cpue_21aug2023[ , summary(total_count) , ]
   
   #execute dataset expansion/uncount
 mn_cpue_21aug2023 <- 
 rbind(
-  mn_cpue_21aug2023[total_count.1 == 0 , , ], 
-  uncount(mn_cpue_21aug2023, weights = total_count.1, .remove = F)
+  mn_cpue_21aug2023[total_count == 0 , , ], 
+  uncount(mn_cpue_21aug2023, weights = total_count, .remove = F)
 )
 
 names(flatfish)
@@ -490,7 +505,7 @@ names(flatfish)
   
   
   #for each of those with both effort and fish data, summarize catch by species (bring effort along too!)   
-flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type.1, species.1, total_effort_1.1, effort_units.1) ]
+flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_clean , sampling_method, survey_type.1, species, total_effort_1.1, effort_units.1) ]
 
 
 

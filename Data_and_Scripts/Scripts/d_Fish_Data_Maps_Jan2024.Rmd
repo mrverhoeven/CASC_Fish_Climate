@@ -33,7 +33,7 @@ Product 2): map showing us info on species, catch, etc.
 
 # Pull in glm lake metadata for states that are missing lat longs
 ```{r}
-glm_metadat <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Temp_projections_Summaries/glm_lake_metadata.csv")
+glm_metadat <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Temp_projections_Summaries/glm_lake_metadata.csv")
 
 lat_longs <- glm_metadat %>%
   filter(state %in% c("MN", "WI", "IN"))%>%
@@ -65,6 +65,7 @@ mn_filtered <- mn_data %>% #by assigning it a new name 'mn_filtered' it pulls it
   print(n = nrow(.)) #6765 lakes #BAD must only group with MN DOW
 
 ```{r}
+mn_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/mn_file_arrow")
 glimpse(mn_data)
 
 mn_dow <- mn_data %>%
@@ -86,6 +87,7 @@ mn_filtered <- mn_data %>%
          lon = centroid_lon)%>%
   mutate(state_id = as.character(state_id))%>%
   select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
+  mutate(state = "MN")%>%
   print(n = nrow(.))
 ```
 
@@ -93,24 +95,106 @@ mn_filtered <- mn_data %>%
 
 # WI all data
 ```{r}
-wi_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/wi_file_arrow")
+wi_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/wi_file_arrow")
 glimpse(wi_data) #12,798,306 rows (fish obs)
 
 
-wi_lat_long <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
+wi_lat_long <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
   mutate(lake.id = as.character(lake.id))
 
 # downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
 WI_hydro_list <- read_csv("24k_Hydro_Waterbodies_(Open_Water).csv")
 
-WI_rivers_all_names <- WI_hydro_list %>% #ignore
-  select(WATERBODY_NAME, RIVER_SYS_NAME, RIVER_SYS_WBIC, WATERBODY_WBIC)%>%
-  mutate(River_Flag = if_else(RIVER_SYS_WBIC > 0, 1, 0))%>% #if it has a river sys wbic it is a river
-  mutate(waterbody_name = if_else(is.na(WATERBODY_NAME), RIVER_SYS_NAME, WATERBODY_NAME))%>%
-  mutate(waterbody_name = na_if(waterbody_name, "Unnamed"))%>%
-  mutate(wbic = as.character(WATERBODY_WBIC)) #didn't work for lakes that a river flows through, only had 1,000 s0
+# seems "HYDROTYPE" could be useful for filtering out rivers/streams
+WI_hydrotype <- WI_hydro_list %>%
+  group_by(HYDROTYPE)%>%
+  summarise(Total_Obs = n())%>%
+  mutate(HYDROTYPE_DEF = case_when(HYDROTYPE == 601 ~ "Ditch/canal", 
+                                   HYDROTYPE == 602 ~ "Stream/river",
+                                   HYDROTYPE == 610 ~ "Cranberry bog",
+                                   HYDROTYPE == 701 ~ "Backwater",
+                                   HYDROTYPE == 702 ~ "Fish Hatchery",
+                                   HYDROTYPE == 703 ~ "Flooded Excavation",
+                                   HYDROTYPE == 704 ~ "Innundation Area",
+                                   HYDROTYPE == 705 ~ "Industrial Waste Pond",
+                                   HYDROTYPE == 706 ~ "Lake/Pond",
+                                   HYDROTYPE == 707 ~ "Reservoir/Flowage",
+                                   HYDROTYPE == 708 ~ "Sewage Disposal Pond",
+                                   HYDROTYPE == 709 ~ "Tailings Pond",
+                                   HYDROTYPE == 710 ~ "Unspecified Open Water")) 
+# HYDROTYPE info from https://widnr.widen.net/s/f8sldtk6qf/hydro_waterbody_data_dict
 
-WI_names_lotic_flag <- WI_hydro_list %>%
+WI_hydrotype_2 <- WI_hydro_list %>%
+  mutate(HYDROTYPE_DEF = case_when(HYDROTYPE == 601 ~ "Ditch/canal", 
+                                   HYDROTYPE == 602 ~ "Stream/river",
+                                   HYDROTYPE == 610 ~ "Cranberry bog",
+                                   HYDROTYPE == 701 ~ "Backwater",
+                                   HYDROTYPE == 702 ~ "Fish Hatchery",
+                                   HYDROTYPE == 703 ~ "Flooded Excavation",
+                                   HYDROTYPE == 704 ~ "Innundation Area",
+                                   HYDROTYPE == 705 ~ "Industrial Waste Pond",
+                                   HYDROTYPE == 706 ~ "Lake/Pond",
+                                   HYDROTYPE == 707 ~ "Reservoir/Flowage",
+                                   HYDROTYPE == 708 ~ "Sewage Disposal Pond",
+                                   HYDROTYPE == 709 ~ "Tailings Pond",
+                                   HYDROTYPE == 710 ~ "Unspecified Open Water"))%>%
+  group_by(HYDROTYPE_DEF, HYDROTYPE)%>%
+  summarise(Total = n())
+
+WI_hydrotype_WBIC <- WI_hydro_list %>%
+  group_by(WATERBODY_WBIC, HYDROTYPE)%>%
+  summarise(Total_Obs = n())%>%
+  mutate(HYDROTYPE_DEF = case_when(HYDROTYPE == 601 ~ "Ditch/canal", 
+                                   HYDROTYPE == 602 ~ "Stream/river",
+                                   HYDROTYPE == 610 ~ "Cranberry bog",
+                                   HYDROTYPE == 701 ~ "Backwater",
+                                   HYDROTYPE == 702 ~ "Fish Hatchery",
+                                   HYDROTYPE == 703 ~ "Flooded Excavation",
+                                   HYDROTYPE == 704 ~ "Innundation Area",
+                                   HYDROTYPE == 705 ~ "Industrial Waste Pond",
+                                   HYDROTYPE == 706 ~ "Lake/Pond",
+                                   HYDROTYPE == 707 ~ "Reservoir/Flowage",
+                                   HYDROTYPE == 708 ~ "Sewage Disposal Pond",
+                                   HYDROTYPE == 709 ~ "Tailings Pond",
+                                   HYDROTYPE == 710 ~ "Unspecified Open Water"))%>%
+  mutate(lake_id = as.character(WATERBODY_WBIC)) #88,147
+
+WI_hydrotypes_ALL <- WI_hydro_list %>%
+  select(WATERBODY_NAME, WATERBODY_WBIC, HYDROCODE, HYDROTYPE, RIVER_SYS_WBIC)%>%
+  mutate(lake_id = as.character(WATERBODY_WBIC))%>%
+  mutate(river_sys_wbic = as.character(RIVER_SYS_WBIC))
+
+WI_dat_with_hydrotype <-wi_data %>% 
+  group_by(lake_id, lake_name_1) %>% #only group by state lake id
+  collect()%>%
+  summarise(Total_obs = n())%>%
+  left_join(WI_hydrotypes_ALL, by = "lake_id")%>%
+  mutate(HYDROTYPE_DEF = case_when(HYDROTYPE == 601 ~ "Ditch/canal", 
+                                   HYDROTYPE == 602 ~ "Stream/river",
+                                   HYDROTYPE == 610 ~ "Cranberry bog",
+                                   HYDROTYPE == 701 ~ "Backwater",
+                                   HYDROTYPE == 702 ~ "Fish Hatchery",
+                                   HYDROTYPE == 703 ~ "Flooded Excavation",
+                                   HYDROTYPE == 704 ~ "Innundation Area",
+                                   HYDROTYPE == 705 ~ "Industrial Waste Pond",
+                                   HYDROTYPE == 706 ~ "Lake/Pond",
+                                   HYDROTYPE == 707 ~ "Reservoir/Flowage",
+                                   HYDROTYPE == 708 ~ "Sewage Disposal Pond",
+                                   HYDROTYPE == 709 ~ "Tailings Pond",
+                                   HYDROTYPE == 710 ~ "Unspecified Open Water"))%>%
+  filter(is.na(HYDROTYPE)) #there are 4,698 WBICs where we have fish data but it isn't in the WI hydro database and not on WI lake finder webapge.. probably fine but may want to investigate further at a later time... 
+  
+
+
+WI_hydrotype_WBIC_check <- WI_hydrotype_WBIC %>%
+  mutate(check = 1)%>%
+  pivot_wider(names_from = HYDROTYPE_DEF, values_from = check)%>%
+  mutate(multi_hydrotype_check = sum(c("Ditch/canal","Stream/river","Cranberry bog","Backwater","Fish Hatchery","Flooded Excavation","Innundation Area","Industrial Waste Pond","Lake/Pond","Reservoir/Flowage","Sewage Disposal Pond","Tailings Pond","Unspecified Open Water"))) #filter for anything > 1
+
+#88,147 unique WBIC+Hydrotype and only 87,833 unique WBIC
+
+
+WI_names_ALL <- WI_hydro_list %>%
   select(WATERBODY_NAME, HYDROTYPE, WATERBODY_WBIC)%>%
   mutate(waterbody_name = na_if(WATERBODY_NAME, "Unnamed"))%>%
   mutate(wbic = as.character(WATERBODY_WBIC))
@@ -120,12 +204,12 @@ wi_lake_names <- wi_data %>%
   collect()%>%
   summarise(lake_name = first(lake_name_1, na_rm = TRUE),
             county = first(county, na_rm = TRUE))%>%
-  left_join(WI_names_lotic_flag, by = c("lake_id" = "wbic"))%>%
+  left_join(WI_names_ALL, by = c("lake_id" = "wbic"))%>%
   mutate(lake_name = if_else(is.na(lake_name), waterbody_name, lake_name))%>%
   group_by(lake_id)%>%
   summarise(lake_name = first(lake_name, na_rm = TRUE),
             county = first(county, na_rm = TRUE),
-            lotic_flag = mean(HYDROTYPE))
+            hydrotype = mean(HYDROTYPE))
 
          
 wi_filtered <- wi_data %>% 
@@ -138,8 +222,9 @@ wi_filtered <- wi_data %>%
   rename(state_id = lake_id,
          total_obs = n,
          lon = long)%>%
-  filter(lotic_flag %in% (706:707))%>%
+  filter(hydrotype %in% c(701, 706:707))%>% #filters to keep only lakes/reservoirs and backwaters
   select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
+  mutate(state = "WI")%>%
   print(n = nrow(.)) #6908 lakes before removing lotic, now 2126
 
 rm(wi_lake_names, wi_lat_long)
@@ -176,38 +261,41 @@ old code to remove rivers, creeks, streams, etc. from WI dataset
 
 # MI all data
 ```{r}
-mi_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/mi_file_arrow")
+mi_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/mi_file_arrow")
 glimpse(mi_data) #438,534 rows (fish obs)
 
 mi_filtered <- mi_data %>% 
-  group_by(lake_id, nhdhr.id, lake_name.1, county, lat_unspec_effort, lon_unspec_effort) %>% 
-  count() %>% 
+  group_by(lake_id)%>%
   collect() %>%
-  rename(state_id = lake_id,
-         nhdhr_id = nhdhr.id,
-         lake_name = lake_name.1,
-         total_obs = n,
-         lon = lon_unspec_effort,
-         lat = lat_unspec_effort)%>%
+  summarise(lake_name = first(lake_name.1, na_rm = TRUE),
+            nhdhr_id = first(nhdhr.id, na_rm = TRUE),
+            county = first(county, na_rm = TRUE,), #still missing some county names but oh well
+            lat = first(lat_unspec_effort),
+            lon = first(lon_unspec_effort),
+            total_obs = n())%>%
+  rename(state_id = lake_id,)%>%
   select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
-  print(n = nrow(.)) #468 lakes
+  mutate(state = "MI")%>%
+  print(n = nrow(.)) #465 lakes
 ```
 # SD all data
 ```{r}
-sd_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/sd_file_arrow")
+sd_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/sd_file_arrow")
 glimpse(sd_data) #2,180,502 rows (fish obs)
 
 sd_filtered <- sd_data %>% 
-  group_by(lake_id, nhdhr_id, county, lake_name_1, lat_unspec, lon_unspec) %>% 
-  count() %>% 
+  group_by(lake_id)%>% 
   collect() %>%
-  rename(state_id = lake_id,
-         lake_name = lake_name_1,
-         total_obs = n,
-         lon = lon_unspec,
-         lat = lat_unspec)%>%
+  summarise(lake_name = first(lake_name_1, na_rm = TRUE),
+            nhdhr_id = first(nhdhr_id, na_rm = TRUE),
+            county = first(county, na_rm = TRUE,),
+            lat = first(lat_unspec),
+            lon = first(lon_unspec),
+            total_obs = n())%>%
+  rename(state_id = lake_id)%>%
   select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
-  print(n = nrow(.)) #430 lakes
+  mutate(state = "SD")%>%
+  print(n = nrow(.)) #420 lakes
 
 
 # doesn't seem like the nhd ids are present
@@ -215,22 +303,23 @@ sd_filtered <- sd_data %>%
 
 # IA all data
 ```{r}
-ia_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/ia_file_arrow")
+ia_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/ia_file_arrow")
 glimpse(ia_data) #914,330 rows (fish obs)
 
 
 # complicated because multiple lat long combos for each lake.. 
 ia_filtered <- ia_data %>%
-  group_by(lake_id, lake_name.1, county)%>%
+  group_by(lake_id)%>%
   collect()%>% #had to pull it into R then summarise, was okay because IA wasn't too big
   summarise(lat = first(lat_unspec),
             lon = first(lon_unspec),
-            n = n())%>%
-  rename(state_id = lake_id,
-         lake_name = lake_name.1,
-         total_obs = n,)%>%
+            total_obs = n(),
+            lake_name = first(lake_name.1, na_rm = TRUE),
+            county = first(county, na_rm = TRUE))%>%
+  rename(state_id = lake_id,)%>%
   mutate(nhdhr_id = NA)%>%
   select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
+  mutate(state = "IA")%>%
   print(n = nrow(.))
   
 
@@ -238,29 +327,110 @@ ia_filtered <- ia_data %>%
 
 # IL all data
 ```{r}
-il_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/il_file_arrow")
+il_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/il_file_arrow")
 glimpse(il_data) #634,747 rows (fish obs)
 
 il_filtered <- il_data %>% 
-  group_by(lake_id, county, lake_name_1, lat_unspec, lon_unspec, nhdr_id) %>% 
-  count() %>% 
+  group_by(lake_id)%>% 
   collect() %>%
-  rename(state_id = lake_id,
-         lake_name = lake_name_1,
-         total_obs = n,
-         lon = lon_unspec,
-         lat = lat_unspec,
-         nhdhr_id = nhdr_id)%>%
+  summarise(lake_name = first(lake_name_1, na_rm = TRUE),
+            nhdhr_id = first(nhdr_id , na_rm = TRUE),
+            county = first(county, na_rm = TRUE), #still missing some county names but oh well
+            total_obs = n(),
+            lon = first(lon_unspec),
+            lat = first(lat_unspec))%>%
+  rename(state_id = lake_id)%>%
   mutate(state_id = as.character(state_id))%>%
   select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
+  mutate(state = "IL")%>%
   print(n = nrow(.)) # 345 lakes
 
 ```
+
 # IN all data
 ```{r}
 in_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
 glimpse(in_data) #145,944 rows (fish obs)
 
+# IN Reservoirs
+
+in_filtered_r <- in_data %>% 
+  filter(waterbody_type == "Reservoir")%>%
+  group_by(lake_id) %>% 
+  collect() %>%
+  summarise(lat = first(lat_unspec),
+            lon = first(lon_unspec),
+            county = first(county),
+            lake_name = first(lake_name_1),
+            n = n())%>%
+  mutate(nhdhr_id = NA)%>%
+   rename(state_id = lake_id,
+         total_obs = n,)%>%
+  select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
+  mutate(state = "IN")
+
+# IN Glacial Lakes 
+    # Holly will work on cleaing this up in the IN parquet
+IN_crosswalk <- readRDS("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Crosswalks/IN_DNR_nhdhr_xwalk.rds")
+
+IN_FINFO_List_read <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IN_Data/in_raw_disaggregated_data/in_lake_id_list_1Dec2023.csv")
+
+IN_FINFO <- IN_FINFO_List_read %>%
+  select(Id, Latitude, Longitude)
+  
+
+IN_xwalk_county <- IN_crosswalk %>%
+  mutate(county = str_split_fixed(Lake_County_Name, "_", n = 2))%>%
+  rename(county = `county[,2]`)
+  
+in_filtered_gl <- in_data %>%
+  select(lake_id, county, lake_name_1, lat_unspec, lon_unspec, waterbody_type) %>%
+  filter(waterbody_type == "Glacial Lake")%>%
+  group_by(lake_id)%>%
+  collect() %>%
+  summarise(lake_name = first(lake_name_1, na.rm = TRUE),
+            county = first(county, na.rm = FALSE),
+            lat = first(lat_unspec),
+            lon = first(lon_unspec),
+            total_obs = n())%>%
+  mutate(county = str_to_title(county))%>%
+  mutate(county = case_when(county == "Laporte" ~ "LaPorte",
+                            county == "Dekalb" ~ "DeKalb",
+                            TRUE ~ county))%>%
+  mutate(Lake_County_Name = paste(lake_name,county, sep = "_"))%>%
+  left_join(IN_crosswalk, by = "Lake_County_Name")%>%
+  left_join(IN_FINFO, by = c("lake_id" = "Id"))%>%
+  distinct()%>%
+  mutate(Latitude = case_when(Lake_County_Name == "Arrowhead_Steuben" ~ 41.6209,
+                              Lake_County_Name == "Center_Kosciusko" ~ 41.246497,
+                              Lake_County_Name == "Crooked_Noble" ~ 41.262075,
+                              Lake_County_Name == "Failing_Steuben" ~ 41.706330,
+                              Lake_County_Name == "Indian_DeKalb" ~ 41.464027,
+                              Lake_County_Name == "Loon_Noble" ~ 41.272182,
+                              Lake_County_Name == "Tamarack_Noble" ~ 41.495612,
+                              TRUE ~ Latitude))%>%
+  mutate(Longitude = case_when(Lake_County_Name == "Arrowhead_Steuben" ~ -85.1583,
+                               Lake_County_Name == "Center_Kosciusko" ~ -85.857557,
+                               Lake_County_Name == "Crooked_Noble" ~ -85.479572,
+                               Lake_County_Name == "Failing_Steuben" ~ -84.999266,
+                               Lake_County_Name == "Indian_DeKalb" ~ -85.169690,
+                               Lake_County_Name == "Loon_Noble" ~ -85.539387,
+                               Lake_County_Name == "Tamarack_Noble" ~ -85.421185, #from http://iac.iga.in.gov/iac/20170531-IR-312170269NRA.xml.pdf
+                               TRUE ~ Longitude))%>%
+  mutate(site_id = if_else(Lake_County_Name == "Fish (N Plato)_Lagrange", "nhdhr_155640651", site_id))%>%
+  select(lake_id, lake_name, county, site_id, Latitude, Longitude, total_obs)%>%
+  rename(nhdhr_id = site_id,
+         state_id = lake_id,
+         lat = Latitude,
+         lon = Longitude)%>%
+  select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
+  mutate(state = "IN")
+
+in_filtered <- bind_rows(in_filtered_gl, in_filtered_r)
+print(in_filtered)
+```
+
+#### old updated 1/19/2024
 in_filtered <- in_data %>% 
   group_by(lake_id, county, lake_name_1, lat_unspec, lon_unspec) %>% 
   count() %>% 
@@ -276,7 +446,7 @@ in_filtered <- in_data %>%
 
 #missing lat longs from 160 lakes
 
-```
+
 
 
 in_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
@@ -292,10 +462,10 @@ glimpse(mn_data)
 
 # combine all states lat longs
 ```{r}
-all_lat_lons <- bind_rows(ia_filtered, il_filtered, in_filtered, mi_filtered, mn_filtered, sd_filtered, wi_filtered)
+all_lat_lons <- bind_rows(ia_filtered, il_filtered, in_filtered, mi_filtered, mn_filtered, sd_filtered, wi_filtered) #updated 1/19/2024 added state and cleaned up a bit
 
-write_csv(all_lat_lons, "all_lat_lons_9Jan2024.csv")
-all_lat_lons <- read_csv("all_lat_lons_9Jan2024.csv")
+write_csv(all_lat_lons, "all_lakes_loc_19Jan2024.csv")
+all_lat_lons <- read_csv("all_lat_lons_19Jan2024.csv") 
 
 ```
 
@@ -311,6 +481,8 @@ library(dplyr) #for data manipulation
 library(viridis)
 library(sp)
 library(tidyr)
+
+all_lat_lons <- read_csv("all_lat_lons_9Jan2024.csv")
 
 # remove points outside of midwest
 lat_longs_edit <- all_lat_lons %>%
@@ -349,7 +521,7 @@ All_Lakes_map_obs
 
 ```{r}
 # Load in data dump for Chris Custer to make CPUE maps
-CC_Dat <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Data for Collaborators/Preliminary_CPUE_Data/all_state_cpue_8Dec23.csv")
+CC_Dat <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Data for Collaborators/Preliminary_CPUE_Data/all_state_cpue_8Dec23.csv")
 ```
 
 
@@ -362,6 +534,8 @@ NOP_CPUE_2010 <- CC_Dat %>%
   filter(year >= 2010)%>%
   group_by(lake_id)%>%
   summarise(Ave_CPUE_NOP_2010 = mean(cpue))%>%
+  filter(Ave_CPUE_NOP_2010 > 0)%>%
+  mutate(log_Ave_CPUE = (log(Ave_CPUE_NOP_2010)))%>%
   left_join(lat_longs_edit, by = c("lake_id" = "state_id"))
 ```
 
@@ -371,14 +545,52 @@ NOP_CPUE_2010_map <- ggplot()+
   geom_polygon(data = Midwest_noND, aes(x = long, y = lat, group = group,), color = "black", fill = "azure1")+
   coord_fixed(1.3)+
   guides(fill = FALSE)+
-  geom_point(data = NOP_CPUE_2010, aes(x = lon, y = lat, color = Ave_CPUE_NOP_2010), alpha = 0.5)+
+  geom_point(data = NOP_CPUE_2010, aes(x = lon, y = lat, color = log_Ave_CPUE), alpha = 0.5)+
   theme_void()+
-  scale_color_viridis(option = "H")+
-  labs(title = "Average CPUE for Northern Pike, 2010 - 2023", color = "average CPUE", alpha = "average CPUE")
+  labs(title = "log Average CPUE for Northern Pike, 2010 - 2023", color = "log(average CPUE)", alpha = "average CPUE")+
+  scale_color_continuous(type = "viridis")
 
 NOP_CPUE_2010_map
 
 ```
+try to scale within states
+```{r}
+NOP_CPUE_2010_2 <- CC_Dat %>%
+  filter(species_1 == "northern_pike") %>%
+  mutate(year = year(date_1))%>%
+  filter(year >= 2010)%>%
+  group_by(lake_id, state)%>%
+  summarise(Ave_CPUE_NOP_2010 = mean(cpue))%>%
+  mutate(log_Ave_CPUE = (log(Ave_CPUE_NOP_2010)))%>%
+  left_join(lat_longs_edit, by = c("lake_id" = "state_id"))%>%
+  group_by(state)%>%
+  mutate(Percentile = percent_rank(Ave_CPUE_NOP_2010))%>%
+  ungroup(state)%>%
+  mutate(zero_flag = if_else(Ave_CPUE_NOP_2010 == 0, T, F))%>%
+  mutate(CPUE_no_0 = na_if(Ave_CPUE_NOP_2010, 0))
+
+  
+```
+
+
+```{r}
+NOP_CPUE_2010_map_2 <- ggplot()+
+  geom_polygon(data = Midwest_noND, aes(x = long, y = lat, group = group,), color = "black", fill = "white")+
+  coord_fixed(1.3)+
+  guides(fill = FALSE)+
+  geom_point(data = NOP_CPUE_2010_2, aes(x = lon, y = lat, color = Percentile, shape = zero_flag, alpha = zero_flag))+
+  theme_void()+
+  labs(color = "Within State CPUE Percentile", alpha = "Within State CPUE Percentile", shape = NA)+
+  scale_color_viridis(begin = 0, end = .95, direction = -1, option = "C")+
+  scale_shape_manual(values = c(19,4), guide = "none")+
+  scale_alpha_manual(values = c(.5, .25), guide = "none")
+
+NOP_CPUE_2010_map_2
+
+```
+
+
+
 
 ```{r}
 library(lubridate)
@@ -423,6 +635,8 @@ BLG_CPUE_2010_map_a
 
 ```
 ```{r}
+# NOTE MAKE SURE INSTNACES OF NO CATCH/ ZERO CATCH are removed!!!
+
 species_facet <- CC_Dat %>%
   mutate(year = year(date_1))%>%
   group_by(lake_id, species_1)%>%

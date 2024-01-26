@@ -42,6 +42,9 @@ cross_state <- read_csv("all_state_cpue_8Dec23.csv")
 cross_state %>% 
   filter(!is.na(nhdhr_id)) %>% 
   count()
+cross_state %>% 
+  group_by(state) %>% 
+  count()
 ```
 
 #smashing cpes across states together
@@ -419,3 +422,158 @@ ggplot() +
   geom_smooth(aes(x = effort, y = cpue)) +
   facet_wrap(~ species.1, scales = "free")
 ```
+
+
+#notes for workshop- wisconsin
+```{r}
+#reading in data 
+wi_inland_cpue <- read_csv("Data_and_Scripts/wi_data/wi_inland_cpue_19Mar2021.csv")
+glimpse(wi_inland_cpue)
+
+wi_inland_effort <- read_csv("Data_and_Scripts/wi_data/wi_inland_effort_19Mar2021.csv")
+glimpse(wi_inland_effort)
+inland_effort_keep <- wi_inland_effort %>% 
+  group_by(gear,
+         distance.shocked,
+         weather.description,
+         adverse.condition,
+         volts,
+         amps,
+         pulse.rate.percent,
+         duty.cycle,
+         current.type,
+         number.of.dippers,
+         dipnet.bar.mesh.size,
+         type.of.pass,
+         deployment.depth,
+         water.clarity,
+         water.clarity.feet.amt,
+         probe.no,
+         probe.no.amt,
+         run.type,
+         average.droppers.per.probe) %>% 
+  summarise(records = n()) 
+write_csv(inland_effort_keep, "wi_effort_file_notes.csv")
+
+wi_inland_fishobservations <- read_csv("Data_and_Scripts/wi_data/wi_inland_fishobservations_19Mar2021-001.csv")
+glimpse(wi_inland_fishobservations) 
+fishobs_notes <- wi_inland_fishobservations %>% 
+  group_by(visit.type,
+         net.number,
+         mark.given,
+         mark.found,
+         second.mark.found,
+         tag.number.given,
+         second.tag.number.given,
+         tag.number.found,
+         second.tag.number.found,
+         primary.survey.purpose,
+         secondary.survey.purpose) %>% 
+  summarise(n = n())
+write_csv(fishobs_notes, "wi_fish_obs_notes.csv")
+
+wi_inland_lenage <- read_csv("Data_and_Scripts/wi_data/wi_inland_lenage_19Mar2021.csv")
+glimpse(wi_inland_lenage)
+
+wi_win_cpe <- read_csv("Data_and_Scripts/wi_data/wi_winnebago_cpue_23Apr2021.csv")
+glimpse(wi_win_cpe)
+
+wi_win_fish <- read_csv("Data_and_Scripts/wi_data/wi_winnebago_fishobservations_23April2021.csv")
+glimpse(wi_win_fish)
+
+wi_cisco <- read_csv("Data_and_Scripts/wi_data/wi_cisco.csv")
+glimpse(wi_cisco)
+wi_cisco_notes <- wi_cisco %>% 
+  group_by(Maxdpth,
+         Mndepth,
+         Stratind,
+         Shore,
+         Alk,
+         Conduct,
+         TSI,
+         Cisco,
+         C_Lst_yr,
+         C_Source,
+         VGN_Date,
+         VGN_NN,
+         VGN_Cisco,
+         VGN_CiscoNN,
+         VGN_CiscoRA,
+         Overall_CiscoNN,
+         Overall_CiscoRA,
+         Overall_SmeltNN,
+         Overall_LWhiteNN,
+         TDO3,
+         TDO3_Date,
+         Slimysc,
+         Othr_cld,
+         Comments) %>% 
+  summarize(n = n())
+```
+
+#cisco - wisco and michginan
+```{r}
+#wisconsin
+wi_data <- open_dataset("Data_and_Scripts/wi_file_arrow")
+
+wi_data %>% 
+  distinct(lake_id, date_1, sampling_method) %>% 
+  group_by(sampling_method) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+wi_data %>% 
+  filter(sampling_method == "vertical_gill_net") %>% 
+  distinct(lake_id, date_1) %>% 
+  collect() %>% 
+  group_by(month(date_1)) %>% 
+  count()
+
+wi_data %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+cisco_surveys <- wi_data %>% 
+  filter(sampling_method == "vertical_gill_net") %>% 
+  distinct(lake_name_1, lake_id, date_1) %>% 
+  collect()
+
+#Michigan 
+mi_data <- open_dataset("Data_and_Scripts/mi_file_arrow")
+
+mi_data %>% 
+  distinct(lake_id, date.1, sampling_method) %>% 
+  group_by(sampling_method) %>% 
+  count() %>% 
+  collect()
+
+mi_data %>% 
+  filter(species.1 == "cisco") %>%
+  distinct(lake_id, date.1, sampling_method) %>% 
+  group_by(sampling_method) %>% 
+  count() %>% 
+  collect()
+#cisco are only being caught in 
+
+#minnesota
+mn_data <- open_dataset("Data_and_Scripts/mn_file_arrow")
+
+mn_data %>% 
+  group_by(species.1) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(species.1) %>% 
+  print(n = nrow(.))
+
+mn_data %>% 
+  filter(species.1 == "cisco") %>%
+  distinct(lake_id, date_clean, sampling_method) %>% 
+  group_by(sampling_method) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+```
+

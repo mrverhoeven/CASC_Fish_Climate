@@ -535,78 +535,26 @@ flatfish <- readRDS("Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_me
 
 ```
 
-# Save Parquet
-
-```{r}
-
-
-write_dataset(dataset = flatfish, path = "Data_and_Scripts/Data/output/mn_file_arrow")
-
-mn_data <- open_dataset(sources = "Data_and_Scripts/Data/output/mn_file_arrow/")
-mn_data <- open_dataset(sources = "Data_and_Scripts\\Data\\output\\mn_file_arrow\\")
-
-glimpse(mn_data)
-
-```
-
-
+# 
 
 #Tidy up dataframe
 ```{r}
-# required columns: 
-# 
-# 
-# mn_data %>% 
-#   select(contains("target")  )
+#we need to
+# 1. revises the data in a few columns: sampling method, nothing caught, species names, state, units, target species, effort,  
+# 2. export notes for the workshop. (delete, flag, clarify, keep for workshop) then dump those columns
+# 3. match to schema (https://docs.google.com/spreadsheets/d/1zfevASMxRMxMYNWm3Hq1yR2Qk0zcJV_JnO0LBeODaPQ/edit#gid=0)
 
-
-mn_dat <- mn_data %>% 
-  select(
-    state, state_effort, state_indivfish,
-    county_effort, county_indivfish,
-    lake_id,
-    lake_name.1, lake_name.1_effort, lake_name.1_indivfish,
-    date_clean, date.1_effort, date.2_effort, end_date, date.2_indivfish, date.1_indivfish, date.1,
-    survey_type.1,
-    survey_id, survey_id_effort, survey_id_indivfish,
-    sampling_method, sampling_method_abbrev,
-    target_species,
-    total_effort_1.1,
-    species.1,
-    length.1, length_unit.1,
-    weight.1, weight_unit.1,
-    sample_id.1,
-    age, aging_structure, young_of_year, sex,
-    original_file_name.1_effort,original_file_name.1_indivfish, original_file_name.1
-  ) %>%
-  collect() %>% 
-  setDT()#set as data.table
-
+mn_dat <- flatfish
+rm(flatfish)
 
 #gear full names need filling out
-    #show problem
-    # mn_dat %>% 
-    #   group_by(sampling_method_abbrev, sampling_method) %>% 
-    #   summarize(n = n()) %>% 
-    #   collect() %>% 
-    #   print(n = nrow(.)) #everyone has data in sampling method abbrev
-    # in DT
     mn_dat[ , .N , .(sampling_method_abbrev, sampling_method)]
     
     #borrow codes as key from other rows
-    # gear_table_mn <- mn_dat %>% 
-    #   filter(!is.na(sampling_method)) %>%
-    #   select( sampling_method_abbrev, sampling_method) %>% 
-    #   unique()
-    # in DT
     gear_table_mn <- mn_dat[!is.na(sampling_method), .N , .(sampling_method_abbrev,sampling_method) ]
     
     
     #apply these to all rows
-    # mn_dat <- mn_dat %>% 
-    #   select(!sampling_method) %>% 
-    #   inner_join(. , gear_table_mn, by = "sampling_method_abbrev") 
-    # in DT
     #drop old col
     mn_dat[ , sampling_method := NULL ,]
     #rejoin to complete gear table
@@ -618,7 +566,7 @@ mn_dat <- mn_data %>%
    
     
 #add nothing_caught
-    mn_dat[is.na(species.1), nothing_caught := T , ] #THIS NEED VERIFICATION AGAINST CODE ABOVE
+    mn_dat[is.na(species), nothing_caught := T , ] #The only species == NA are places where lake/date/gear/surveytype found no species
      
     
 #species names are mixed codes and names
@@ -626,19 +574,14 @@ mn_dat <- mn_data %>%
     mn_dat %>%
       select(contains("species"))
     #show problem
-    # mn_dat %>% 
-    #   group_by(species.1) %>% 
-    #   summarise(n = n()) %>% 
-    #   # collect() %>% 
-    #   print(n = nrow(.))
-    mn_dat[ , .N , species.1 ]
+    mn_dat[ , .N , species ]
     
     # Review "codes" as defined by 3 letter species names
-    print(mn_dat[nchar(species.1) == 3, .N , species.1 ],
-          nrow(mn_dat[nchar(species.1) == 3, .N , species.1 ]))
+    print(mn_dat[nchar(species) == 3, .N , species ],
+          nrow(mn_dat[nchar(species) == 3, .N , species ]))
     
     # choose only species.1 length of 3, assign these to a species_code
-    mn_dat[nchar(species.1) == 3, `:=` (species_abbrev = species.1, species.1 = NA) , ]
+    mn_dat[nchar(species) == 3, `:=` (species_abbrev = species, species = NA) , ]
     
     
     #generate a species code table (will also use later to fix target species cols)    
@@ -646,7 +589,7 @@ mn_dat <- mn_data %>%
     
     #adds names to that table (uses key provided by Jon Hansen, MNDNR on 10 Oct 2023: https://docs.google.com/spreadsheets/d/1ZakE4S2zfSdYNEWHfikFqILNnD1gYpNf?rtpof=true&usp=drive_fs )    
         #This chunk cleans codes and names within the species column, references? for codes?
-      species_codes_mn[ , species.1 := 
+      species_codes_mn[ , species := 
                           case_when(# first fish codes are converted,
                             species_abbrev == "LMB" ~ "largemouth_bass",
                             species_abbrev == "SMB" ~ "smallmouth_bass",
@@ -806,9 +749,9 @@ mn_dat <- mn_data %>%
       ]
       
       #some dulicated common names (two codes for one thing)
-      species_codes_mn[duplicated(species_codes_mn$species.1), , ]
+      species_codes_mn[duplicated(species_codes_mn$species), , ]
       
-      setnames(species_codes_mn, "species.1" , "common.name" )
+      setnames(species_codes_mn, "species" , "common.name" )
       
         #fill species names
       mn_dat[species_codes_mn,
@@ -816,51 +759,40 @@ mn_dat <- mn_data %>%
              species.fix := common.name 
       ]
         #fill into species.1 col, drop fix column
-        mn_dat[is.na(species.1), species.1 := species.fix , ]
-                mn_dat[ , species.fix := NULL ,]
+        mn_dat[is.na(species), species := species.fix , ]
+        mn_dat[ , species.fix := NULL ,]
        
         
         #clean up common names
-        mn_dat[ , species.1 := str_replace_all( str_replace_all( str_replace_all(tolower(species.1),
+        mn_dat[ , species := str_replace_all( str_replace_all( str_replace_all(tolower(species),
                                                                                  " ", "_") ,
                                                                  "\\)" , "") ,
                                                 "\\(" , "")]
         
-        mn_dat[ , species.1 := 
+        mn_dat[ , species := 
                   case_when(
-                    species.1 == "tullibee_cisco" ~ "cisco",
-                    species.1 == "trout-perch" ~ "trout_perch",
-                    species.1 == "bowfin dogfish" ~ "bowfin",
+                    species == "tullibee_cisco" ~ "cisco",
+                    species == "trout-perch" ~ "trout_perch",
+                    species == "bowfin dogfish" ~ "bowfin",
                     # unknown species
-                    species.1 == "no_particular_species" ~ "no_particular_species",
-                    species.1 == "unknown_fish_one" ~ "unknown_fish",
-                    species.1 == "walleye/sauger" ~ "walleye_x_sauger",
-                    TRUE ~ species.1
+                    species == "no_particular_species" ~ "no_particular_species",
+                    species == "unknown_fish_one" ~ "unknown_fish",
+                    species == "walleye/sauger" ~ "walleye_x_sauger",
+                    TRUE ~ species
                   )
         ]
         
         #check work
-        print(mn_dat[ , .N , species.1][order(species.1)], nrow(mn_dat[ , .N , species.1])) 
+        print(mn_dat[ , .N , species][order(species)], nrow(mn_dat[ , .N , species])) 
         
-        #still 1904 NAs here (nothing caught surveyXgears)
-        mn_dat[is.na(species.1) , .N , .(nothing_caught)  ]
+        #still 2724 NAs here (nothing caught surveyXgears)
+        mn_dat[is.na(species) , .N , .(nothing_caught)  ]
         
         
-        #fill species codes
+        #drop species codes
         species_codes_mn
-        mn_dat[!is.na(species_abbrev), .N , .(species_abbrev,species.1) ]
-        species_codes_mn <- mn_dat[!is.na(species_abbrev), .N , .(species_abbrev,species.1) ]
-        
-        setnames(species_codes_mn, "species_abbrev", "fishcode")
-        
-        mn_dat[species_codes_mn, on = .(species.1), species_abbrev_fix := fishcode ]
-        
-        mn_dat[, species_abbrev := species_abbrev_fix]
-        
-        #check work
-        print(mn_dat[ , .N , .(species.1,species_abbrev)], nrow(mn_dat[ , .N , .(species.1,species_abbrev)]))
-        
-        mn_dat[ , species_abbrev_fix := NULL]
+        mn_dat[, .N , .(species_abbrev,species) ]
+        mn_dat[ , `:=` (species_abbrev = NULL)]
 
         
 # fix state
@@ -873,24 +805,25 @@ mn_dat <- mn_data %>%
 
 # fix unit names for length and age
     #formats the length unit for clarity
-    mn_dat[ , .N , length_unit.1 ]
-    mn_dat[ , .N , weight_unit.1]
+    mn_dat[ , .N , length_unit ]
+      mn_dat[ !is.na(length) ,.N  , length_unit ]
     
-    mn_dat[!is.na(length_unit.1), length_unit.1 := "mm" ,]
-    mn_dat[!is.na(weight_unit.1), weight_unit.1 := "g" ,]
+    mn_dat[ , .N , weight_unit]
+      mn_dat[ !is.na(weight) ,.N  , weight_unit ]
+    
+    mn_dat[!is.na(length_unit), length_unit := "mm" ,]
+    mn_dat[!is.na(weight_unit), weight_unit := "g" ,]
 
 # target species
     #targeted species - needs cleaning, has species codes (clean up with the species code table generated above)
     mn_dat[ , .N , target_species ]
     mn_dat[ , c("T1","T2", "T3", "T4", "T5")  :=   tstrsplit(target_species, split = ", "), ]
     
-    setnames(species_codes_mn, "species.1", "commonname")
-    
-    mn_dat[species_codes_mn, on = .(T1=fishcode) , target_species_1 := commonname ]
-    mn_dat[species_codes_mn, on = .(T2=fishcode) , target_species_2 := commonname ]
-    mn_dat[species_codes_mn, on = .(T3=fishcode) , target_species_3 := commonname ]
-    mn_dat[species_codes_mn, on = .(T4=fishcode) , target_species_4 := commonname ]
-    mn_dat[species_codes_mn, on = .(T5=fishcode) , target_species_5 := commonname ]
+    mn_dat[species_codes_mn, on = .(T1=species_abbrev) , target_species_1 := common.name ]
+    mn_dat[species_codes_mn, on = .(T2=species_abbrev) , target_species_2 := common.name ]
+    mn_dat[species_codes_mn, on = .(T3=species_abbrev) , target_species_3 := common.name ]
+    mn_dat[species_codes_mn, on = .(T4=species_abbrev) , target_species_4 := common.name ]
+    mn_dat[species_codes_mn, on = .(T5=species_abbrev) , target_species_5 := common.name ]
     
     mn_dat[ !is.na(target_species), unique(paste(target_species_1,target_species_2, target_species_3, target_species_4,target_species_5))]
     
@@ -903,12 +836,13 @@ mn_dat <- mn_data %>%
 # effort needs attention. Currently we have a negative effort and no units (nab code to add units from Holly based on gear type)
     #effort
     mn_dat %>% 
-      select(contains("effort"))
+      select(contains("effort")) %>% 
+      colnames()
     #total_effort_1.1
     
     gear_table_mn[order(sampling_method_abbrev)]
     
-    mn_dat[ !is.na(total_effort_1.1), .(mean = mean(total_effort_1.1), min =min(total_effort_1.1), max = max(total_effort_1.1)) , ]
+    mn_dat[ !is.na(total_effort_1), .(mean = mean(total_effort_1), min =min(total_effort_1), max = max(total_effort_1)) , ]
     #no effort units, we have a negative effort? 
     
     # we can get units for these effort data from here (p45ish):
@@ -920,113 +854,155 @@ mn_dat <- mn_data %>%
                                  c("GN", "GDE", "GSH", "GSM", "GST", "GSU", "GNP", "FCI", "TML", "SGN", "GNA", "VGN", "TN", "LTN", "DTN", "TQU", "T38", "THA", "T34", "T1", "STN", "GFM", "TMF")),#SET  
                         effort_unit = c(rep("no_unit", 10), rep("hours", 6), rep("haul", 4), rep("set", 23)))
     
+    effort_table <- data.table(
+  Code = c("GN", "GDE", "GSH", "GSM", "GST", "GSU", "GNP", "FCI", "TML", "SGN", "GNA", "VGN", "TN", "LTN", "DTN", "TQU", "T38", "THA", "T34", "T1", "STN", "EF", "EW", "EFB", "SEF", "S58", "S18", "SE", "SSE", "AIF", "AOW", "TOU", "ATL", "STL", "TR", "STR", "EXT", "XXX", "MT", "SA", "ZO"),
+  Method = c("Gill net Standard graduated-mesh gill net", "Gill net Deep GN net, in waters colder than 12 o C", "Gill net Shallow GN net, in waters warmer than 12 o C", "Gill net Small-mesh (0.375 and 0.5-in-bar) net", "Gill net Short-term sets, monofilament net", "Gill net Suspended set, any gill net type", "Gill net Large-mesh (1.5, 2.0, 2.5-in bar) net", "Gill net Fish Community Index nets (Ontario)", "Gill net Trammel net", "Gill net Other (special) gill net", "Gill net Standard North American gill net", "Gill net Vertical gill net", "Trap net Standard 0.75-in-mesh double-frame net", "Trap net Large-frame (5x6 ft) net", "Trap net Pair of TN nets, set in double-pot configuration", "Trap net 0.25-in-mesh net", "Trap net 0.375-in-mesh net", "Trap net 0.5-in-mesh net", "Trap net 0.75-in-mesh single-frame net", "Trap net 1.0-in-mesh net", "Trap net Other (special) trap net", "Electrofishing Standard Boat electrofishing", "Electrofishing Fall electrofishing targeting Walleye", "Electrofishing Backpack electrofishing", "Electrofishing Other (special) electrofishing", "Seine 50-ft bag seine, 0.125-in mesh", "Seine 15-ft seine, 0.125-in mesh", "Seine 50-ft bag seine, 0.25-in mesh", "Seine Other (special) seining", "Angling Ice fishing", "Angling Open-water angling", "Angling Tournament angling", "Trot line Normal trot-line configuration", "Trot line Other (special) trot line", "Trawl Large lake trawl", "Trawl Other (special) trawl", "Miscellaneous Fish collected from or by an external source", "Miscellaneous Fish taken by miscellaneous means", "Miscellaneous 0.25-in-mesh minnow trap", "Miscellaneous Fish spawning trap", "Zooplankton Zooplankton sampling gear"),
+  effort_unit = c("net-night", "net-night", "net-night", "net-night", "Set", "net-night", "net-night", "net-night", "net-night", "Set", "net-night", "net-night", "net-night", "net-night", "net-night", "net-night", "net-night", "net-night", "net-night", "net-night","Set", "Hours", "Hours", "Hours", "Hours", "Haul", "Haul", "Haul", "Haul", "None", "None", "None", "None", "None", "Hour", "Hour", "None", "None", "None", "None", "None")
+)
+    
+    
     #add effort units to gear tbale       
-    gear_table_mn[effort_table, on = .(sampling_method_abbrev=CODE), total_effort_unit := effort_unit]
+    gear_table_mn[effort_table, on = .(sampling_method_abbrev=Code), `:=` (total_effort_unit = effort_unit, sampling_method_desc = Method)]
+    
     #and push those over to the main df
-    mn_dat[gear_table_mn, on = .(sampling_method_abbrev), total_effort_unit := total_effort_unit]
+    mn_dat[gear_table_mn, on = .(sampling_method_abbrev), `:=` (total_effort_unit = total_effort_unit, sampling_method_desc = sampling_method_desc)]
     
     #cleanup and checkwork
     rm(effort_table)
-    mn_dat[ , .N , .(sampling_method, total_effort_unit)]
+    mn_dat[ , .N , .(sampling_method,sampling_method_desc,  total_effort_unit)]
     
-    mn_dat[ total_effort_1.1 < 0 ] #weird, but not diagnosable/fixable IMO.
-    mn_dat[ total_effort_1.1 < 0, flag := "effort value questionable" ]
+    mn_dat[ total_effort_1 < 0 ] #weird, but not diagnosable/fixable IMO.
+    mn_dat[ total_effort_1 < 0, flag := "effort value questionable" ]
+    
     
 #survey_id 
     mn_dat %>%
-      select(contains("survey_"))
+      select(contains("survey_")) %>% 
+      colnames()
     
-    mn_dat[ ,  .N, .(survey_id == survey_id_effort)]
+    mn_dat[ ,  .N, .(is.na(survey_id), is.na(survey_id_effort))]
     
     #something looks wonky in these survey Ids but the MNDNR says they're not useful anyways... see Minnnesota_README (https://docs.google.com/document/d/1sXag9RDvbKN0pUB6uRlADz36-kFNqRPwHVGlkJgyWTM/edit)
     
-    mn_dat[ , survey_id := NULL , ]
+    mn_dat[ , `:=` (survey_id = NULL, survey_id_effort = NULL, survey_id_indivfish = NULL) , ]
     
     
-    
-   # borrowed this code from county, and it the numbers match. both county and survey ID are cases where we should just consolidate all three cols (no disagreement, outisde of NAs)
-          mn_dat %>% 
-            mutate(same_survID_eff_fish = ifelse(survey_id_effort == survey_id_indivfish, "Same", "Different")) %>% 
-            mutate(same_survID_eff_catch = ifelse(survey_id_effort == survey_id, "Same", "Different")) %>% 
-            mutate(same_survID_catch_fish = ifelse(survey_id == survey_id_indivfish, "Same", "Different")) %>% 
-            group_by(same_survID_eff_fish,same_survID_eff_catch,same_survID_catch_fish) %>% 
-            count()
-          #no conflicting rows between effort and fish, but data might be missing from one or the other
-          
-          mn_dat[, .N, .(catchisNA = is.na(survey_id),
-                                                                effortisNA = is.na(survey_id_effort),
-                                                                fishisNA = is.na(survey_id_indivfish))
-                 ]
-          
-          #collapse:
-          mn_dat[ , survey_id := ifelse(is.na(survey_id_effort), survey_id_indivfish, survey_id_effort) , ]
-          mn_dat[ , county    := ifelse(is.na(county_effort), county_indivfish, county_effort )]
-          
-          mn_dat[ , c("survey_id_indivfish", "survey_id_effort", "county_effort", "county_indivfish") := NULL ,]
-          
-          mn_dat[ , .N, gsub(".", "", as.character(survey_id))]
+#DELETE ME IF SURVEY ID IS NOT NEEDED BELOW 
+   # # borrowed this code from county, and it the numbers match. both county and survey ID are cases where we should just consolidate all three cols (no disagreement, outisde of NAs)
+   #        mn_dat %>% 
+   #          mutate(same_survID_eff_fish = ifelse(survey_id_effort == survey_id_indivfish, "Same", "Different")) %>% 
+   #          mutate(same_survID_eff_catch = ifelse(survey_id_effort == survey_id, "Same", "Different")) %>% 
+   #          mutate(same_survID_catch_fish = ifelse(survey_id == survey_id_indivfish, "Same", "Different")) %>% 
+   #          group_by(same_survID_eff_fish,same_survID_eff_catch,same_survID_catch_fish) %>% 
+   #          count()
+   #        #no conflicting rows between effort and fish, but data might be missing from one or the other
+   #        
+   #        mn_dat[, .N, .(catchisNA = is.na(survey_id),
+   #                                                              effortisNA = is.na(survey_id_effort),
+   #                                                              fishisNA = is.na(survey_id_indivfish))
+   #               ]
+   #        
+   #        #collapse:
+   #        mn_dat[ , survey_id := ifelse(is.na(survey_id_effort), survey_id_indivfish, survey_id_effort) , ]
+   #        mn_dat[ , county    := ifelse(is.na(county_effort), county_indivfish, county_effort )]
+   #        
+   #        mn_dat[ , c("survey_id_indivfish", "survey_id_effort", "county_effort", "county_indivfish") := NULL ,]
+   #        
+   #        mn_dat[ , .N, gsub(".", "", as.character(survey_id))]
           
           
           
 
 #lake_name
-              mn_dat[, .N, .(catchisNA = is.na(lake_name.1),
-                                                                effortisNA = is.na(lake_name.1_effort),
-                                                                fishisNA = is.na(lake_name.1_indivfish))
+              mn_dat[, .N, .(catchisNA = is.na(lake_name),
+                                                                effortisNA = is.na(lake_name_effort),
+                                                                fishisNA = is.na(lake_name_indivfish))
                  ]
             mn_dat %>% 
-            mutate(same_survID_eff_fish = ifelse(lake_name.1_effort == lake_name.1_indivfish, "Same", "Different")) %>% 
-            mutate(same_survID_eff_catch = ifelse(lake_name.1_effort == lake_name.1, "Same", "Different")) %>% 
-            mutate(same_survID_catch_fish = ifelse(lake_name.1 == lake_name.1_indivfish, "Same", "Different")) %>% 
+            mutate(same_survID_eff_fish = ifelse(lake_name_effort == lake_name_indivfish, "Same", "Different")) %>% 
+            mutate(same_survID_eff_catch = ifelse(lake_name_effort == lake_name, "Same", "Different")) %>% 
+            mutate(same_survID_catch_fish = ifelse(lake_name == lake_name_indivfish, "Same", "Different")) %>% 
             group_by(same_survID_eff_fish,same_survID_eff_catch,same_survID_catch_fish) %>% 
             count()
           
-            mn_dat[is.na(lake_name.1), lake_name.1 := ifelse(is.na(lake_name.1_effort), lake_name.1_indivfish, lake_name.1_effort)]
-              mn_dat[ , c("lake_name.1_effort","lake_name.1_indivfish") := NULL]
+            mn_dat[is.na(lake_name), lake_name := ifelse(is.na(lake_name_effort), lake_name_indivfish, lake_name_effort)]
+              mn_dat[ , c("lake_name_effort","lake_name_indivfish") := NULL]
               
 #date
+              sort(names(mn_dat))
+              
+                  mn_dat %>% 
+      select(contains("date")) %>% 
+      colnames()
+              
               mn_dat[ , .N , is.na(date_clean)]
               setnames(mn_dat, "date.1", "date.1_histcatch")
               
               #dump all extra dates:
-              mn_dat[ , c("date.1_effort", "date.2_effort", "end_date", "date.2_indivfish", "date.1_indivfish", "date.1_histcatch") := NULL, ]
+              mn_dat[ , c("date.1_effort", "date.2_effort", "end_date", "date.2_indivfish", "date.1_indivfish", "date") := NULL, ]
               
               
 # add an effort_ident column "lake_id", "date_clean" , "sampling_method_abbrev", "survey_type.1"effort_ident := .GRP
-    setnames(mn_dat, "total_effort_unit", "effort_units.1")
-        mn_dat[ , .N ,.(lake_id, date_clean, survey_type.1, sampling_method_abbrev  #survey 
+    mn_dat[ , .N ,.(lake_id, date_clean, survey_type, sampling_method  #survey 
                                                         ) ]  
-    #outstanding issue here: we've got total_effort mismatched within some surveys
-        mn_dat[ , length(unique(total_effort_1.1)),.( lake_id, date_clean, survey_type.1, #survey 
-                        sampling_method_abbrev 
-                                                        ) ][V1>1] #the offenders
-        
-        #view one of these:
-        a <- mn_dat[date_clean == "1984-08-30" & lake_id == 35000300,  , ]
 
-        #looks to me like those multi-efforts are true to the data. I suppose we have to assume that the data were recorded as each of those implementations of same gear being separate... Not actually sure that matters. but even so the problem exists in 22 surveyXgears of 64040... so prob not a big deal.  
-        
-        
-        mn_dat[ , .N ,.( lake_id, date_clean, survey_type.1, #survey 
-                        sampling_method_abbrev, total_effort_1.1, effort_units.1, nothing_caught 
+        mn_dat[ , .N ,.( lake_id, date_clean, survey_type, #survey 
+                        sampling_method_abbrev, total_effort_1, total_effort_unit, nothing_caught 
                                                         ) ] 
         #adds in our effort_ident field
-        mn_dat[ , effort_ident := .GRP ,.( lake_id, date_clean, survey_type.1, #survey 
-                        sampling_method_abbrev, total_effort_1.1, effort_units.1, nothing_caught 
+        mn_dat[ , total_effort_ident := .GRP ,.( lake_id, date_clean, survey_type, #survey 
+                        sampling_method_abbrev, total_effort_1, total_effort_unit, nothing_caught 
                                                         ) ] 
     
     
 #use mwlaxeref to fetch NHDIDs
-  local_to_nhdhr(mn_dat[,.(lake_id = fixlakeid(lake_id))], from_colname = "lake_id", state = "mn")[,2]
+  mwlaxeref::mn_to_nhdhr(mn_dat, from_colname = "lake_id")[,nhdhr.id]
   
-  mn_dat[ , nhdhr.id := local_to_nhdhr(mn_dat[,.(lake_id = fixlakeid(lake_id))], from_colname = "lake_id", state = "mn")[,2] , ]
+  mn_dat[ , nhdhr.id := mwlaxeref::mn_to_nhdhr(mn_dat, from_colname = "lake_id")[,nhdhr.id] , ]
     
 
   #remaining unmatched lakes:
   mn_dat[is.na(nhdhr.id), .N , lake_id ]
   
-
-    
+#CPUE Y/N column
+  
+  mn_dat[ , .N , notes.1 ]
+  mn_dat[ notes.1 == "CPUE:N" , flag := ifelse(is.na(flag),
+                                                                          "Do not use in CPUE calcs" ,
+                                                                          paste(flag, "Do not use in CPUE calcs", sep = ";" ))]
+#other notes  
+  
+  mn_dat[ , .N , notes ] #send to workshop
+  mn_dat[ , .N , notes.2] #send to workshop
+  mn_dat[ , .N , garbage_bin_notes.1_indivfish] #junk
+  mn_dat[ , .N , garbage_bin_notes.1_effort]#junk
+  mn_dat[ , .N , garbage_bin_notes.2_effort] #junk
+  mn_dat[ , .N , garbage_bin_notes.2_indivfish] #Workshop
+  mn_dat[ , .N , garbage_bin_notes.3] # junk
+  
+#gear notes  
+  mn_dat[ , .N , gear_data_notes]
+  
+  
+## Now grab exportable cols for the workshop
+  names(mn_dat)
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 #get the original file names named correctly and check coverage of sources with them:
   setnames(mn_dat, "original_file_name.1", "original_file_name.1_histcatch")
   mn_dat[ , .N, .(catchNA = is.na(original_file_name.1_histcatch),
@@ -1035,19 +1011,6 @@ mn_dat <- mn_data %>%
   
 
 
-#   This block was used to reload the data after a pause on the work 
-#   mn_dat <- mn_data %>% 
-# +     select(
-# +         state, county, lake_name.1, lake_id, nhdhr.id, 
-# +         date_clean, date.1_effort, date.2_effort, end_date, date.2_indivfish, date.1_indivfish, date.1_histcatch,
-# +         survey_type.1, survey_id, 
-# +         sampling_method, sampling_method_abbrev, total_effort_1.1, effort_units.1, nothing_caught, target_species, effort_ident,
-# +         species.1, species_abbrev, length.1, length_unit.1,weight.1, weight_unit.1, sample_id.1, age, aging_structure, young_of_year, sex,
-# +         original_file_name.1_effort,original_file_name.1_indivfish, original_file_name.1_histcatch, flag
-# +     ) %>%
-# +     collect() %>% 
-# +     setDT()#set as data.table
-#   
   
  # adds columns needed for state filtering
   #adding lake area to the data
@@ -1082,6 +1045,36 @@ mn_dat <- left_join(mn_dat, area, by = c("lake_id" = "DOW")) %>%
 
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Save Parquet
+
+```{r}
+
+
+write_dataset(dataset = flatfish, path = "Data_and_Scripts/Data/output/mn_file_arrow")
+
+mn_data <- open_dataset(sources = "Data_and_Scripts/Data/output/mn_file_arrow/")
+mn_data <- open_dataset(sources = "Data_and_Scripts\\Data\\output\\mn_file_arrow\\")
+
+glimpse(mn_data)
+
+```
+
+
+
 
 
 # Save Parquet

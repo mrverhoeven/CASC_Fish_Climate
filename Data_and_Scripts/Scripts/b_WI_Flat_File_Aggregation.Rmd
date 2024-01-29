@@ -36,7 +36,13 @@ DONE  13. cleannames() to colnames
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
       18. Drop extra columns.
       19. Make sure all cols match the column names and descriptions thing
-      20. 
+      20. Currently no exclusion of rivers or streams. COnsider removing those
+      21. Convert length units to mm
+      22. May lengthed fish do not have a unit on their length
+      23. Throw out rivers and streams (see d_fish_data_maps)
+      24. Check with Paul Frater that inclusions cover what we need
+      25.
+      
 
       
       

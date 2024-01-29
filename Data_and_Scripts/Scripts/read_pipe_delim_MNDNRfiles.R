@@ -23,25 +23,45 @@ library(data.table)
         
         # fwrite(a, "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_cpue_21aug2023.csv" )
 
-
 #OBSERVATIONS
-        b <- fread("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/GH_LAB_RAWFISH_W_AGES_ALL.txt", 
+#         b <- fread("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/GH_LAB_RAWFISH_W_AGES_ALL.txt", 
+#                    na.strings= "null")
+#         
+#         #check last column for errors. This column is most likely to be blank where pipes did not correctly separate columns.
+#         b[ ,summary(FISH_COUNT)]
+#         b[ , sum(FISH_COUNT) , .(SURVEY_ID,SP)][V1==0]
+#         b[!OFF_AGE=="null" , .N ]
+#         b[ , .N ,OFF_AGE]
+#         
+#         b[ , sum(FISH_COUNT) ,]
+#         
+#         #how many aged?
+#         b[ , .N , is.na(OFF_AGE)]
+#         b[ , .N , age]
+# 
+#         # fwrite(b, "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_indiv_fish_23aug2023.csv")
+#New Observations
+        
+        d <- fread("E:\\Shared drives\\Hansen Lab\\RESEARCH PROJECTS\\Fish Survey Data\\MN_Data\\Nov2023_DataUpload\\GH_LAB_RAWFISH_W_AGES_AND_CALCI_STRUC_TP.txt", 
                    na.strings= "null")
         
         #check last column for errors. This column is most likely to be blank where pipes did not correctly separate columns.
-        b[ ,summary(FISH_COUNT)]
-        b[ , sum(FISH_COUNT) , .(SURVEY_ID,SP)][V1==0]
-        b[!OFF_AGE=="null" , .N ]
-        b[ , .N ,OFF_AGE]
+        d[ ,summary(FISH_COUNT)]
+        d[ , sum(FISH_COUNT) , .(SURVEY_ID,SP)][V1==0]
+        d[!OFF_AGE=="null" , .N ]
+        d[ , .N ,OFF_AGE]
         
-        b[ , sum(FISH_COUNT) ,]
+        d[ , sum(FISH_COUNT) ,]
         
         #how many aged?
-        b[ , .N , is.na(OFF_AGE)]
-        b[ , .N , age]
-
-        # fwrite(b, "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_indiv_fish_23aug2023.csv")
+        d[ , .N , is.na(OFF_AGE)]
         
+        #check new structure detail
+        d[ , .N , AGE_SRC ]
+        d[ , .N, .(AGE_SRC, CALCIFIED_STRUC_TYPE_NAME)]    
+        
+        # fwrite(d, "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_indiv_fish_23nov2023.csv")
+
 
 #EFFORT
         c <- fread("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/GH_LAB_UM_EFFORT_ALL.txt", 
@@ -60,6 +80,5 @@ library(data.table)
         
         
         # fwrite(c, "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/mn_effort_18aug2023.csv" )
-
 
 

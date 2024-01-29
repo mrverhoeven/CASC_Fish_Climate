@@ -12,6 +12,7 @@ output: html_document
 3. CRITICAL: The lengths form the inch-group file need to be updated like this: 
      - lengths given as bins will be retained in a length_bin column, with length_bin_units column. Then length.1 gets assigned as the bin midpoint and flag field gets a note added stating "length assigned as midpoint of binned length data" (and units move in parallel)."
 4. Dates in string format changed to match schema
+5. Seems that the current output might be low on # of lakes in there. 
 
 
 

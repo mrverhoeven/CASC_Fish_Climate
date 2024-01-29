@@ -526,7 +526,7 @@ flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_cl
 
 
 #this flatfish file is big AF and will slow down Mike's Hansen Lab Computer (32gb RAM)
-flatfish <- readRDS("Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_merge.rds")
+flatfish <- readRDS("mn_flat_effort_indivfish_merge.rds")
 
 
 
@@ -546,6 +546,20 @@ flatfish <- readRDS("Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_me
 
 mn_dat <- flatfish
 rm(flatfish)
+names(mn_dat)
+
+# dump some known trash
+
+mn_dat[, c("targeted_or_standard_effort", "targeted_or_standard_indivfish", "targeted_or_standard",
+           "new_file_name_effort", "new_file_name_indivfish", "new_file_name",
+           "source_contact_effort", "source_agency", "source_agency_effort", "source_contact_indivfish", "source_agency_indivfish", "source_contact",
+           "file_status_effort", "file_type_effort", "file_status_indivfish", "file_type_indivfish", "file_status", "file_type",
+           "jan2023_inventoried_effort", "jan2023_inventoried_indivfish", "jan2023_inventoried",
+           "data_type_effort", "data_type_indivfish", "data_type",
+           "date_recieved_effort", "date_recieved_indivfish", "date_recieved", 
+           "unique_row_key_effort", "unique_row_key_indivfish", "unique_row_key",
+           "total_count") := NULL, ]
+
 
 #gear full names need filling out
     mn_dat[ , .N , .(sampling_method_abbrev, sampling_method)]
@@ -802,6 +816,11 @@ rm(flatfish)
     #collapse all
     mn_dat[ , `:=` (state = "Minnesota", state_effort = NULL, state_indivfish = NULL) , ]
     
+#fix county
+    mn_dat[ , .N ,  .(county_effort, county_indivfish) ]
+    mn_dat[is.na(county_effort), county_effort := county_indivfish ]
+              mn_dat[ , c("county_indivfish") := NULL]
+    
 
 # fix unit names for length and age
     #formats the length unit for clarity
@@ -872,7 +891,7 @@ rm(flatfish)
     mn_dat[ , .N , .(sampling_method,sampling_method_desc,  total_effort_unit)]
     
     mn_dat[ total_effort_1 < 0 ] #weird, but not diagnosable/fixable IMO.
-    mn_dat[ total_effort_1 < 0, flag := "effort value questionable" ]
+    mn_dat[ total_effort_1 < 0, flag := "effort value error" ]
     
     
 #survey_id 
@@ -936,7 +955,6 @@ rm(flatfish)
       colnames()
               
               mn_dat[ , .N , is.na(date_clean)]
-              setnames(mn_dat, "date.1", "date.1_histcatch")
               
               #dump all extra dates:
               mn_dat[ , c("date.1_effort", "date.2_effort", "end_date", "date.2_indivfish", "date.1_indivfish", "date") := NULL, ]
@@ -945,7 +963,7 @@ rm(flatfish)
 # add an effort_ident column "lake_id", "date_clean" , "sampling_method_abbrev", "survey_type.1"effort_ident := .GRP
     mn_dat[ , .N ,.(lake_id, date_clean, survey_type, sampling_method  #survey 
                                                         ) ]  
-
+        #verify extra fields align with this level
         mn_dat[ , .N ,.( lake_id, date_clean, survey_type, #survey 
                         sampling_method_abbrev, total_effort_1, total_effort_unit, nothing_caught 
                                                         ) ] 
@@ -970,6 +988,8 @@ rm(flatfish)
   mn_dat[ notes.1 == "CPUE:N" , flag := ifelse(is.na(flag),
                                                                           "Do not use in CPUE calcs" ,
                                                                           paste(flag, "Do not use in CPUE calcs", sep = ";" ))]
+  mn_dat[  , notes.1 := NULL , ]
+  
 #other notes  
   
   mn_dat[ , .N , notes ] #send to workshop
@@ -979,42 +999,130 @@ rm(flatfish)
   mn_dat[ , .N , garbage_bin_notes.2_effort] #junk
   mn_dat[ , .N , garbage_bin_notes.2_indivfish] #Workshop
   mn_dat[ , .N , garbage_bin_notes.3] # junk
+
+  mn_dat[ , `:=` (garbage_bin_notes.1_indivfish = NULL, garbage_bin_notes.1_effort = NULL, garbage_bin_notes.2_effort = NULL, garbage_bin_notes.3 = NULL)]
+
   
+      
 #gear notes  
-  mn_dat[ , .N , gear_data_notes]
+  mn_dat[ , .N, gear_data_notes]
+  mn_dat[ , .N, gear_data_notes.1]
+  mn_dat[ , .N, gear_data_notes.2]
+  mn_dat[ , .N, gear_data_notes.3]
+  mn_dat[ , .N, gear_data_notes.4]
+  mn_dat[ , .N, gear_data_notes.5] #junk
+   # mn_dat[!is.na(gear_data_notes.5) , .N , .(gear_data_notes.5, total_effort, total_effort_unit) ]
   
+    mn_dat[ , gear_data_notes.5 := NULL , ]
   
+#location notes  
+  mn_dat[!(location_notes %in% c("LOC_DESC:","LOC_DESC:null")|is.na(location_notes)) , .N , location_notes ]  #keep
+  
+#lake type
+  mn_dat[ , .N , lake_type ] #minimal info, but keep for consistency to other states
+  
+#aging str
+  mn_dat[ , .N , .(aging_structure.1, aging_structure.2) ]
+  mn_dat[ aging_structure.1 == "" , aging_structure.1 := NA , ]
+  mn_dat[aging_structure.2 == "" , aging_structure.2 := NA , ]
+  
+
 ## Now grab exportable cols for the workshop
   names(mn_dat)
   
   
+#what cols go out to the team? (We'll carry these forward & round up at the end)
+  # gear stuff
+        dat <- mn_dat[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , by= .(gear_data_notes, gear_data_notes.1, gear_data_notes.2, gear_data_notes.3, gear_data_notes.4,sampling_method, sampling_method_desc)]
+        
+        # Function to extract the first word from a string
+        extract_first_word <- function(x) {
+          non_na_values <- na.omit(x)
+          if (length(non_na_values) > 0) {
+            first_word <- strsplit(as.character(non_na_values[1]), " ")[[1]][1]
+            return(first_word)
+          }
+          return(NULL)
+        }
+        
+        # Loop through each column and update column name
+        for (col in names(dat)[1:3]) {
+          first_word <- extract_first_word(dat[[col]])
+          if (!is.null(first_word)) {
+            setnames(dat, col, first_word)
+          }
+        }
+
+      # Function to strip the first word from a string
+      strip_first_word <- function(x) {
+        if (!is.na(x)) {
+          stripped_string <- sub("^[^:]+:", "", as.character(x))
+          return(stripped_string)
+        }
+        return(x)
+      }
+      
+      # Loop through each column and update values
+      for (col in names(dat)[1:3]) {
+        dat[, (col) := lapply(.SD[[col]], strip_first_word)]
+      }
+      
+      #fix column names
+      names(dat) <- word(names(dat), 1, sep = fixed(":"))
+      
+      # Print the updated data.table#write to file
+      
+      # fwrite(dat, file = "MN_gear_notes.csv")
   
+# other generic notes
+        dat <- mn_dat[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , by= .(garbage_bin_notes.2_indivfish, location_notes, notes, notes.2)]
+        
+        # Function to extract the first word from a string
+        extract_first_word <- function(x) {
+          non_na_values <- na.omit(x)
+          if (length(non_na_values) > 0) {
+            first_word <- strsplit(as.character(non_na_values[1]), " ")[[1]][1]
+            return(first_word)
+          }
+          return(NULL)
+        }
+        
+        # Loop through each column and update column name
+        for (col in names(dat)[1:3]) {
+          first_word <- extract_first_word(dat[[col]])
+          if (!is.null(first_word)) {
+            setnames(dat, col, first_word)
+          }
+        }
+
+      # Function to strip the first word from a string
+      strip_first_word <- function(x) {
+        if (!is.na(x)) {
+          stripped_string <- sub("^[^:]+:", "", as.character(x))
+          return(stripped_string)
+        }
+        return(x)
+      }
+      
+      # Loop through each column and update values
+      for (col in names(dat)[1:3]) {
+        dat[, (col) := lapply(.SD[[col]], strip_first_word)]
+      }
+      
+      #fix column names
+      names(dat) <- word(names(dat), 1, sep = fixed(":"))
+      
+      # Print the updated data.table#write to file
+      
+      # fwrite(dat, file = "MN_comments_notes.csv")
   
+  rm(col, first_word, dat)
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-#get the original file names named correctly and check coverage of sources with them:
-  setnames(mn_dat, "original_file_name.1", "original_file_name.1_histcatch")
-  mn_dat[ , .N, .(catchNA = is.na(original_file_name.1_histcatch),
-                  fishlengthNA = is.na(original_file_name.1_indivfish),
-                  effortNA = is.na(original_file_name.1_effort))]
   
 
-
-  
- # adds columns needed for state filtering
+# adds columns needed for state filtering
   #adding lake area to the data
-area <- read_csv("Data_and_Scripts/Data/input/mn_lake_list.csv") %>%
+area <- read_csv("mn_lake_list.csv") %>%
   select(DOW, LAKE_AREA_DOW_ACRES) %>%
   mutate(DOW = as.integer(DOW))
 #joins fish data with area data
@@ -1035,9 +1143,89 @@ mn_dat <- left_join(mn_dat, area, by = c("lake_id" = "DOW")) %>%
                                 TRUE ~ "NA")) %>%
   #orders groupings so they plot well
   mutate(area.group = factor(area.group, levels = c("<100", "100-300", "301-600", "601-1500", "1501+")))
-  
-  
+
+
   setnames(mn_dat, c("LAKE_AREA_DOW_ACRES", "area.group"), c("lake_area_dow_acres", "area_group"))
+  
+
+  
+#consolidate original filenames
+  
+  mn_dat[ , original_file_names := str_remove_all(paste(original_file_name_effort,original_file_name_indivfish,original_file_name, sep = ", "),
+                                               ", NA"),]
+  mn_dat[ , `:=` ("original_file_name_effort" = NULL ,"original_file_name_indivfish" = NULL , "original_file_name" = NULL) ,]
+  
+  mn_dat[ , .N ,  original_file_names]
+  
+  mn_dat[ , original_file_names := str_remove_all(original_file_names, "NA, ") , ]
+  
+
+#consolidate total_effort
+  mn_dat[ , .N , .(is.na(total_effort), is.na(total_effort_1)) ]
+  mn_dat[ is.na(total_effort) , total_effort := total_effort_1  , ]
+
+  mn_dat[ , total_effort_1 := NULL ,]
+  
+
+#yoy as age class
+  mn_dat[ , .N  ,  young_of_year]
+  mn_dat[ young_of_year == "Y", age_class := "young_of_year"]
+  mn_dat[ young_of_year == "N", age_class := "not_young_of_year"]
+  mn_dat[ ,young_of_year := NULL]
+      
+  
+    
+# column renaming
+  # clean up these names and match overall schema
+#need to 1. fix current cols to match 2. add missing cols 3.drop all extras 
+mn_dat <- clean_names(mn_dat) #clean up names a touch
+
+#then open into excel an align with the schema (see these IA example files)
+# fwrite(as.data.table(names(mn_dat)), file = "mn_names.csv")
+
+# use the exported csv to align with the column names in the column schema GSheet (https://docs.google.com/spreadsheets/d/1zfevASMxRMxMYNWm3Hq1yR2Qk0zcJV_JnO0LBeODaPQ/edit#gid=0) . 
+# - if you delete a column from your state's names in the sheet, the code below will drop those cols automatically from the data product.
+# - put an NA in the table in each place where your data have no equivalent col and the code below will fill those with NAs in the data product
+# - keep the order of the table in line with the column schema GSheet and that will automatically reorder your data to match the schema GSheet
+# after aligning the names with the schema bring that back in (note that the )
+mn_renamer <- fread( file = "mn_renamer.csv") #read in 
+
+#drop extras
+dropcols <- names(mn_dat)[!(names(mn_dat) %in% mn_renamer[,  minnesota])]
+mn_dat[ , (dropcols) := NULL , ]
+
+#rename ia to fit the schema
+mn_renamer[match(names(mn_dat),mn_renamer[,minnesota]), `fields in all parquet`]
+
+setnames(mn_dat, 
+         old = names(mn_dat),
+         new = mn_renamer[match(names(mn_dat),mn_renamer[,minnesota]), `fields in all parquet`])
+
+
+#missing cols
+mn_renamer[,`fields in all parquet`] %in% names(mn_dat)
+names(mn_dat) %in% mn_renamer[,`fields in all parquet`]
+
+#add misssing names:
+addcols <- mn_renamer[is.na(minnesota) , `fields in all parquet` ,]
+mn_dat[ ,(addcols) := NA , ]
+
+newcolorder <- mn_renamer[ ,`fields in all parquet`]
+
+
+setcolorder(mn_dat, newcolorder)
+
+
+#generate an obs_id
+
+mn_dat[ , .N , obs_id ]
+mn_dat[ , obs_id := .I , ]
+
+  
+  
+  
+  
+  
   
   
   
@@ -1064,7 +1252,7 @@ mn_dat <- left_join(mn_dat, area, by = c("lake_id" = "DOW")) %>%
 ```{r}
 
 
-write_dataset(dataset = flatfish, path = "Data_and_Scripts/Data/output/mn_file_arrow")
+write_dataset(dataset = mn_dat, path = "mn_file_arrow")
 
 mn_data <- open_dataset(sources = "Data_and_Scripts/Data/output/mn_file_arrow/")
 mn_data <- open_dataset(sources = "Data_and_Scripts\\Data\\output\\mn_file_arrow\\")

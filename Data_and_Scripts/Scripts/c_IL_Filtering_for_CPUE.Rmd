@@ -26,6 +26,7 @@ filter_table <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZi
 
 il_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "il_file_arrow"))
 glimpse(il_data)
+
 il_data %>% 
   group_by(species_1) %>% 
   count() %>% 

@@ -16,7 +16,7 @@ library(arrow)
 #data
 ```{r}
 filter_table <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
-  filter(state == "Illinois")
+  filter(state == "Iowa")
 
 ia_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "ia_file_arrow"))
 glimpse(ia_data)
@@ -39,6 +39,8 @@ ia_data %>%
   group_by(sampling_method) %>% 
   count() %>% 
   collect()
+
+
 ```
 
 #filtering walleye

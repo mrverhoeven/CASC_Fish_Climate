@@ -1334,8 +1334,9 @@ write_csv(mi_filtered_species, "MI_all_cpue_filtered.csv")
 ```{r}
 #effort with sampling types
 mi_data %>% 
-  group_by(sampling_method, effort_units.1) %>% 
-  count() %>% 
   collect() %>% 
+  distinct(lake_id, year, sampling_method, .keep_all = T) %>% 
+  group_by(sampling_method, effort_units.1, month(date.1)) %>% 
+  summarise(n = n()) %>% 
   print(n = nrow(.))
 ```

@@ -10,19 +10,10 @@ editor_options:
 
 ## To Do List
 
-    3. Total effort 2 ("distance") did not come to us with any units on it
-    4. lengths from binned fish need to be 1) moved over to length col, 2) units rectified (can do this using word and str_detect see code examples in this doc. then split rnage into min_length, max_length and convert those numerics, then re-paste those two cols into a single one. )
 
 ## Questions for Data Provider:
-- why a bunch of records w/o any data: 
-    #why some with no sample ID? Doesn't matter-- we have no effort data for these, and no species info
-    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(species.1) ,]
-    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(total_effort_1) ,]
-    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(total_effort_2) ,]
-    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(sampling_method.1) ,]
-    ia_fishobs_30Nov2023[sample_id.1 == "" , unique(sampling_method.2) ,]
-- Confirm my understanding of the bad total_count = 0 records was correct
-- Check on the units of effort
+- Pending info for mutliple outstanding items from Jeff Kopaska
+
 
 
 
@@ -199,197 +190,6 @@ for(i in 1:n) {
 ```
 
 
-
-#Obs Data (old)
-##Data Review
-```{r}
-
-# review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
-# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
-
-
-#fish obs
-glimpse(ia_fishlengths_24Oct2023)
-
-#do these data contain any no_fish_caught surveys?
-ia_fishlengths_24Oct2023[total_count.1 == 0, .N] #there are a few zeroes. Let's investigate what they mean...
-
-ia_fishlengths_24Oct2023[ , .N , survey_id][ , summary(N)] #every survey has at least one line
-ia_fishlengths_24Oct2023[ , .("countfish" = sum(total_count.1)), survey_id][ , summary(countfish) ,] #none of the surveys show no fish caught
-#any_no_fish_caught in a gear within a survey situation?
-ia_fishlengths_24Oct2023[, .("countfish" = sum(total_count.1), "countspp" = length(unique(species.1))), site_id.1][ , summary(countfish)] #none of the site_ids seem to show zero either
-
-ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][ ,summary(countfish) ] # again, counting N is not relevant bc we're used binned counts. BUT ..there are some zeros...
-
-ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][countfish == 0 , ,]
-ia_fishlengths_24Oct2023[ total_count.1 == 0 , .N,  ]
-# The zeros that are in here are very limited and I'd suggest they are wonky and inconsistent. 
-
-# No these data do not include seemingly proper zeros. We'll reach out to the IA folks to get a new dataset that gives us all the CPUEs
-
-
-# #but for now, I dug Colin Dassow's old cpue file up. Whats that contain? NOte here that the data rip I'm working with in IA has some Active v. non-active status issue that means I can't see all of the fish data. 
-# ia_cpue_21Aug2021[cpue == 0, .N , ] #almost certainly these are wonky zeros too (incomplete)
-# #here's "all" the survey work:
-# ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method.1) ]
-#and here's whats in the fish lengths:
-ia_fishlengths_24Oct2023[ , date_clean := as.IDate(date.1, format = "%m/%d/%Y") , ]
-# ia_cpue_21Aug2021[ ,date_clean := as.IDate(date.1, format = "%m/%d/%Y")]
-
-#There's no point in comparing these things because we know that the current IA fish obs file does not contain any of the surveys woth status == NOT ACTIVE in the online database/portal 
-# ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method.1) ][!(ia_fishlengths_24Oct2023[ , .N , .(date.1, lake_id,  sampling_method.1)]), on = .( date.1, lake_id,  sampling_method.1) , ]
-
-
-##Back to the fish data:
-ia_fishlengths_24Oct2023[ , .N , .(date.1, date_clean, lake_id,  sampling_method.1)] #check the date cleaning
-summary(ia_fishlengths_24Oct2023$date_clean) #whoa... the years actually seem reasonable...
-
-#where there are surveys showing zeros, are they there as place holders?
-ia_fishlengths_24Oct2023[total_count.1 == 0, .(survey_id, duplicated(survey_id)) , ]
-ia_fishlengths_24Oct2023[survey_id%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(survey_id) ], .N , survey_id 
-]
-#negative. those are not zero surveys. how about for the site_id.1
-ia_fishlengths_24Oct2023[site_id.1%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(site_id.1) ], .N , site_id.1 
-]
-#not relevant to this cause either!
-#generally, this shows us that the zeros that are in here are somewhat meaningless to our cause.
-
-```
-
-## Restructure the fish obs
-```{r}
-#reorganize this beast:
-cols <- as.character(expression(
-    state, county, lake_id, lake_name.1, date_clean, date.1, survey_id,
-    site_id.1, sampling_method.1, total_effort_1, distance, 
-    sample_id.1, species.1, length.1, length_unit.1, weight.1, weight_unit.1, sex, total_count.1,
-    aging_structure.1, aging_structure.2, aging_structure.3, 
-    start_time,
-    lake_type, location_notes.1, lat_unspec, lon_unspec, 
-    original_file_name.1))
-
-setcolorder(ia_fishlengths_24Oct2023, cols)
-
-
-# so if we want a fish as rows setup, we uncount on total_count.1 column. How many rows will that generate? Nearly 1m. 
-ia_fishlengths_24Oct2023[ , sum(total_count.1) , ]
-
-#note that we don't care if we drop the zeros that were in here. We don't think they are useful/meaningful anyway.
-ia_fishlengths <- uncount(ia_fishlengths_24Oct2023, weights = total_count.1, .remove = T, .id = "uncount_id")
-
-# of fish per survey
-ia_fishlengths[ , .N , survey_id]
-# of species per survey
-ia_fishlengths[ , length(unique(species.1)) , survey_id ]
-# check that survey Id does what I think it does
-ia_fishlengths[ , length(unique(lake_id,lake_name.1,date_clean)), survey_id ][V1 > 1]# Because there are no cases where a survey id contains multiple cases of lakeXdate, thi suggests to me survey ID does indeed fit with what we think it does
-
-#check other basic cols
-ia_fishlengths[ ,.N , state ]
-ia_fishlengths[ , .N , county ]
-ia_fishlengths[ , .N , .(lake_id, lake_name.1)]
-  ia_fishlengths[ , unique(lake_name.1) , ] #do all lakes have that goofy code in the name?
-  ia_fishlengths[ , lake_name.1 := word(lake_name.1, 1, -2),] #keep words in the string starting at word 1, ending at second to last
-ia_fishlengths[ , .N , year(date_clean) ]
-  
-# site_id is like total_effort_ident, right?
-ia_fishlengths[ , length(unique(sampling_method.1, survey_id)) , site_id.1][V1>1] #sure looks like it based on this!!!
-ia_fishlengths[ , .N , .(site_id.1, sampling_method.1, survey_id, total_effort_1) ] # and we seem to have ONE effort value for each of these! What a miracle!
-  setnames(ia_fishlengths, "site_id.1", "total_effort_ident")
-  ia_fishlengths[ , total_effort_1_units := "hours"]
-  ia_fishlengths[ , .N , .(total_effort_ident, total_effort_1, distance, sampling_method.1, total_effort_1_units) ]
-  ia_fishlengths[ , summary(distance)]
-  setnames(ia_fishlengths, "distance" , "total_effort_2")
-  ia_fishlengths[ , total_effort_2_units := "distance, units unknown"]
-  ia_fishlengths[ , .N , .(total_effort_ident, total_effort_1, total_effort_1_units, total_effort_2, total_effort_2_units, sampling_method.1) ]
-  
-#sampling method
-ia_fishlengths[ , .N , sampling_method.1 ]
-
-
-#length and weight
-ia_fishlengths[ , `:=` (length_unit.1 = "centimeter", weight_unit.1 = "grams") , ]
-  ia_fishlengths[species.1 == "Walleye", summary(length.1)]
-  
-#species names
-  ia_fishlengths[ , .N , species.1]
-  ia_fishlengths[ , .N , species.1][,species.1]
-    make_clean_names(ia_fishlengths[ , .N , species.1][,species.1])
-  ia_fishlengths[ , species.1 := as.factor(species.1) ,] 
-  setattr(ia_fishlengths$species.1, "levels", make_clean_names(ia_fishlengths[ , .N , species.1][,species.1]))
-  
-
-#sample biological info
-ia_fishlengths[ ,.N , .( is.na(sex)) ]
-ia_fishlengths[ ,.N , .( is.na(aging_structure.1)) ]  
-ia_fishlengths[ ,.N , .( is.na(aging_structure.2)) ]  
-ia_fishlengths[ ,.N , .( is.na(aging_structure.3)) ]#trash
-
-ia_fishlengths[ ,.N , .( is.na(aging_data_notes.1)) ]#trash  
-ia_fishlengths[ ,.N , .( is.na(aging_data_notes.2)) ]#trash  
-ia_fishlengths[ ,.N , .( is.na(aging_data_notes.3)) ]#trash
-
-
-#sample quality notes
-ia_fishlengths[ ,.N , .(garbage_bin_notes.4)]
-ia_fishlengths[ , .N , garbage_bin_notes.5]
-ia_fishlengths[ , .N , garbage_bin_notes.6 ]
-
-ia_fishlengths[garbage_bin_notes.4 == "IsSampleQualityAdequate:FALSE" |
-                garbage_bin_notes.5 == "SamplingIssue:TRUE" ,
-               flag := "sample_issue_state_flagged", ]
-
-#batch counted fish sometimes have lengths (for now we simply move those data over to their own column. In future we'll actually munge them into the length col)
-ia_fishlengths[ , .N , garbage_bin_notes.13]
-  ia_fishlengths[ , batch_l := word(garbage_bin_notes.13, 2, sep = fixed(":")) ,]
-  ia_fishlengths[batch_l == "NA" , batch_l := NA , ]
-  ia_fishlengths[ !is.na(batch_l), .N , .(batch_l,species.1) ]
-  ia_fishlengths[ !is.na(batch_l), .N , .(batch_l) ]
-    ia_fishlengths[ str_detect(batch_l, ".99"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
-    ia_fishlengths[ str_detect(batch_l, ".99"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
-  #convert length to chr to recieve these:
-  # ia_fishlengths[  , length.1:= as.character(length.1)  ,  ]
-  # # now move bin data over there
-  # ia_fishlengths[str_detect(batch_l, ".99")  , `:=` (length.1 = word(batch_l, 1, sep = fixed(".")),
-  #                                                    length_unit.1 = "centimeter",
-  #                                                    batch_l = NA), ]
-  # ia_fishlengths[ str_detect(batch_l, "mm"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
-  #   # now move bin data over there
-  #   ia_fishlengths[str_detect(batch_l, "150mm")  , `:=` (length.1 = word(batch_l, 1, sep = fixed(".")),
-  #                                                      length_unit.1 = "centimeter",
-  #                                                      batch_l = NA), ]
-  # 
-  
-#nothing caught (not yet relevant)
-    ia_fishlengths[ , .N , total_effort_ident][order(N)]
-  
-    
-
-cols <- as.character(expression(
-    state, county, lake_id, lake_name.1, date_clean, date.1, survey_id,
-    total_effort_ident, total_effort_1, total_effort_1_units, total_effort_2, total_effort_2_units, sampling_method.1,
-    sample_id.1, species.1, length.1, length_unit.1, weight.1, weight_unit.1, sex, batch_l,
-    aging_structure.1, aging_structure.2,
-    start_time,
-    lake_type, location_notes.1, lat_unspec, lon_unspec, 
-    original_file_name.1,
-    flag))
-
-ia_fishlengths <- ia_fishlengths[ , .SD  , .SDcols = cols ]
-#notes on this file: 1) has the binned fish lengths in batch_l column; 2) contains no effort units where nothing was caught; contains no ages for these fish because we're waiting on a new database rip from IA
-
-
-
-#fish lengths unpacked, clean up ws
-# rm(ia_fishlengths_24Oct2023, ia_diet_21Aug2021, ia_lake_characteristics_21Aug2021, names, unusedbits, cde)
-
-
-
-
-
-```
-
-
 #Obs Data (new)
 ##Data Review
 ```{r}
@@ -403,10 +203,10 @@ glimpse(ia_fishobs_30Nov2023)
 #do these data contain any no_fish_caught surveys?
 ia_fishobs_30Nov2023[total_count.1 == 0, .N] #Coool. 12k zeros!
 
-## Data Identifiers
-#Here in these data, the *survey_id* is equivalent to our total_effort_ident. 
-ia_fishlengths_24Oct2023[ , .N , survey_id][ , summary(N)] #every survey has at least one line
-ia_fishlengths_24Oct2023[ , .("countfish" = sum(total_count.1)), survey_id][ , summary(countfish) ,] #none of the surveys show no fish caught
+## Data Identifiers--these are ARCHIVED DATA lines
+# #Here in these data, the *survey_id* is equivalent to our total_effort_ident. 
+# ia_fishlengths_24Oct2023[ , .N , survey_id][ , summary(N)] #every survey has at least one line
+# ia_fishlengths_24Oct2023[ , .("countfish" = sum(total_count.1)), survey_id][ , summary(countfish) ,] #none of the surveys show no fish caught
 
 
 #but there is no lake ID
@@ -576,226 +376,401 @@ rm(tot_eff_1)
 #check our work
 ia_fishobs[ , length(unique(total_effort_1)) , total_effort_ident ][V1>1]
 
-a <- ia_fishobs[total_effort_nothing_caught == T]
+#review the nothing caught tot effs
+ia_fishobs[total_effort_nothing_caught == T]
+
+### Manage binned lengths:
+
+ia_fishobs[ , .N ,  .(batch_length)]
+ia_fishobs[ !is.na(length.1) & batch_length != "", .N , .(batch_length,length.1) ]
+#any ranges in herE?
+ia_fishobs[ , unique(length.1)]
+ia_fishobs[ str_detect(length.1, " "), .N , ]
+ia_fishobs[ str_detect(length.1, "-"), .N , ]
+
+ia_fishobs[ , unique(batch_length) , ]
+
+#move age_class to its own column
+ia_fishobs[batch_length %in% c("Young of Year","Adult","Sub-Adult"), .N , batch_length ]
+ia_fishobs[batch_length %in% c("Young of Year","Adult","Sub-Adult"), `:=` (age_class = batch_length, batch_length = NA) ]
+#make blanks into NAs
+ia_fishobs[batch_length %in% c(""), batch_length := NA ]
+
+#move these into the decided schema:
+# Decided that lengths given as bins will be retained in a length_bin column, length_bin_units
+
+ia_fishobs[!is.na(batch_length), `:=` (length_bin = batch_length, length_bin_unit = "inches") , ]
+
+ia_fishobs[ , batch_length := NULL ]
+
+#check for weight situation (Keep as-is, from cde we see that the weights are total weight in lbs)
+ia_fishobs[ , unique(batch_weight) , ]
+#name unit explicitly
+ia_fishobs[!is.na(batch_weight) , batch_weight_unit := "pounds" , ]
 
 
 
+# Dates?
+ia_fishobs[ , .N , .(date.1, lake_name.1, county,  sampling_method.1)] #check the date cleaning
+ia_fishobs[ , summary(as.IDate(date.1,  format = "%m/%d/%Y" )) , ]#whoa... the years actually seem reasonable...
+ia_fishobs[ ,date.1 := as.IDate(date.1, format = "%m/%d/%Y") ,]
 
+#attempt to recover the Lake IDs from the last dataset?
+ia_fishobs[ , .N ,  .(date.1, lake_name.1, county,  sampling_method.1, lat_unspec, lon_unspec)][ is.na(lat_unspec), unique(lake_name.1)]
 
-
-
-
-
-
-
-
-ia_fishobs[ , ]
-
-
-
-
-# get lake locs and codes:
-unique(sd_merged_ce$lake_id)
-
-mwlaxeref::lake_id_xref %>% filter(state == "sd") %>% 
-  group_by(local.id) %>% count() %>% print(n = nrow(.))
-
-
-
-
-
-
-  
-
-
-#consider: notes.8/fish.measurement.id changed so NA if no fish measure on that line (currently == "")
-ia_fishobs_30Nov2023[ species.1 == "", unique(notes.8) , ]
-
-
-
-
-
-#batch count idents & counts:
-ia_fishobs_30Nov2023[ , unique(batch_count_ident) , ]
-  ia_fishobs_30Nov2023[, .N , .(total_count.1,individual_count, batch_count_ident) ]
-ia_fishobs_30Nov2023[ batch_count_ident == "", .N , batch_length ]
-ia_fishobs_30Nov2023[ batch_count_ident == "", c("batch_count_ident", "batch_length", "batch_weight") := NA , ]
-  ia_fishobs_30Nov2023[ !is.na(batch_count_ident) , .(total_count.1, individual_count) , .(batch_count_ident) ][!is.na(total_count.1), , ] #looky there, now no cases of total count not NA in the batch measured fish. 
-  ia_fishobs_30Nov2023[is.na(batch_count_ident) & individual_count >1, .N , ] #any of the non-batch count data tagged as indiv count>1?  
-#total_count is a count of all fish in a survey_id?
-ia_fishobs_30Nov2023[is.na(batch_count_ident), .N , total_count.1]
-ia_fishobs_30Nov2023[, length(unique(total_count.1)), sample_id.1 ][V1>1]
-  a <- ia_fishobs_30Nov2023[sample_id.1 == "8D08DB00-389D-4B90-804E-B07CD6B530AC" ]
-
-
-#any_no_fish_caught in a gear within a survey situation?
-ia_fishlengths_24Oct2023[, .("countfish" = sum(total_count.1), "countspp" = length(unique(species.1))), site_id.1][ , summary(countfish)] #none of the site_ids seem to show zero either
-
-ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][ ,summary(countfish) ] # again, counting N is not relevant bc we're used binned counts. BUT ..there are some zeros...
-
-ia_fishlengths_24Oct2023[, .(.N, "countfish" = sum(total_count.1)), .(site_id.1, species.1)][countfish == 0 , ,]
-ia_fishlengths_24Oct2023[ total_count.1 == 0 , .N,  ]
-# The zeros that are in here are very limited and I'd suggest they are wonky and inconcistent. 
-
-# No these data do not include seemingly proper zeros. We'll reach out to the IA folks to get a new dataset that gives us all the CPUEs
-
-
-# #but for now, I dug Colin Dassow's old cpue file up. Whats that contain? NOte here that the data rip I'm working with in IA has some Active v. non-active status issue that means I can't see all of the fish data. 
-# ia_cpue_21Aug2021[cpue == 0, .N , ] #almost certainly these are wonky zeros too (incomplete)
-# #here's "all" the survey work:
-# ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method.1) ]
-#and here's whats in the fish lengths:
-ia_fishlengths_24Oct2023[ , date_clean := as.IDate(date.1, format = "%m/%d/%Y") , ]
-# ia_cpue_21Aug2021[ ,date_clean := as.IDate(date.1, format = "%m/%d/%Y")]
-
-#There's no point in comparing these things because we know that the current IA fish obs file does not contain any of the surveys woth status == NOT ACTIVE in the online database/portal 
-# ia_cpue_21Aug2021[ , .N , .( date.1, lake_id,  sampling_method.1) ][!(ia_fishlengths_24Oct2023[ , .N , .(date.1, lake_id,  sampling_method.1)]), on = .( date.1, lake_id,  sampling_method.1) , ]
-
-
-##Back to the fish data:
-ia_fishlengths_24Oct2023[ , .N , .(date.1, date_clean, lake_id,  sampling_method.1)] #check the date cleaning
-summary(ia_fishlengths_24Oct2023$date_clean) #whoa... the years actually seem reasonable...
-
-#where there are surveys showing zeros, are they there as place holders?
-ia_fishlengths_24Oct2023[total_count.1 == 0, .(survey_id, duplicated(survey_id)) , ]
-ia_fishlengths_24Oct2023[survey_id%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(survey_id) ], .N , survey_id 
-]
-#negative. those are not zero surveys. how about for the site_id.1
-ia_fishlengths_24Oct2023[site_id.1%in%ia_fishlengths_24Oct2023[total_count.1 == 0, c(site_id.1) ], .N , site_id.1 
-]
-#not relevant to this cause either!
-#generally, this shows us that the zeros that are in here are somewhat meaningless to our cause.
+# Ignoring the looping back in of any ages that are in here vs. in previous files. 
+# #ages?
+# ia_fishobs[!is.na(age), .N , species.1] 
+# 
+# 
+# ia_age_length_21Aug2021[ , .N , species.1 ]
+# ia_BLG_age_length_21Aug2021[ , .N , species.1]
+# ia_CCF_age_length_21Aug2021[ , .N , ]
+# 
+# ia_CCF_age_length_21Aug2021[ , species.1 := "CCF" ,]
+# ia_BLG_age_length_21Aug2021[ , species.1 := "BLG"  ,]
+# 
+# ia_BLG_age_length_21Aug2021[  ,  , .(lake_name.1, yea) ]
+# ia_fishobs[str_detect() , , ]
+# 
 
 ```
 
 ## Restructure the fish obs
 ```{r}
 #reorganize this beast:
-cols <- as.character(expression(
-    state, county, lake_id, lake_name.1, date_clean, date.1, survey_id,
-    site_id.1, sampling_method.1, total_effort_1, distance, 
-    sample_id.1, species.1, length.1, length_unit.1, weight.1, weight_unit.1, sex, total_count.1,
-    aging_structure.1, aging_structure.2, aging_structure.3, 
-    start_time,
-    lake_type, location_notes.1, lat_unspec, lon_unspec, 
-    original_file_name.1))
+names(ia_fishobs)
+names(ia_fishobs)[str_detect(names(ia_fishobs), "notes")]
 
-setcolorder(ia_fishlengths_24Oct2023, cols)
+#notes
+cols = paste(rep("notes",7), (1:7), sep = "." )
 
 
-# so if we want a fish as rows setup, we uncount on total_count.1 column. How many rows will that generate? Nearly 1m. 
-ia_fishlengths_24Oct2023[ , sum(total_count.1) , ]
+ia_fishobs[ , unique(notes.7)] # junk
+ia_fishobs[ , unique(notes.6)] #KEEPER - Team Sort
+ia_fishobs[ , unique(notes.5)] #KEEPER - Flag
+ia_fishobs[ , unique(notes.4)] #KEEEPR - Flag
+ia_fishobs[ , unique(notes.3)] #KEEPER - Flag
+ia_fishobs[ , unique(notes.2)] #KEEPER - Flag and request clarification
+ia_fishobs[ , unique(notes.1)] #KEEPER - Team Sort
 
-#note that we don't care if we drop the zeros that were in here. We don't think they are useful/meaningful anyway.
-ia_fishlengths <- uncount(ia_fishlengths_24Oct2023, weights = total_count.1, .remove = T, .id = "uncount_id")
-
-# of fish per survey
-ia_fishlengths[ , .N , survey_id]
-# of species per survey
-ia_fishlengths[ , length(unique(species.1)) , survey_id ]
-# check that survey Id does what I think it does
-ia_fishlengths[ , length(unique(lake_id,lake_name.1,date_clean)), survey_id ][V1 > 1]# Because there are no cases where a survey id contains multiple cases of lakeXdate, thi suggests to me survey ID does indeed fit with what we think it does
-
-#check other basic cols
-ia_fishlengths[ ,.N , state ]
-ia_fishlengths[ , .N , county ]
-ia_fishlengths[ , .N , .(lake_id, lake_name.1)]
-  ia_fishlengths[ , unique(lake_name.1) , ] #do all lakes have that goofy code in the name?
-  ia_fishlengths[ , lake_name.1 := word(lake_name.1, 1, -2),] #keep words in the string starting at word 1, ending at second to last
-ia_fishlengths[ , .N , year(date_clean) ]
-  
-# site_id is like total_effort_ident, right?
-ia_fishlengths[ , length(unique(sampling_method.1, survey_id)) , site_id.1][V1>1] #sure looks like it based on this!!!
-ia_fishlengths[ , .N , .(site_id.1, sampling_method.1, survey_id, total_effort_1) ] # and we seem to have ONE effort value for each of these! What a miracle!
-  setnames(ia_fishlengths, "site_id.1", "total_effort_ident")
-  ia_fishlengths[ , total_effort_1_units := "hours"]
-  ia_fishlengths[ , .N , .(total_effort_ident, total_effort_1, distance, sampling_method.1, total_effort_1_units) ]
-  ia_fishlengths[ , summary(distance)]
-  setnames(ia_fishlengths, "distance" , "total_effort_2")
-  ia_fishlengths[ , total_effort_2_units := "distance, units unknown"]
-  ia_fishlengths[ , .N , .(total_effort_ident, total_effort_1, total_effort_1_units, total_effort_2, total_effort_2_units, sampling_method.1) ]
-  
-#sampling method
-ia_fishlengths[ , .N , sampling_method.1 ]
+# QC flags retained
+ia_fishobs[ notes.2 == "Sample.IsSampleQualityAdequate:0", flag := "Agency flagged sample quality not adequate",
+            ]
+ia_fishobs[ notes.3 == "Sample.SamplingIssue:1", flag := ifelse(is.na(flag),
+                                                                          "Agency flagged sample issue" ,
+                                                                          fpaste(flag, "Agency flagged sample issue", sep = ";" )
+                                                                          ),
+            ]
+ia_fishobs[ notes.4 != "Sample.IssueCategory:", flag := ifelse(is.na(flag),
+                                                                          notes.4 ,
+                                                                          paste(flag, notes.4, sep = ";" )
+                                                                          ),
+            ]
+ia_fishobs[ notes.5 == "Sample.GearIssue:1", flag := ifelse(is.na(flag),
+                                                                          notes.5 ,
+                                                                          paste(flag, notes.5, sep = ";" )
+                                                                          ),
+            ]
+#drop what needs dropping
+cols = c("notes.7", "notes.5", "notes.4", "notes.3", "notes.2")
+ia_fishobs[ , (cols) := NULL , ]
 
 
-#length and weight
-ia_fishlengths[ , `:=` (length_unit.1 = "centimeter", weight_unit.1 = "grams") , ]
-  ia_fishlengths[species.1 == "Walleye", summary(length.1)]
-  
-#species names
-  ia_fishlengths[ , .N , species.1]
-  ia_fishlengths[ , .N , species.1][,species.1]
-    make_clean_names(ia_fishlengths[ , .N , species.1][,species.1])
-  ia_fishlengths[ , species.1 := as.factor(species.1) ,] 
-  setattr(ia_fishlengths$species.1, "levels", make_clean_names(ia_fishlengths[ , .N , species.1][,species.1]))
-  
-
-#sample biological info
-ia_fishlengths[ ,.N , .( is.na(sex)) ]
-ia_fishlengths[ ,.N , .( is.na(aging_structure.1)) ]  
-ia_fishlengths[ ,.N , .( is.na(aging_structure.2)) ]  
-ia_fishlengths[ ,.N , .( is.na(aging_structure.3)) ]#trash
-
-ia_fishlengths[ ,.N , .( is.na(aging_data_notes.1)) ]#trash  
-ia_fishlengths[ ,.N , .( is.na(aging_data_notes.2)) ]#trash  
-ia_fishlengths[ ,.N , .( is.na(aging_data_notes.3)) ]#trash
-
-
-#sample quality notes
-ia_fishlengths[ ,.N , .(garbage_bin_notes.4)]
-ia_fishlengths[ , .N , garbage_bin_notes.5]
-ia_fishlengths[ , .N , garbage_bin_notes.6 ]
-
-ia_fishlengths[garbage_bin_notes.4 == "IsSampleQualityAdequate:FALSE" |
-                garbage_bin_notes.5 == "SamplingIssue:TRUE" ,
-               flag := "sample_issue_state_flagged", ]
-
-#batch counted fish sometimes have lengths (for now we simply move those data over to their own column. In future we'll actually munge them into the length col)
-ia_fishlengths[ , .N , garbage_bin_notes.13]
-  ia_fishlengths[ , batch_l := word(garbage_bin_notes.13, 2, sep = fixed(":")) ,]
-  ia_fishlengths[batch_l == "NA" , batch_l := NA , ]
-  ia_fishlengths[ !is.na(batch_l), .N , .(batch_l,species.1) ]
-  ia_fishlengths[ !is.na(batch_l), .N , .(batch_l) ]
-    ia_fishlengths[ str_detect(batch_l, ".99"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
-    ia_fishlengths[ str_detect(batch_l, ".99"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
-  #convert length to chr to recieve these:
-  # ia_fishlengths[  , length.1:= as.character(length.1)  ,  ]
-  # # now move bin data over there
-  # ia_fishlengths[str_detect(batch_l, ".99")  , `:=` (length.1 = word(batch_l, 1, sep = fixed(".")),
-  #                                                    length_unit.1 = "centimeter",
-  #                                                    batch_l = NA), ]
-  # ia_fishlengths[ str_detect(batch_l, "mm"), .N , .(batch_l, length.1, garbage_bin_notes.14, garbage_bin_notes.13) ]
-  #   # now move bin data over there
-  #   ia_fishlengths[str_detect(batch_l, "150mm")  , `:=` (length.1 = word(batch_l, 1, sep = fixed(".")),
-  #                                                      length_unit.1 = "centimeter",
-  #                                                      batch_l = NA), ]
-  # 
-  
-#nothing caught (not yet relevant)
-    ia_fishlengths[ , .N , total_effort_ident][order(N)]
-  
-    
-
-cols <- as.character(expression(
-    state, county, lake_id, lake_name.1, date_clean, date.1, survey_id,
-    total_effort_ident, total_effort_1, total_effort_1_units, total_effort_2, total_effort_2_units, sampling_method.1,
-    sample_id.1, species.1, length.1, length_unit.1, weight.1, weight_unit.1, sex, batch_l,
-    aging_structure.1, aging_structure.2,
-    start_time,
-    lake_type, location_notes.1, lat_unspec, lon_unspec, 
-    original_file_name.1,
-    flag))
-
-ia_fishlengths <- ia_fishlengths[ , .SD  , .SDcols = cols ]
-#notes on this file: 1) has the binned fish lengths in batch_l column; 2) contains no effort units where nothing was caught; contains no ages for these fish because we're waiting on a new database rip from IA
+#what cols go out to the team? (We'll carry these forward & round up at the end)
+ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , notes.6]
+ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , notes.1]
 
 
 
-#fish lengths unpacked, clean up ws
-rm(ia_fishlengths_24Oct2023, ia_diet_21Aug2021, ia_lake_characteristics_21Aug2021, names, unusedbits, cde)
 
 
+
+# garbage bin notes
+
+cols = paste(rep("garbage_bin_notes",12), (1:12), sep = "." )
+
+ia_fishobs[ , unique(garbage_bin_notes.12)]# junk
+ia_fishobs[ , unique(garbage_bin_notes.11)]# junk
+ia_fishobs[ , unique(garbage_bin_notes.10)]# junk
+ia_fishobs[ , unique(garbage_bin_notes.9)] # team sort
+ia_fishobs[ , unique(garbage_bin_notes.8)] # junk
+ia_fishobs[ , unique(garbage_bin_notes.7)] # junk
+ia_fishobs[ , unique(garbage_bin_notes.6)] # junk
+ia_fishobs[ , unique(garbage_bin_notes.5)] # junk
+ia_fishobs[ , unique(garbage_bin_notes.4)] # Flag & request clarification
+ia_fishobs[ , unique(garbage_bin_notes.3)] # junk
+ia_fishobs[ , unique(garbage_bin_notes.2)] # junk
+ia_fishobs[ , unique(garbage_bin_notes.1)] # junk
+
+# QC flags retained
+ia_fishobs[ garbage_bin_notes.4 == "Survey.State:Rejected", flag := ifelse(is.na(flag),
+                                                                          "Agency flagged survey rejected" ,
+                                                                          fpaste(flag, "Agency flagged survey rejected", sep = ";" )
+                                                                          ),
+            ]
+
+#drop junk
+cols = cols[!cols %in% c("garbage_bin_notes.9")]
+ia_fishobs[ , (cols) := NULL]
+
+
+
+
+
+
+#gear data notes
+# For the gear data notes, we should NA everything that has :NA in it, then collapse into a single gear data notes col 
+
+#make loop to do this task (need to add code here to drop blanks too[try word(str, 2,  == "") ] )
+cols = paste(rep("gear_data_notes",28), (1:28), sep = "." )
+
+ia_fishobs[ , .SD, .SDcols = cols ]
+#NAs
+for (col in cols) {
+  #col=cols[12]
+  # ia_fishobs[str_detect(eval(parse(text = col)),"NA"), (col) := NA ,]
+  print(ia_fishobs[str_detect(eval(parse(text = col)),"NA"), .N , by = eval((col)) ])#prints whats getting NA'd
+  ia_fishobs[str_detect(eval(parse(text = col)),"NA"), (col) := NA ] #do the NA assignment
+}
+#blanks -- vectorized strategy courtesy of ChatGPT
+for (col in cols) {
+  # Create a logical vector indicating where the condition is met
+  condition <- ia_fishobs[, word(eval(parse(text = col)), 2, sep = fixed(":")) == ""]
+
+  # Print what's getting NA'd
+  print(ia_fishobs[condition, .N, by = eval(parse(text = col))])
+
+  # Do the NA assignment efficiently
+  ia_fishobs[condition, (col) := NA]
+}
+
+
+#shove all into one column as a long string
+ia_fishobs[ , gear_data_notes_1 := ifelse(rowSums(!is.na(.SD)) > 0, apply(.SD, 1, function(x) paste(na.omit(x), collapse = "_")), NA), .SDcols = cols]
+# Collapse non-NA values into a new field by row
+ia_fishobs[ , unique(gear_data_notes_1)][100:115] #review new string column
+# ia_fishobs[ , (cols) := NULL ]
+
+
+cols <- c(cols, "sampling_method.1", "sampling_method.2")
+#cols to ship to team as a df:
+        #what cols go out to the team? (We'll carry these forward & round up at the end)
+        dat <- ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , by= eval((cols))]
+        
+        # Function to extract the first word from a string
+        extract_first_word <- function(x) {
+          non_na_values <- na.omit(x)
+          if (length(non_na_values) > 0) {
+            first_word <- strsplit(as.character(non_na_values[1]), " ")[[1]][1]
+            return(first_word)
+          }
+          return(NULL)
+        }
+        
+        # Loop through each column and update column name
+        for (col in names(dat)[1:28]) {
+          first_word <- extract_first_word(dat[[col]])
+          if (!is.null(first_word)) {
+            setnames(dat, col, first_word)
+          }
+        }
+
+      # Function to strip the first word from a string
+      strip_first_word <- function(x) {
+        if (!is.na(x)) {
+          stripped_string <- sub("^[^:]+:", "", as.character(x))
+          return(stripped_string)
+        }
+        return(x)
+      }
+      
+      # Loop through each column and update values
+      for (col in names(dat)[1:28]) {
+        dat[, (col) := lapply(.SD[[col]], strip_first_word)]
+      }
+      
+      #fix column names
+      names(dat) <- word(names(dat), 1, sep = fixed(":"))
+      
+      # Print the updated data.table#write to file
+      
+      fwrite(dat, file = "Data_and_Scripts/Data/output/IA_gear_notes.csv")
+      
+      rm(dat, a, cols, col, condition)
+
+cols = paste(rep("gear_data_notes",28), (1:28), sep = "." )
+
+ia_fishobs[ , (cols) := NULL]
+      
+      
+# mark recap notes
+
+names(ia_fishobs)[str_detect(names(ia_fishobs), "notes")]
+
+#notes
+cols = paste(rep("mark_recap_data_notes",11), (1:11), sep = "." )
+
+
+ia_fishobs[ , unique(mark_recap_data_notes.1)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.2)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.3)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.4)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.5)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.6)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.7)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.8)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.9)]  # junk
+ia_fishobs[ , unique(mark_recap_data_notes.10)] # junk
+ia_fishobs[ , unique(mark_recap_data_notes.11)] # junk
+
+ia_fishobs[ , (cols) := NULL ]
+
+
+# aging data notes
+
+names(ia_fishobs)[str_detect(names(ia_fishobs), "notes")]
+
+#notes
+cols = paste(rep("aging_data_notes",4), (1:4), sep = "." )
+
+
+ia_fishobs[ , unique(aging_data_notes.1)]  # junk, redundant
+  ia_fishobs[ word(aging_data_notes.1, 2, sep = ":") != "", .N , .("ageatcap" = word(aging_data_notes.1, 2, sep = ":"), length.1)  ][ , .N , .(is.na(length.1), !is.na(ageatcap)) ] #one record--who cares
+ia_fishobs[ , unique(aging_data_notes.2)]  # junk, not true--we've dumped all the BCAL ages from the data
+ia_fishobs[ , unique(aging_data_notes.3)]  # junk
+ia_fishobs[ , unique(aging_data_notes.4)]  # junk
+
+ia_fishobs[ , (cols) := NULL ]
+
+
+
+#check progress on notes:
+names(ia_fishobs)[str_detect(names(ia_fishobs), "notes")]
+
+#round up everything headed to team meeting
+#gear data notes are done
+
+#
+
+
+#what cols go out to the team? (We'll carry these forward & round up at the end)
+        dat <- ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , by= .(notes.1, notes.6, garbage_bin_notes.9)]
+        
+        # Function to extract the first word from a string
+        extract_first_word <- function(x) {
+          non_na_values <- na.omit(x)
+          if (length(non_na_values) > 0) {
+            first_word <- strsplit(as.character(non_na_values[1]), " ")[[1]][1]
+            return(first_word)
+          }
+          return(NULL)
+        }
+        
+        # Loop through each column and update column name
+        for (col in names(dat)[1:3]) {
+          first_word <- extract_first_word(dat[[col]])
+          if (!is.null(first_word)) {
+            setnames(dat, col, first_word)
+          }
+        }
+
+      # Function to strip the first word from a string
+      strip_first_word <- function(x) {
+        if (!is.na(x)) {
+          stripped_string <- sub("^[^:]+:", "", as.character(x))
+          return(stripped_string)
+        }
+        return(x)
+      }
+      
+      # Loop through each column and update values
+      for (col in names(dat)[1:3]) {
+        dat[, (col) := lapply(.SD[[col]], strip_first_word)]
+      }
+      
+      #fix column names
+      names(dat) <- word(names(dat), 1, sep = fixed(":"))
+      
+      # Print the updated data.table#write to file
+      
+      fwrite(dat, file = "Data_and_Scripts/Data/output/IA_comments_notes.csv")
+      
+      rm(dat, cols, col)
+
+names(ia_fishobs)      
+      
+      
+# clean up these names and match overall schema
+#need to 1. fix current cols to match 2. add missing cols 3.drop all extras 
+ia_fishobs <- clean_names(ia_fishobs) #clean up names a touch
+
+#then open into excel an align with the schema (see these IA example files)
+# fwrite(as.data.table(names(ia_fishobs)), file = "Data_and_scripts/Data/output/ia_names.csv")
+
+# use the exported csv to align with the column names in the column schema GSheet (https://docs.google.com/spreadsheets/d/1zfevASMxRMxMYNWm3Hq1yR2Qk0zcJV_JnO0LBeODaPQ/edit#gid=0) . 
+# - if you delete a column from your state's names in the sheet, the code below will drop those cols automatically from the data product.
+# - put an NA in the table in each place where your data have no equivalent col and the code below will fill those with NAs in the data product
+# - keep the order of the table in line with the column schema GSheet and that will automatically reorder your data to match the schema GSheet
+# after aligning the names with the schema bring that back in (note that the )
+ia_renamer <- fread( file = "Data_and_scripts/Data/input/ia_renamer.csv") #read in 
+
+#drop extras
+dropcols <- names(ia_fishobs)[!(names(ia_fishobs) %in% ia_renamer[,  iowa])]
+ia_fishobs[ , (dropcols) := NULL , ]
+
+#rename ia to fit the schema
+ia_renamer[match(names(ia_fishobs),ia_renamer[,iowa]), schema]
+
+setnames(ia_fishobs, 
+         old = names(ia_fishobs),
+         new = ia_renamer[match(names(ia_fishobs),ia_renamer[,iowa]), schema])
+
+
+#missing cols
+ia_renamer[,schema] %in% names(ia_fishobs)
+names(ia_fishobs) %in% ia_renamer[,schema]
+
+#add misssing names:
+addcols <- ia_renamer[is.na(iowa) , schema ,]
+ia_fishobs[ ,(addcols) := NA , ]
+
+newcolorder <- ia_renamer[ ,schema]
+
+
+setcolorder(ia_fishobs, newcolorder)
+
+
+#generate an obs_id
+
+ia_fishobs[ , .N , obs_id ]
+ia_fishobs[ , obs_id := .I , ]
+
+
+
+
+#fish obs unpacked and tidied, clean up ws
+rm(ia_fishobs_30Nov2023, b, cde, ia_age_length_21Aug2021, ia_BLG_age_length_21Aug2021,ia_CCF_age_length_21Aug2021, ia_diet_21Aug2021, ia_lake_characteristics_21Aug2021, names, unusedbits, samplestationlocationmap_drawrectangletofilterlocations, ia_renamer, addcols, dropcols, filei, files_list, first_word, i, maxn, n)
+
+
+#attempt to recover lake IDs?
+#get old IA file:
+ia_dat_old <-  fread("E:\\Shared drives\\Hansen Lab\\RESEARCH PROJECTS\\Fish Survey Data\\IA_Data\\ia_raw_disaggregated_data\\Archived\\ia_fishlengths_24Oct2023.csv")
+
+ialakecodekey <- ia_dat_old[ , .("Lat" = mean(Station_Lat), "Lon" = mean(Station_Long)) , .(County, LakeName, LakeID)]
+
+ialakecodekey[ , LakeName := word(LakeName, 1, sep = fixed(" (")) ,]
+
+ia_fishobs[ , lake_id := as.character(lake_id) ,]
+
+ia_fishobs[ialakecodekey, on = .(county=County, lake_name=LakeName), lake_id := LakeID ]
+
+ia_fishobs[ , length(unique(lake_name)) , is.na(lake_id)]
+
+#now mwlaxeref
+ia_fishobs[ , nhdhr_id := mwlaxeref::ia_to_nhdhr(ia_fishobs, from_colname = "lake_id", )$nhdhr.id , ]
+
+ia_fishobs[ , length(unique(paste(lake_name))) , .("Has_state_lake_ID" = !is.na(lake_id), "Has_state_lake_ID" = !is.na(nhdhr_id)) ]
 
 
 
@@ -813,7 +788,7 @@ rm(ia_fishlengths_24Oct2023, ia_diet_21Aug2021, ia_lake_characteristics_21Aug202
 
 
 
-ia_catch_eff <- as_arrow_table(ia_fishlengths)
+ia_catch_eff <- as_arrow_table(ia_fishobs)
 
 write_dataset(dataset = ia_catch_eff, path = "Data_and_Scripts/Data/output/ia_file_arrow")
 
@@ -1082,6 +1057,25 @@ glimpse(ia_data)
 # Review & QC datasets
 ```{r}
 #here I do some very basic checks on what the data structure and general outputs look like (i.e., s this thing behaving like the obs-level file I think it is?). MI work left here as an idea of a previous state's work. In my opinion, it is not our job to QC the actual observations at this point (like, is a WAE really going to be 500mm at age zero), but instead to use this QC as a check on the operations performed in this script.  
+
+
+
+
+#export a list of lake locations/nhds
+ia_data %>% 
+  group_by(waterbody_type) %>% 
+  count() %>% 
+  collect()
+
+
+ia_data %>%
+  # filter(waterbody_type %in% c(""))
+  group_by(state, county, lake_name, lake_id, nhdhr_id, waterbody_type) %>% 
+  # slice(which(!is.na(lat_unspec) & !is.na(lon_unspec))) %>%
+  summarize(mean_lat = mean(lat_unspec, na.rm = TRUE),
+            mean_lon = mean(lon_unspec, na.rm = TRUE)) %>%
+  collect() %>% 
+  {. ->> ia_lake_locs_25Jan}
 
 
 

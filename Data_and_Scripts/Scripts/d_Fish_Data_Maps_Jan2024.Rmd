@@ -349,7 +349,7 @@ il_filtered <- il_data %>%
 
 # IN all data
 ```{r}
-in_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
+in_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
 glimpse(in_data) #145,944 rows (fish obs)
 
 # IN Reservoirs

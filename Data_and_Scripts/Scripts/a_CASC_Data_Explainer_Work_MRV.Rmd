@@ -5,6 +5,23 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
+#To-do: 
+1. Can I add the suffixes to these field names in a file specific way? This would avoid the new data added with multiple [state] suddennly adding suffixes to all and breaking everyone else's code code.
+
+The answer is yes, and the idea was that within a state, the suffixes could be dropped where the col name is otherwise not duplicated (this will avoid breaking working code in all the other states)
+
+2. Build in somethign to strip ; or, after the last word in a string from the data explainer file. 
+
+
+
+
+
+
+
+
+
+
+
 3/2/23
 Preps data explainer
 ## Load libraries

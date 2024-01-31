@@ -9,12 +9,10 @@ editor_options:
 # Preamble
 updated 11/29
 To Do:
-1. New dataset from Corey (in response to missing structure data in ages)
-2. add obs id for linking to Halk data
 3. Historical WAE survey duplications
-4. Make sure all cols match the column names and descriptions thing
-5. Make sure only CPUE yes records count towards the totals (see lines 213-225 for those counts from the DNR)
-6. Retrieve effort units data (L.273)
+  - first check the CPUE data connection to efforts-- there are a heap of issues with the "External Management Survey" (from effort) versus "External Mgmt Survey" (from indiv fish)
+  - Consider dropping the effort table info where we have a HISTORICAL cpue record (or at least scope this strategy)
+  - See line 1276 for Id of problem records. A band-aid is to drop them using the table. 
 7. 
 
 
@@ -1262,29 +1260,50 @@ glimpse(mn_data)
 ```
 
 
+#sleuth out the MN duplicated data issues:
 
-
-
-# Save Parquet
 
 ```{r}
 
 
+mn_data %>% 
+  group_by(lake_name, lake_id, date, sampling_method) %>% 
+  collect() %>% 
+  summarise(n = n_distinct(survey_type)) %>%
+  filter(n>1) %>% 
+  collect() %>% {. ->> dups}
+
+mn_data %>% 
+  # mutate(year = year(date)) %>%
+  inner_join(dups) %>%
+  group_by(lake_name, lake_id, year(date), sampling_method, survey_type) %>% 
+  summarise(n_catch_all_spp = sum(!is.na(species_1))) %>% collect() %>% {. ->> dups_with_surveytype_and_catch}
+
+dups_with_surveytype_and_catch<- setorder(as.data.table(dups_with_surveytype_and_catch, ), "lake_name", "year(date)")
+
+#After excluding the indfish/effort mismatch
+dups_with_surveytype_and_catch <- dups_with_surveytype_and_catch[!(survey_type %in% c("External Management Survey", "External Mgmt Survey"))]
 
 
 
 
-write_dataset(dataset = mn_dat, path = "Data_and_Scripts/Data/output/mn_file_arrow")
 
-mn_data <- open_dataset("Data_and_Scripts/Data/output/mn_file_arrow/")
 
-glimpse(mn_data)
 
-```
 
-# send some data to chris
 
-```{r}
+
+
+
+
+
+
+
+
+
+
+
+
 
 library(arrow)
 mn_data <- open_dataset("Data_and_Scripts/Data/output/mn_file_arrow/")

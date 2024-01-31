@@ -421,33 +421,49 @@ glimpse(sd_data)
 
 ```
 
-
-# Effort Merge
-```{r}
-#in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
-
-
-                        
-``` 
-          
-          
-          
-# Data tidying                        
-```{r}                       
-### dataset cleanup and tidying. MI work left here as an idea of a previous state's work
-
-
-    
-                        
-                        
-```                        
-                        
+                
  
 
 
 # Review & QC datasets
 ```{r}
-#here I do some very basic checks on what the data structure and general outputs look like (i.e., s this thing behaving like the obs-level file I think it is?). MI work left here as an idea of a previous state's work. In my opinion, it is not our job to QC the actual observations at this point (like, is a WAE really going to be 500mm at age zero), but instead to use this QC as a check on the operations performed in this script.  
+#get the surveys and gears and show how many surveys and how many of each species was caught in those surveys 
+
+sd_data %>% 
+  group_by(total_effort_ident,total_effort_1,total_effort_1_units, sampling_method, year(date_1)) %>% 
+  count() %>%
+  compute()
+
+
+sd_data %>% 
+  group_by(total_effort_ident,total_effort_1,total_effort_1_units, sampling_method) %>%
+  summarise(walleye = sum(species_1 == "walleye", na.rm = T),
+            yellow_perch = sum(species_1 == "yellow_perch", na.rm = T),
+            black_crappie = sum(species_1 == "black_crappie", na.rm = T),
+            bluegill = sum(species_1 == "bluegill", na.rm = T),
+            smallmouth_bass = sum(species_1 == "smallmouth_bass", na.rm = T),
+            largemouth_bass = sum(species_1 == "largemouth_bass", na.rm = T),
+            northern_pike = sum(species_1 == "northern_pike", na.rm = T),
+            lake_whitefish = sum(species_1 == "lake_whitefish", na.rm = T)
+            ) %>%
+  collect()
+
+  sd_data %>% 
+  group_by(state, sampling_method) %>%
+  summarise(
+    n_effort_idents = n_distinct(total_effort_ident),
+    n_walleye = sum(species_1 == "walleye", na.rm = T),
+    n_yellow_perch = sum(species_1 == "yellow_perch", na.rm = T),
+    n_black_crappie = sum(species_1 == "black_crappie", na.rm = T),
+    n_bluegill = sum(species_1 == "bluegill", na.rm = T),
+    n_smallmouth_bass = sum(species_1 == "smallmouth_bass", na.rm = T),
+    n_largemouth_bass = sum(species_1 == "largemouth_bass", na.rm = T),
+    n_northern_pike = sum(species_1 == "northern_pike", na.rm = T),
+    n_lake_whitefish = sum(species_1 == "lake_whitefish", na.rm = T)
+  ) %>%
+    collect() %>% 
+    {. ->> sd_sample_sz}
+
 
 
        

@@ -13,7 +13,10 @@ To Do:
   - first check the CPUE data connection to efforts-- there are a heap of issues with the "External Management Survey" (from effort) versus "External Mgmt Survey" (from indiv fish)
   - Consider dropping the effort table info where we have a HISTORICAL cpue record (or at least scope this strategy)
   - See line 1276 for Id of problem records. A band-aid is to drop them using the table. 
-7. 
+7. bring in the comments, save the notes field and add flags to the database records
+  -   flags as Mike added, flag for representative smapling
+  - where gear notes marked with dippers, bring back dipper # into end of gear desc. 
+  
 
 
 
@@ -1115,6 +1118,9 @@ mn_dat[, c("targeted_or_standard_effort", "targeted_or_standard_indivfish", "tar
       # fwrite(dat, file = "MN_comments_notes.csv")
   
   rm(col, first_word, dat)
+  
+  
+  
   
   
 

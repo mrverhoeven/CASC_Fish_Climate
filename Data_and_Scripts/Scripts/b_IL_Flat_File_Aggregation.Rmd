@@ -979,7 +979,7 @@ no_effort <- il_aged_fish_surveys_12Dec2023 %>%
   select(lake_name.1, lake_id, survey_id, date.1, gear_data_notes.1, total_effort_2, total_effort_1)
 ```
 
-# Data tidying                        
+#Data tidying                        
 ```{r}                       
 glimpse(il_data)
 

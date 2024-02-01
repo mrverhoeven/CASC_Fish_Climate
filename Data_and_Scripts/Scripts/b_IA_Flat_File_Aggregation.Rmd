@@ -94,7 +94,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -107,7 +107,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -773,7 +773,8 @@ ia_fishobs[ , nhdhr_id := mwlaxeref::ia_to_nhdhr(ia_fishobs, from_colname = "lak
 ia_fishobs[ , length(unique(paste(lake_name))) , .("Has_state_lake_ID" = !is.na(lake_id), "Has_state_lake_ID" = !is.na(nhdhr_id)) ]
 
 
-
+#fixing species names
+ia_fishobs
 ```
 
 
@@ -1058,7 +1059,29 @@ glimpse(ia_data)
 ```{r}
 #here I do some very basic checks on what the data structure and general outputs look like (i.e., s this thing behaving like the obs-level file I think it is?). MI work left here as an idea of a previous state's work. In my opinion, it is not our job to QC the actual observations at this point (like, is a WAE really going to be 500mm at age zero), but instead to use this QC as a check on the operations performed in this script.  
 
+ia_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "ia_file_arrow"))
+glimpse(ia_data)
 
+ia_data %>% 
+  distinct(total_effort_ident, sampling_method) %>% 
+  group_by(total_effort_ident, sampling_method) %>% 
+  count() %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  filter(n > 2) %>% 
+  collect() %>% 
+  print( n = nrow(.)) 
+#total effort idents with more than one sampling method
+
+ia_data %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  collect() %>% 
+  mutate(species_1 = str_to_lower(species_1),
+         species_1 = str_replace_all(species_1, " ", "_"),
+         species_1 = case_when(species_1 == "" ~ NA,
+                               TRUE ~ species_1)) %>% #make sure this is okay
+  print(n = nrow(.))
 
 
 #export a list of lake locations/nhds

@@ -15,7 +15,7 @@ editor_options:
       -collect
       -could minimize the number of things I call to make a survey distinct (only include total effort ident)
 3. I have realized filtering by fish level parameters is not the best way to go
-      -instead, if a fish level parameter is of intrest - include that variable in counting for cpue
+      -instead, if a fish level parameter is of interest - include that variable in counting for cpue
 4. only use total effort ident in the grouping for cpue
 5. change the call of na species to nothing caught
 6. collect first before calling the distinct function
@@ -32,8 +32,40 @@ library(arrow)
 #Data
 ```{r}
 mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "mn_file_arrow"))
-
 glimpse(mn_data)
+
+#creating columns for filtering by lake area
+
+#creating y/n column for if survey type is good for abundance
+mn_data %>% 
+  mutate(rep.type = case_when(survey_type %in% c("HISTORICAL", 
+                                           "Large Lake Survey", 
+                                           "Population Assessment",
+                                           "Standard Survey",
+                                           "Initial Survey",
+                                           "Re-Survey") ~ "y",
+                        TRUE ~ "n")) %>% 
+  distinct(total_effort_ident, survey_type, rep.type) %>% 
+  group_by(survey_type, rep.type) %>%
+  count() %>% 
+  collect()
+
+#max effort filter
+mn_data %>% 
+  filter(survey_type %in% c("HISTORICAL", 
+                            "Large Lake Survey",
+                            "Population Assessment",
+                            "Standard Survey",
+                            "Initial Survey",
+                            "Re-Survey")) %>% 
+  filter(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets",
+                                "Standard gill net sets",
+                                "Standard gill nets, set shallow in stratified assessment")) %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
+  collect() %>% 
+  ggplot() +
+  geom_histogram(aes(total_effort_1)) + 
+  facet_wrap(~sampling_method, scales = "free")
 ```
 
 General structure for each filtering chunks:
@@ -52,16 +84,10 @@ General structure for each filtering chunks:
 #filters for metric and selects columns needed for survey filtering
 filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
   filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "walleye") %>% 
-  rename(survey_type.1 = survey_type) %>% 
   select(-metric,
          -species_1,
          -water_temp_min,
-         -water_temp_max,
-         -target_species_1,
-         -target_species_2,
-         -survey_type_effort,
-         -length_min,
-         -length_max)
+         -water_temp_max)
 
 #filters for surveys that are good measures of abundance for given fish species
 #first, merge the filter table with the data - selects for non-numeric parameters important for abundance 
@@ -69,7 +95,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 #third, filter the surveys based on numeric values 
 good_surveys <- mn_data %>% 
   right_join(filter_table_effort, by = c("state",
-                                        "survey_type.1",
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
@@ -81,10 +106,12 @@ good_surveys <- mn_data %>%
            area_group,
            effort_min,
            month_min,
-           month_max) %>% 
+           month_max,
+           rep.type) %>% 
   filter(total_effort_1.1 >= effort_min,
          month(date_clean) >= month_min,
-         month(date_clean) <= month_max) %>% 
+         month(date_clean) <= month_max,
+         rep.type == "y") %>% 
   collect()
 
 #gather fish from the surveys deemed good for abundance of the given species

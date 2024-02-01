@@ -36,8 +36,7 @@ DONE  13. cleannames() to colnames
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
       18. Drop extra columns.
       19. Make sure all cols match the column names and descriptions thing
-      20. Currently no exclusion of rivers or streams. COnsider removing those
-      21. Convert length units to mm
+      21. Convert length units to mm (2/1 - decided not to convert based on discussion of sig. digits)
       22. May lengthed fish do not have a unit on their length
       23. Throw out rivers and streams (see d_fish_data_maps)
       24. Check with Paul Frater that inclusions cover what we need
@@ -74,7 +73,7 @@ options(scipen = 999)
 * needs an update to nix warnings (see Github issue on this)
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 #grabs only.csv files
 files_list
 
@@ -86,7 +85,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -997,10 +996,145 @@ wi_inland_fishobservations_19Mar2021 %>%
 # wi_inland_fishobservations_19Mar2021[total_effort_ident == 726827] #these are two shitty records
 
 
+#fixing state name
+wi_inland_fishobservations_19Mar2021 <- wi_inland_fishobservations_19Mar2021 %>% 
+  mutate(state = "Wisconsin")
+
+#sifting for lakes (so our data does not contain lakes/stream)
+
+wi_lat_long <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
+  mutate(lake.id = as.character(lake.id))
+
+# downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
+WI_hydro_list <- read_csv("24k_Hydro_Waterbodies_(Open_Water).csv")
+
+# seems "HYDROTYPE" could be useful for filtering out rivers/streams
+WI_hydrotype <- WI_hydro_list %>%
+  group_by(HYDROTYPE)%>%
+  summarise(Total_Obs = n())%>%
+  mutate(HYDROTYPE_DEF = case_when(HYDROTYPE == 601 ~ "Ditch/canal", 
+                                   HYDROTYPE == 602 ~ "Stream/river",
+                                   HYDROTYPE == 610 ~ "Cranberry bog",
+                                   HYDROTYPE == 701 ~ "Backwater",
+                                   HYDROTYPE == 702 ~ "Fish Hatchery",
+                                   HYDROTYPE == 703 ~ "Flooded Excavation",
+                                   HYDROTYPE == 704 ~ "Innundation Area",
+                                   HYDROTYPE == 705 ~ "Industrial Waste Pond",
+                                   HYDROTYPE == 706 ~ "Lake/Pond",
+                                   HYDROTYPE == 707 ~ "Reservoir/Flowage",
+                                   HYDROTYPE == 708 ~ "Sewage Disposal Pond",
+                                   HYDROTYPE == 709 ~ "Tailings Pond",
+                                   HYDROTYPE == 710 ~ "Unspecified Open Water")) 
+# HYDROTYPE info from https://widnr.widen.net/s/f8sldtk6qf/hydro_waterbody_data_dict
+
+WI_hydrotype_2 <- WI_hydro_list %>%
+  mutate(HYDROTYPE_DEF = case_when(HYDROTYPE == 601 ~ "Ditch/canal", 
+                                   HYDROTYPE == 602 ~ "Stream/river",
+                                   HYDROTYPE == 610 ~ "Cranberry bog",
+                                   HYDROTYPE == 701 ~ "Backwater",
+                                   HYDROTYPE == 702 ~ "Fish Hatchery",
+                                   HYDROTYPE == 703 ~ "Flooded Excavation",
+                                   HYDROTYPE == 704 ~ "Innundation Area",
+                                   HYDROTYPE == 705 ~ "Industrial Waste Pond",
+                                   HYDROTYPE == 706 ~ "Lake/Pond",
+                                   HYDROTYPE == 707 ~ "Reservoir/Flowage",
+                                   HYDROTYPE == 708 ~ "Sewage Disposal Pond",
+                                   HYDROTYPE == 709 ~ "Tailings Pond",
+                                   HYDROTYPE == 710 ~ "Unspecified Open Water"))%>%
+  group_by(HYDROTYPE_DEF, HYDROTYPE)%>%
+  summarise(Total = n())
+
+WI_hydrotype_WBIC <- WI_hydro_list %>%
+  group_by(WATERBODY_WBIC, HYDROTYPE)%>%
+  summarise(Total_Obs = n())%>%
+  mutate(HYDROTYPE_DEF = case_when(HYDROTYPE == 601 ~ "Ditch/canal", 
+                                   HYDROTYPE == 602 ~ "Stream/river",
+                                   HYDROTYPE == 610 ~ "Cranberry bog",
+                                   HYDROTYPE == 701 ~ "Backwater",
+                                   HYDROTYPE == 702 ~ "Fish Hatchery",
+                                   HYDROTYPE == 703 ~ "Flooded Excavation",
+                                   HYDROTYPE == 704 ~ "Innundation Area",
+                                   HYDROTYPE == 705 ~ "Industrial Waste Pond",
+                                   HYDROTYPE == 706 ~ "Lake/Pond",
+                                   HYDROTYPE == 707 ~ "Reservoir/Flowage",
+                                   HYDROTYPE == 708 ~ "Sewage Disposal Pond",
+                                   HYDROTYPE == 709 ~ "Tailings Pond",
+                                   HYDROTYPE == 710 ~ "Unspecified Open Water"))%>%
+  mutate(lake_id = as.character(WATERBODY_WBIC)) #88,147
+
+WI_hydrotypes_ALL <- WI_hydro_list %>%
+  select(WATERBODY_NAME, WATERBODY_WBIC, HYDROCODE, HYDROTYPE, RIVER_SYS_WBIC)%>%
+  mutate(lake_id = as.character(WATERBODY_WBIC))%>%
+  mutate(river_sys_wbic = as.character(RIVER_SYS_WBIC))
+
+WI_dat_with_hydrotype <-wi_inland_fishobservations_19Mar2021 %>% 
+  group_by(lake_id, lake_name_1) %>% #only group by state lake id
+  collect()%>%
+  summarise(Total_obs = n())%>%
+  left_join(WI_hydrotypes_ALL, by = "lake_id")%>%
+  mutate(HYDROTYPE_DEF = case_when(HYDROTYPE == 601 ~ "Ditch/canal", 
+                                   HYDROTYPE == 602 ~ "Stream/river",
+                                   HYDROTYPE == 610 ~ "Cranberry bog",
+                                   HYDROTYPE == 701 ~ "Backwater",
+                                   HYDROTYPE == 702 ~ "Fish Hatchery",
+                                   HYDROTYPE == 703 ~ "Flooded Excavation",
+                                   HYDROTYPE == 704 ~ "Innundation Area",
+                                   HYDROTYPE == 705 ~ "Industrial Waste Pond",
+                                   HYDROTYPE == 706 ~ "Lake/Pond",
+                                   HYDROTYPE == 707 ~ "Reservoir/Flowage",
+                                   HYDROTYPE == 708 ~ "Sewage Disposal Pond",
+                                   HYDROTYPE == 709 ~ "Tailings Pond",
+                                   HYDROTYPE == 710 ~ "Unspecified Open Water"))%>%
+  filter(is.na(HYDROTYPE)) #there are 4,698 WBICs where we have fish data but it isn't in the WI hydro database and not on WI lake finder webapge.. probably fine but may want to investigate further at a later time... 
+  
 
 
+WI_hydrotype_WBIC_check <- WI_hydrotype_WBIC %>%
+  mutate(check = 1)%>%
+  pivot_wider(names_from = HYDROTYPE_DEF, values_from = check)%>%
+  mutate(multi_hydrotype_check = sum(c("Ditch/canal","Stream/river","Cranberry bog","Backwater","Fish Hatchery","Flooded Excavation","Innundation Area","Industrial Waste Pond","Lake/Pond","Reservoir/Flowage","Sewage Disposal Pond","Tailings Pond","Unspecified Open Water"))) #filter for anything > 1
+
+#88,147 unique WBIC+Hydrotype and only 87,833 unique WBIC
 
 
+WI_names_ALL <- WI_hydro_list %>%
+  select(WATERBODY_NAME, HYDROTYPE, WATERBODY_WBIC)%>%
+  mutate(waterbody_name = na_if(WATERBODY_NAME, "Unnamed"))%>%
+  mutate(wbic = as.character(WATERBODY_WBIC))
+
+wi_lake_names <- wi_inland_fishobservations_19Mar2021 %>%
+  group_by(lake_id)%>%
+  collect()%>%
+  summarise(lake_name = first(lake_name_1, na_rm = TRUE),
+            county = first(county, na_rm = TRUE))%>%
+  left_join(WI_names_ALL, by = c("lake_id" = "wbic"))%>%
+  mutate(lake_name = if_else(is.na(lake_name), waterbody_name, lake_name))%>%
+  group_by(lake_id)%>%
+  summarise(lake_name = first(lake_name, na_rm = TRUE),
+            county = first(county, na_rm = TRUE),
+            hydrotype = mean(HYDROTYPE))
+
+         
+wi_filtered <- wi_inland_fishobservations_19Mar2021 %>% 
+  group_by(lake_id) %>% #only group by state lake id
+  collect()%>%
+  summarise(nhdhr_id = first(nhdhr_id),
+            n = n())%>%
+  left_join(wi_lat_long, by =c("lake_id" = "lake.id"))%>%
+  left_join(wi_lake_names, by = "lake_id")%>%
+  rename(state_id = lake_id,
+         total_obs = n,
+         lon = long)%>%
+  filter(hydrotype %in% c(701, 706:707))%>% #filters to keep only lakes/reservoirs and backwaters
+  select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
+  mutate(state = "WI")%>%
+  print(n = nrow(.)) #6908 lakes before removing lotic, now 2126
+
+rm(wi_lake_names, wi_lat_long)
+
+#cutting the fish as rows data frame by the object filtered only to contain lakes
+wi_inland_fishobservations_19Mar2021 <- wi_inland_fishobservations_19Mar2021 %>% 
+  right_join(wi_filtered)
 
 
 ```

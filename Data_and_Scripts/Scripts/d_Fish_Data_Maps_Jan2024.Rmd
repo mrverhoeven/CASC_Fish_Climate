@@ -3,6 +3,8 @@ title: "Fish_Data_Maps_Jan2024"
 author: "Holly Masui"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 # load in required packages
@@ -231,8 +233,6 @@ rm(wi_lake_names, wi_lat_long)
 
 # seems like many obs may not have lake name or county
 # missing most of the nhd ids
-
-
 
 ```
 

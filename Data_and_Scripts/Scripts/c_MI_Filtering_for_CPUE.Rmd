@@ -16,8 +16,24 @@ library(arrow)
 #data
 ```{r}
 mi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "mi_file_arrow"))
-
 glimpse(mi_data)
+
+mi_data %>% 
+  collect() %>% 
+  distinct(effort_ident, .keep_all = T) %>%
+  ggplot() +
+  geom_histogram(aes(total_effort_1.1_effort)) + 
+  geom_vline(xintercept = c(2, 30)) +
+  facet_wrap(~sampling_method, scales = "free")
+
+mi_data %>% 
+  collect() %>% 
+  distinct(effort_ident, .keep_all = T) %>%
+  group_by(sampling_method) %>% 
+  summarise(min.month = min(month(date.1), na.rm = T),
+            max.month = max(month(date.1), na.rm = T),
+            avg.month = mean(month(date.1), na.rm = T),
+            n = n())
 ```
 
 Filtering steps within Michigan:
@@ -33,20 +49,14 @@ Filtering steps within Michigan:
 #filters for metric (adult abundance) and selects columns needed for survey filtering
 filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
   filter(metric == "adult_abundance" & state == "Michigan" & species_1 == "walleye") %>% 
-  rename(survey_type.1_effort = survey_type) %>% 
   select(-metric,
          -species_1,
-         -survey_type_effort,
-         -target_species_1,
-         -target_species_2,
          -area_group,
          -month_min,
          -month_max,
          -water_temp_min,
          -water_temp_max,
-         -area_group,
-         -length_min,
-         -length_max)
+         -area_group)
 
 good_surveys <- mi_data %>% 
   mutate(state = "Michigan") %>% 

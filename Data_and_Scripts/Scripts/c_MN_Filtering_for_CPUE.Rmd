@@ -66,6 +66,53 @@ mn_data %>%
   ggplot() +
   geom_histogram(aes(total_effort_1)) + 
   facet_wrap(~sampling_method, scales = "free")
+
+mn_data %>% 
+  filter(survey_type %in% c("HISTORICAL", 
+                            "Large Lake Survey",
+                            "Population Assessment",
+                            "Standard Survey",
+                            "Initial Survey",
+                            "Re-Survey")) %>% 
+  filter(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets",
+                                "Standard gill net sets",
+                                "Standard gill nets, set shallow in stratified assessment")) %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1, survey_type) %>% 
+  collect() %>% 
+  ggplot() +
+  geom_histogram(aes(total_effort_1)) + 
+  facet_grid(survey_type~sampling_method, scales = "free")
+
+#cisco gears?
+mn_data %>% 
+  group_by(sampling_method, survey_type) %>% 
+  count() %>% 
+  arrange(sampling_method) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+mn_data %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>% 
+  filter(!is.na(total_effort_1)) %>% 
+  summarise(min(total_effort_1), max(total_effort_1)) %>% 
+  collect()
+
+mn_data %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>% 
+  filter(!is.na(total_effort_1)) %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
+  collect() %>% 
+  summarise(less.1 = sum(total_effort_1 <= 1),
+            n = n(),
+            min.month = min(month(date)),
+            max.month = max(month(date))) %>% 
+  select(less.1, n, min.month, max.month) %>% 
+  print()
+
+mn_data %>% 
+  distinct(total_effort_ident, total_effort_1) %>% 
+  summarise(max(total_effort_1)) %>% 
+  collect()
 ```
 
 General structure for each filtering chunks:
@@ -87,31 +134,41 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   select(-metric,
          -species_1,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -survey_type)
 
 #filters for surveys that are good measures of abundance for given fish species
 #first, merge the filter table with the data - selects for non-numeric parameters important for abundance 
 #second, collapse the data into survey level
 #third, filter the surveys based on numeric values 
-good_surveys <- mn_data %>% 
+good_surveys <- mn_data %>%
+  #filter for correct survey_type
+  mutate(survey_type_filter = case_when(survey_type %in% c("HISTORICAL", 
+                                                 "Large Lake Survey", 
+                                                 "Population Assessment",
+                                                 "Standard Survey",
+                                                 "Initial Survey",
+                                                 "Re-Survey") ~ "y", 
+                              TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date_clean,
-           survey_type.1,
+           date,
            sampling_method,
-           total_effort_1.1,
-           effort_units.1,
+           total_effort_ident,
+           total_effort_1,
            area_group,
            effort_min,
+           effort_max,
            month_min,
            month_max,
-           rep.type) %>% 
-  filter(total_effort_1.1 >= effort_min,
-         month(date_clean) >= month_min,
-         month(date_clean) <= month_max,
-         rep.type == "y") %>% 
+           survey_type_filter) %>% 
+  filter(total_effort_1 >= effort_min,
+         total_effort_1 <= effort_max,
+         month(date) >= month_min,
+         month(date) <= month_max,
+         survey_type_filter == "y") %>% 
   collect()
 
 #gather fish from the surveys deemed good for abundance of the given species
@@ -123,36 +180,17 @@ adult_walleye <- mn_data %>%
 #create cpue for species of interest
 adult_walleye_cpue <- adult_walleye %>% 
   #grouping by survey level parameters to get survey level counts
-  group_by(lake_id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
+  group_by(total_effort_ident) %>% 
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'walleye')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
   mutate(count = case_when(is.na(species.1) ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
-  mutate(cpue = count/as.numeric(total_effort_1.1)) %>%
+  mutate(cpue = count/total_effort_1) %>%
   #collapse data into survey level cpue (also works as a select function)
-  distinct(lake_id,
-           lake_name.1,
-           nhdhr.id,
-           date_clean,
-           survey_type.1,
-           sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           nothing_caught,
-           area_group,
-           effort_min,
-           count,
-           cpue) %>% 
-  collect()
+  distinct(total_effort_ident,
+           .keep_all = T)
 
 
 #checking filtering
@@ -161,62 +199,47 @@ adult_walleye_cpue <- adult_walleye %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+  summarise(min.month = min(month(date)), 
+            max.month = max(month(date)),
+            n = n())
 
-#sampling method
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  count()
-
-#survey purpose
-good_surveys %>% 
-  group_by(survey_type.1) %>% 
-  count()
-
-#do I have all area groupings?
-good_surveys %>% 
-  group_by(sampling_method, area_group) %>% 
-  count()
 
 #min effort by grouping
 good_surveys %>% 
   group_by(area_group, sampling_method) %>% 
-  summarise(min_effort = min(total_effort_1.1))
+  summarise(min_effort = min(total_effort_1),
+            n = n())
 
 
 #checks after collecting all fish data
-
-#checking final filter
-adult_walleye %>% 
-  group_by(species.1) %>% 
-  count()
-
-#is the state label the same for all fish
-adult_walleye %>% 
-  group_by(state) %>% 
-  count()
-
 #is each sampling method correct for the filter?
 adult_walleye %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_clean)), max.month = max(month(date_clean)))
+  summarise(min.month = min(month(date)), 
+            max.month = max(month(date)),
+            n = n())
+
+adult_walleye %>% 
+  group_by(survey_type, sampling_method, survey_type_filter) %>% 
+  count()
 
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_walleye %>% 
   distinct(lake_id,
            date_clean,
-           survey_type.1,
+           survey_type,
            sampling_method,
-           total_effort_1.1,
-           effort_units.1,
-           area_group,
-           effort_min) %>% 
+           total_effort_1) %>% 
   group_by(sampling_method) %>% 
+  glimpse()
+
+adult_walleye %>% 
+  distinct(total_effort_ident) %>% 
   glimpse()
 
 
 #checks after calculating cpue
-
 #range of cpues?
 adult_walleye_cpue %>% 
   group_by(sampling_method) %>% 

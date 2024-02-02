@@ -1363,5 +1363,10 @@ il_data %>%
   group_by(sampling_method_1, total_effort_1_units) %>% 
   summarise(min = min(total_effort_1), max = max(total_effort_1), mean = mean(total_effort_1)) %>% 
   collect()
+
+il_filtered_species %>% 
+  ggplot() + 
+  geom_point(aes(total_effort_1, cpue)) + 
+  facet_grid(species_1~sampling_method, scales = "free")
 ```
 

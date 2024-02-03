@@ -94,7 +94,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -107,7 +107,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -201,31 +201,36 @@ for(i in 1:n) {
 glimpse(ia_fishobs_30Nov2023)
 
 #do these data contain any no_fish_caught surveys?
-ia_fishobs_30Nov2023[total_count.1 == 0, .N] #Coool. 12k zeros!
-
-## Data Identifiers--these are ARCHIVED DATA lines
-# #Here in these data, the *survey_id* is equivalent to our total_effort_ident. 
-# ia_fishlengths_24Oct2023[ , .N , survey_id][ , summary(N)] #every survey has at least one line
-# ia_fishlengths_24Oct2023[ , .("countfish" = sum(total_count.1)), survey_id][ , summary(countfish) ,] #none of the surveys show no fish caught
-
+ia_fishobs_30Nov2023[total_count.1 == 0, .N] #Coool. 12k zeros! Later we'll see a bunch of these are erroneous.(Line 231 -  Line 303)
 
 #but there is no lake ID
+ia_fishobs_30Nov2023[, .N,secondary_lake_id] #this is not a lake id. It is ther Survey.SurveyID field (put here in data explainer to make import easier)
 ia_fishobs_30Nov2023[, unique(site_id.1) , ]
 ia_fishobs_30Nov2023[ , unique(lake_name.1) , ]
 ia_fishobs_30Nov2023[ , length(unique(lat_unspec)) , .(lake_name.1,county) ][V1>1]
 #looks like we can get there with a county-lake key
 
-# The had a var called survey.SurveyID that we renamed to Secondary_Lake_ID -- this combines....???????????
-ia_fishobs_30Nov2023[ , length(unique(secondary_lake_id)) , .(lake_name.1, date.1, survey_type.1 ) ][V1>1]
+# They had a var called survey.SurveyID that we renamed to Secondary_Lake_ID -- this combines all of the "Survey.visitIDs"(surveyID) in a survey
+ia_fishobs_30Nov2023[ , length(unique(secondary_lake_id)) , .(lake_name.1, county, lat_unspec, lon_unspec , date.1, survey_id) ][V1>1]
+# and does survey_id (was "SurveyvisitID") parse gears? NO it does not. 
+ia_fishobs_30Nov2023[ , length(unique(sampling_method.1)) , .(lake_name.1, county, lat_unspec, lon_unspec , date.1, survey_id, secondary_lake_id) ][V1>1]
+
+
+
 
 a <- ia_fishobs_30Nov2023[lake_name.1 == "Ada Hayden Heritage Park Lake" & date.1 == "10/4/2010"  & survey_type.1 == "General" ]
-  a[ , length(unique(secondary_lake_id)) , .(lake_name.1, date.1, survey_type.1 ) ][V1>1]
+  a[ , length(unique(secondary_lake_id)) , .(lake_name.1,county, date.1, survey_type.1 ) ][V1>1]
 
 setcolorder(ia_fishobs_30Nov2023, c("lake_name.1", "county", "lat_unspec", "lon_unspec",
                                     "survey_type.1", "secondary_lake_id", "sampling_method.1", "sampling_method.2", "gear_data_notes.1", "date.1","start_time", "year", "site_id.1",
                                     "survey_id","total_effort_1", "total_effort_2", "total_count.1",
                                     "sample_id.1","notes.8","batch_count_ident","species.1" , "individual_count", "length.1", "weight.1", "batch_length", "batch_weight"
                                        ))  
+
+
+### Erroneous zeros
+
+
 # beacuse they drew together databases, there's a bit of craziness that happened with the survey_ident having 1 record that  says total_count = 0 (indicating that total_eff_ident has 0 indiv_fish observations), but one batch count record with N>0
 ia_fishobs_30Nov2023[ , .N , sample_id.1 ][N==1]
 
@@ -239,17 +244,17 @@ ia_fishobs_30Nov2023[ , .(num_tot_eff_vals=length(unique(total_effort_1)), n_tot
 #any sample with >2 total_count cal? NO, if yes would have indicated that there were more than just the batch count row probs
 ia_fishobs_30Nov2023[ , .(num_tot_eff_vals=length(unique(total_effort_1)), n_total_count_vals = length(unique(total_count.1)), summed_indiv_count = sum(individual_count, na.rm = T), length(unique(notes.8))),  , .(sample_id.1) ][n_total_count_vals>2]
 
-# so to summarize what we think has happened here: the total_count value was assigned to each sample_id.1 based on the fish measurement table. That means that if only batch counted fish were pulled from a gear, it got a total_count that was 0 and a line in the data for that zero. TO rectify this, we want to find all total_count==0, where no batch_count data exist. For these there should be only one row (all fish came from the ind_fish data) 
+#### so to summarize what we think has happened here: the total_count value was assigned to each sample_id.1 based on the fish measurement table. That means that if only batch counted fish were pulled from a gear, it got a total_count that was 0 and a line in the data for that zero. TO rectify this, we want to find all total_count==0, where no batch_count data exist. For these there should be only one row (all fish came from the ind_fish data) 
 
-#if we eliminate the batch rows, does the problem go away? Yep!
-ia_fishobs_30Nov2023[ batch_count_ident == "" , .(num_tot_eff_vals=length(unique(total_effort_1)), n_total_count_vals = length(unique(total_count.1)), summed_indiv_count = sum(individual_count, na.rm = T), length(unique(notes.8))),  , .(sample_id.1) ][n_total_count_vals>1]
-
-#for sample.id's with only one total_count val, if the summed indiv count col == 0, that sample_id should be assigned a nothing_caught==T (note that total_count for these reocrds is NA)
-ia_fishobs_30Nov2023[   ,  n_sample_id.1_totalcount_vals := length(unique(total_count.1))  , sample_id.1 ]
-ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1]
-ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][is.na(V2)] #this line is garbage
-ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][V2==0]# These are our zeros!!!!!!
-ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][sample_id.1 == "000490DE-1F58-4596-922E-F578C4118D8E"] #investigate a known record
+      #if we eliminate the batch rows, does the problem go away? Yep!
+      ia_fishobs_30Nov2023[ batch_count_ident == "" , .(num_tot_eff_vals=length(unique(total_effort_1)), n_total_count_vals = length(unique(total_count.1)), summed_indiv_count = sum(individual_count, na.rm = T), length(unique(notes.8))),  , .(sample_id.1) ][n_total_count_vals>1]
+      
+      #for sample.id's with only one total_count val, if the summed indiv count col == 0, that sample_id should be assigned a nothing_caught==T (note that total_count for these reocrds is NA)
+      ia_fishobs_30Nov2023[   ,  n_sample_id.1_totalcount_vals := length(unique(total_count.1))  , sample_id.1 ]
+      ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1]
+      ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][is.na(V2)] #this line is garbage
+      ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][V2==0]# These are our zeros!!!!!!
+      ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sample_id.1][sample_id.1 == "000490DE-1F58-4596-922E-F578C4118D8E"] #investigate a known record
 
 
 ##Funky Sample IDs?
@@ -280,27 +285,29 @@ ia_fishobs_30Nov2023[survey_id == ""]
 
 
 #okay, now stick in a sub_effort_nothing_caught
-
-#must deal with zero count batches:  
-ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sub_effort_ident][,summary(summed_indiv_count)]#make sure there are no NAs in here
-ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sub_effort_ident][summed_indiv_count == 0, V2]
-#are there any cases where the batch count record is there but was a zero?
-ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .N , sub_effort_ident]#yes
-#do all of these have another row holding them in?
-ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident]
-
-#peel off sub_eff IDs: 
-ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident][, sub_effort_ident]
-
-#see if all of these have a non-batch record: 
-match( ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident][, sub_effort_ident],
-       ia_fishobs_30Nov2023[ batch_count_ident == "" , sub_effort_ident]
-)
-#confirm that there are not any just batch count records fo sub_eff:
-ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 1 & !batch_count_ident == "" & individual_count == 0, .N ,] 
-
-#All of this means we can drop these 0 batch count records
-ia_fishobs_30Nov2023 <- ia_fishobs_30Nov2023[!(!batch_count_ident == "" & individual_count == 0),] 
+      
+      #must deal with zero count batches:  
+      ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sub_effort_ident][,summary(summed_indiv_count)]#make sure there are no NAs in here
+      ia_fishobs_30Nov2023[ n_sample_id.1_totalcount_vals == 1 , .("summed_indiv_count" = sum(individual_count, na.rm = T), unique(total_count.1)) , sub_effort_ident][summed_indiv_count == 0, V2]
+      #are there any cases where the batch count record is there but was a zero?
+      ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .N , sub_effort_ident]#yes
+      #do all of these have another row holding them in?
+      ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident]
+      # Yes they do
+      
+      
+      #peel off sub_eff IDs: 
+      ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident][, sub_effort_ident]
+      
+      #see if all of these have a non-batch record: 
+      match( ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 2 & !batch_count_ident == "" & individual_count == 0, .( n_unique_batch_vals = length(unique(individual_count)) , n_batch_rows = .N ,n_sample_id.1_totalcount_vals) , sub_effort_ident][, sub_effort_ident],
+             ia_fishobs_30Nov2023[ batch_count_ident == "" , sub_effort_ident]
+      )
+      #confirm that there are not any just batch count records fo sub_eff:
+      ia_fishobs_30Nov2023[n_sample_id.1_totalcount_vals == 1 & !batch_count_ident == "" & individual_count == 0, .N ,] 
+      
+      #All of this means we can drop these 0 batch count records
+      ia_fishobs_30Nov2023 <- ia_fishobs_30Nov2023[!(!batch_count_ident == "" & individual_count == 0),] 
 
 #back to the sub_eff_ident_nothing_caught:
 
@@ -346,12 +353,14 @@ ia_fishobs <- rbindlist(list(ia_fishobs_30Nov2023[is.na(batch_count_ident)],
                         uncount(ia_fishobs_30Nov2023[!is.na(batch_count_ident)], weights = individual_count, .remove = TRUE, .id = "uncount_ident")),
                         fill = TRUE)  
 
-#now total_effort_idents exist, but the total efforts within are actual sub_efforts
+#now total_effort_idents exist, but they are no good(have multi-gear contents), but the total efforts within are actual sub_efforts
+ia_fishobs[ , length(unique(sampling_method.1)) , total_effort_ident ][ , summary(V1) ]
 ia_fishobs[!is.na(total_effort_1) , length(unique(total_effort_1)) , total_effort_ident ][ , summary(V1) ]
 ia_fishobs[!is.na(total_effort_2) , length(unique(total_effort_2)) , total_effort_ident ]
-#see here, these efforts belong to a sub_effort:
+#see here, these efforts belong to a sub_effort in a clean way:
 ia_fishobs[ , length(unique(total_effort_1)) , sub_effort_ident ][ , summary(V1) ]
 ia_fishobs[ , length(unique(total_effort_2)) , sub_effort_ident ][ , summary(V1) ]
+
 
 #as such, total_effort_1&2 are actually a sub_effort_ident
   setnames(ia_fishobs, old = c("total_effort_1", "total_effort_2"),new = c("sub_effort_1", "sub_effort_2") )
@@ -362,19 +371,151 @@ ia_fishobs[ , `:=` (sub_effort_1_units = "hours", sub_effort_2_units = "distance
 ia_fishobs[   ,   ,  ]
 
 
-#now calc effort for each total_effort_ident
-ia_fishobs[ , length(unique(sub_effort_ident)) , .(total_effort_ident)  ]
-tot_eff_1 <- ia_fishobs[ , .N ,
-                         .(total_effort_ident,sub_effort_ident,sub_effort_1,sub_effort_2, sub_effort_nothing_caught)  ][ ,
-                                                                                                                          .("total_eff_1" = sum(sub_effort_1),
-                                                                                                                               "total_eff_2" = sum(sub_effort_2),
-                                                                                                                               "total_eff_nc" = all(sub_effort_nothing_caught)) ,.(total_effort_ident)]
+#naming reminder
+          # as submitted =   "Survey.SurveyID", "Survey.SurveyVisitID", "Sample.SampleId", "FishmeasurementID", "Fish.BatchcountID"
+#          on import = c("secondary_lake_id", "survey_id", "sample_id.1", "notes.8", "batch_count_ident"),
+#          new = c("survey_id", "total_effort_ident", "sub_effort_ident", "fish_ident", "batch_count_ident"))
+
+
+
+#now calc effort for each total_effort_ident (and generate a new total_effort_ident)
+ia_fishobs[ , length(unique(sub_effort_ident)) , .(total_effort_ident)  ][ , summary(V1) ]
+ia_fishobs[ , length(unique(sampling_method.1)) , .(total_effort_ident)  ][ , summary(V1) ]
+
+# make a tot eff ident
+#check key to make:
+ia_fishobs[ , length(unique(lake_name.1)) ,  .(survey_id, sampling_method.1)]
+ia_fishobs[ , paste(unique(sampling_method.2)) ,  .(survey_id, sampling_method.1)]
+
+# gotta fix sampling method before we can make new tot eff idents:
+gear_corrections <- fread(file = "Data_and_Scripts/Data/input/IA_gear_notes- revisions.csv")
+#rename these and tidy up those columns  a bit:
+#gear data notes
+        # For the gear data notes, we should NA everything that has :NA in it, then collapse into a single gear data notes col 
+        
+        #make loop to do this task (need to add code here to drop blanks too[try word(str, 2,  == "") ] )
+        cols = paste(rep("gear_data_notes",28), (1:28), sep = "." )
+        
+        ia_fishobs[ , .SD, .SDcols = cols ]
+        #NAs
+        for (col in cols) {
+          #col=cols[12]
+          # ia_fishobs[str_detect(eval(parse(text = col)),"NA"), (col) := NA ,]
+          print(ia_fishobs[str_detect(eval(parse(text = col)),"NA"), .N , by = eval((col)) ])#prints whats getting NA'd
+          ia_fishobs[str_detect(eval(parse(text = col)),"NA"), (col) := NA ] #do the NA assignment
+        }
+        #blanks -- vectorized strategy courtesy of ChatGPT
+        for (col in cols) {
+          # Create a logical vector indicating where the condition is met
+          condition <- ia_fishobs[, word(eval(parse(text = col)), 2, sep = fixed(":")) == ""]
+        
+          # Print what's getting NA'd
+          print(ia_fishobs[condition, .N, by = eval(parse(text = col))])
+        
+          # Do the NA assignment efficiently
+          ia_fishobs[condition, (col) := NA]
+        }
+
+#check to make sure guts of these cols jive with the gear_corrections table
+        
+# now make their names jive:        
+        names(gear_corrections)
+        ia_fishobs[ , .SD, .SDcols = cols ][1]
+        
+        # Function to extract the first word from a string
+        extract_first_word <- function(x) {
+          non_na_values <- na.omit(x)
+          if (length(non_na_values) > 0) {
+            first_word <- strsplit(as.character(non_na_values[1]), " ")[[1]][1]
+            return(first_word)
+          }
+          return(NULL)
+        }
+        
+        # Loop through each column and update column name
+        for (col in cols) {
+          first_word <- extract_first_word(ia_fishobs[[col]])
+          if (!is.null(first_word)) {
+            setnames(ia_fishobs, col, first_word)
+          }
+        }
+
+      # Function to strip the first word from a string
+      strip_first_word <- function(x) {
+        if (!is.na(x)) {
+          stripped_string <- sub("^[^:]+:", "", as.character(x))
+          return(stripped_string)
+        }
+        return(x)
+      }
+      
+      # Loop through each column and update values
+      cols_2 = names(ia_fishobs)[str_detect(names(ia_fishobs), ":")]
+      
+      for (col in cols_2) {
+        ia_fishobs[, (col) := lapply(.SD[[col]], strip_first_word)]
+      }
+      
+      #fix column names
+      names(ia_fishobs) <- word(names(ia_fishobs), 1, sep = fixed(":"))
+      
+      cols_3 <- word(cols_2, 1, sep = fixed(":"))
+      
+      #bring in the new gear type names:
+      names(gear_corrections) %in% c(names(ia_fishobs))
+      
+      setkeyv(gear_corrections, cols_3)
+      # ia_fishobs[ , Sample.GearTypeDesc := as.character(Sample.GearTypeDesc) , ]
+      # ia_fishobs[ , Sample.Depth := as.character(Sample.Depth) , ]
+      ia_fishobs[,(cols_3):= lapply(.SD, as.character), .SDcols = cols_3]
+      setkeyv(ia_fishobs, cols_3)
+      
+      gear_corrections[,(cols_3):= lapply(.SD, as.character), .SDcols = cols_3]
+      gear_corrections[gear_corrections==''] <- NA
+      
+      
+      
+      ia_fishobs[gear_corrections, on = cols_3, consolidated_gear := `Consolidated Gear`  , ]       
+        
+      ia_fishobs[ , .N , consolidated_gear]
+      
+      ia_fishobs[is.na(consolidated_gear), .N , .(sampling_method.1,sampling_method.2) ]
+      ia_fishobs[is.na(consolidated_gear), consolidated_gear := paste(sampling_method.2, "Unspecified", sep = " ") ]
+      ia_fishobs[ , .N , consolidated_gear]
+      
+#Now we have improved gear names, generate new total effort idents:
+      
+      ia_fishobs[ , length(unique(consolidated_gear)) , sub_effort_ident  ]
+      #checkdate
+      ia_fishobs[ , length(unique(date.1)) , .(survey_id) ][V1>1]
+      ia_fishobs[ ,date.1 := as.IDate(date.1, format = "%m/%d/%Y") ,]
+      #set new survey level date
+      ia_fishobs[  , survey_start_date := min(date.1)  , survey_id  ]
+      
+      ia_fishobs[ , .N , .(lake_name.1, survey_start_date, survey_id, consolidated_gear )]
+      
+      ia_fishobs[ , visit_ID := total_effort_ident , ]
+      ia_fishobs[ , total_effort_ident := .GRP , .(lake_name.1, survey_start_date, survey_id, consolidated_gear )]
+
+      ia_fishobs[ , .N , total_effort_ident ]
+      
+      
+      tot_eff_1 <- ia_fishobs[ , .N ,
+                               .(lake_name.1, survey_start_date, survey_id, consolidated_gear,total_effort_ident,
+                                 sub_effort_ident, sub_effort_1,sub_effort_2, sub_effort_nothing_caught)  ][ ,
+                                                                                                             .("total_eff_1" = sum(sub_effort_1),
+                                                                                                               "total_eff_2" = sum(sub_effort_2),
+                                                                                                               "total_eff_nc" = all(sub_effort_nothing_caught)),
+                                                                                                             .(total_effort_ident)]
+      
 ia_fishobs[tot_eff_1, on = ("total_effort_ident"), `:=` ("total_effort_1" = total_eff_1, "total_effort_2" = total_eff_2, "total_effort_nothing_caught" = total_eff_nc) , ]
 ia_fishobs[ , `:=` (total_effort_1_units = "hours", total_effort_2_units = "distance") ,]
 rm(tot_eff_1)
 
 #check our work
 ia_fishobs[ , length(unique(total_effort_1)) , total_effort_ident ][V1>1]
+ia_fishobs[ , length(unique(consolidated_gear)) , total_effort_ident ][V1>1]
+
 
 #review the nothing caught tot effs
 ia_fishobs[total_effort_nothing_caught == T]
@@ -454,6 +595,8 @@ ia_fishobs[ , unique(notes.3)] #KEEPER - Flag
 ia_fishobs[ , unique(notes.2)] #KEEPER - Flag and request clarification
 ia_fishobs[ , unique(notes.1)] #KEEPER - Team Sort
 
+
+
 # QC flags retained
 ia_fishobs[ notes.2 == "Sample.IsSampleQualityAdequate:0", flag := "Agency flagged sample quality not adequate",
             ]
@@ -480,10 +623,6 @@ ia_fishobs[ , (cols) := NULL , ]
 #what cols go out to the team? (We'll carry these forward & round up at the end)
 ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , notes.6]
 ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , notes.1]
-
-
-
-
 
 
 # garbage bin notes
@@ -522,86 +661,93 @@ ia_fishobs[ , (cols) := NULL]
 #gear data notes
 # For the gear data notes, we should NA everything that has :NA in it, then collapse into a single gear data notes col 
 
-#make loop to do this task (need to add code here to drop blanks too[try word(str, 2,  == "") ] )
-cols = paste(rep("gear_data_notes",28), (1:28), sep = "." )
-
-ia_fishobs[ , .SD, .SDcols = cols ]
-#NAs
-for (col in cols) {
-  #col=cols[12]
-  # ia_fishobs[str_detect(eval(parse(text = col)),"NA"), (col) := NA ,]
-  print(ia_fishobs[str_detect(eval(parse(text = col)),"NA"), .N , by = eval((col)) ])#prints whats getting NA'd
-  ia_fishobs[str_detect(eval(parse(text = col)),"NA"), (col) := NA ] #do the NA assignment
-}
-#blanks -- vectorized strategy courtesy of ChatGPT
-for (col in cols) {
-  # Create a logical vector indicating where the condition is met
-  condition <- ia_fishobs[, word(eval(parse(text = col)), 2, sep = fixed(":")) == ""]
-
-  # Print what's getting NA'd
-  print(ia_fishobs[condition, .N, by = eval(parse(text = col))])
-
-  # Do the NA assignment efficiently
-  ia_fishobs[condition, (col) := NA]
-}
+#This is moved way up in data review section
+# #make loop to do this task (need to add code here to drop blanks too[try word(str, 2,  == "") ] )
+# cols = paste(rep("gear_data_notes",28), (1:28), sep = "." )
+# 
+# ia_fishobs[ , .SD, .SDcols = cols ]
+# #NAs
+# for (col in cols) {
+#   #col=cols[12]
+#   # ia_fishobs[str_detect(eval(parse(text = col)),"NA"), (col) := NA ,]
+#   print(ia_fishobs[str_detect(eval(parse(text = col)),"NA"), .N , by = eval((col)) ])#prints whats getting NA'd
+#   ia_fishobs[str_detect(eval(parse(text = col)),"NA"), (col) := NA ] #do the NA assignment
+# }
+# #blanks -- vectorized strategy courtesy of ChatGPT
+# for (col in cols) {
+#   # Create a logical vector indicating where the condition is met
+#   condition <- ia_fishobs[, word(eval(parse(text = col)), 2, sep = fixed(":")) == ""]
+# 
+#   # Print what's getting NA'd
+#   print(ia_fishobs[condition, .N, by = eval(parse(text = col))])
+# 
+#   # Do the NA assignment efficiently
+#   ia_fishobs[condition, (col) := NA]
+# }
 
 
 #shove all into one column as a long string
-ia_fishobs[ , gear_data_notes_1 := ifelse(rowSums(!is.na(.SD)) > 0, apply(.SD, 1, function(x) paste(na.omit(x), collapse = "_")), NA), .SDcols = cols]
+ia_fishobs[, gear_data_notes_1 := apply(.SD, 1, function(row) {
+  non_na_elements <- na.omit(row)
+  paste(names(non_na_elements), ":", non_na_elements, collapse = "; ")
+}), .SDcols = cols_3]
+
 # Collapse non-NA values into a new field by row
 ia_fishobs[ , unique(gear_data_notes_1)][100:115] #review new string column
 # ia_fishobs[ , (cols) := NULL ]
 
+#This data product is brought back in up above. 
+# 
+# cols <- c(cols, "sampling_method.1", "sampling_method.2")
+# 
+# #cols to ship to team as a df:
+#         #what cols go out to the team? (We'll carry these forward & round up at the end)
+#         dat <- ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , by= eval((cols))]
+#         
+#         # Function to extract the first word from a string
+#         extract_first_word <- function(x) {
+#           non_na_values <- na.omit(x)
+#           if (length(non_na_values) > 0) {
+#             first_word <- strsplit(as.character(non_na_values[1]), " ")[[1]][1]
+#             return(first_word)
+#           }
+#           return(NULL)
+#         }
+#         
+#         # Loop through each column and update column name
+#         for (col in names(dat)[1:28]) {
+#           first_word <- extract_first_word(dat[[col]])
+#           if (!is.null(first_word)) {
+#             setnames(dat, col, first_word)
+#           }
+#         }
+# 
+#       # Function to strip the first word from a string
+#       strip_first_word <- function(x) {
+#         if (!is.na(x)) {
+#           stripped_string <- sub("^[^:]+:", "", as.character(x))
+#           return(stripped_string)
+#         }
+#         return(x)
+#       }
+#       
+#       # Loop through each column and update values
+#       for (col in names(dat)[1:28]) {
+#         dat[, (col) := lapply(.SD[[col]], strip_first_word)]
+#       }
+#       
+#       #fix column names
+#       names(dat) <- word(names(dat), 1, sep = fixed(":"))
+#       
+#       # Print the updated data.table#write to file
+#       
+#       fwrite(dat, file = "Data_and_Scripts/Data/output/IA_gear_notes.csv")
+#       
+#       rm(dat, a, cols, col, condition)
+# 
+# cols = paste(rep("gear_data_notes",28), (1:28), sep = "." )
 
-cols <- c(cols, "sampling_method.1", "sampling_method.2")
-#cols to ship to team as a df:
-        #what cols go out to the team? (We'll carry these forward & round up at the end)
-        dat <- ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , by= eval((cols))]
-        
-        # Function to extract the first word from a string
-        extract_first_word <- function(x) {
-          non_na_values <- na.omit(x)
-          if (length(non_na_values) > 0) {
-            first_word <- strsplit(as.character(non_na_values[1]), " ")[[1]][1]
-            return(first_word)
-          }
-          return(NULL)
-        }
-        
-        # Loop through each column and update column name
-        for (col in names(dat)[1:28]) {
-          first_word <- extract_first_word(dat[[col]])
-          if (!is.null(first_word)) {
-            setnames(dat, col, first_word)
-          }
-        }
-
-      # Function to strip the first word from a string
-      strip_first_word <- function(x) {
-        if (!is.na(x)) {
-          stripped_string <- sub("^[^:]+:", "", as.character(x))
-          return(stripped_string)
-        }
-        return(x)
-      }
-      
-      # Loop through each column and update values
-      for (col in names(dat)[1:28]) {
-        dat[, (col) := lapply(.SD[[col]], strip_first_word)]
-      }
-      
-      #fix column names
-      names(dat) <- word(names(dat), 1, sep = fixed(":"))
-      
-      # Print the updated data.table#write to file
-      
-      fwrite(dat, file = "Data_and_Scripts/Data/output/IA_gear_notes.csv")
-      
-      rm(dat, a, cols, col, condition)
-
-cols = paste(rep("gear_data_notes",28), (1:28), sep = "." )
-
-ia_fishobs[ , (cols) := NULL]
+ia_fishobs[ , (cols_3) := NULL]
       
       
 # mark recap notes
@@ -649,10 +795,7 @@ ia_fishobs[ , (cols) := NULL ]
 names(ia_fishobs)[str_detect(names(ia_fishobs), "notes")]
 
 #round up everything headed to team meeting
-#gear data notes are done
-
-#
-
+#gear data notes are done, now draw in the flags and deletes:
 
 #what cols go out to the team? (We'll carry these forward & round up at the end)
         dat <- ia_fishobs[ , .("records" = .N, "surveys" = length(unique(total_effort_ident))) , by= .(notes.1, notes.6, garbage_bin_notes.9)]
@@ -694,18 +837,125 @@ names(ia_fishobs)[str_detect(names(ia_fishobs), "notes")]
       
       # Print the updated data.table#write to file
       
-      fwrite(dat, file = "Data_and_Scripts/Data/output/IA_comments_notes.csv")
+      # fwrite(dat, file = "Data_and_Scripts/Data/output/IA_comments_notes.csv")
       
       rm(dat, cols, col)
 
 names(ia_fishobs)      
+   # implement Jack's flags and deletions
+    notes_corrections <- fread(file = "Data_and_Scripts/Data/input/IA_comments_notes_revisions.csv")
+    
+#tidy up the iowa data to match for filter on jack's key
+    
+    ia_fishobs[ , .SD , .SDcols = cols_4 ]
+
+        # Function to extract the first word from a string
+        extract_first_word <- function(x) {
+          non_na_values <- na.omit(x)
+          if (length(non_na_values) > 0) {
+            first_word <- strsplit(as.character(non_na_values[1]), " ")[[1]][1]
+            return(first_word)
+          }
+          return(NULL)
+        }
+        
+        cols_4 <- c("notes.1", "notes.6", "garbage_bin_notes.9")
+        
+        # Loop through each column and update column name
+        for (col in cols_4) {
+          first_word <- extract_first_word(ia_fishobs[[col]])
+          if (!is.null(first_word)) {
+            setnames(ia_fishobs, col, first_word)
+          }
+        }
+
+      # Function to strip the first word from a string
+      strip_first_word <- function(x) {
+        if (!is.na(x)) {
+          stripped_string <- sub("^[^:]+:", "", as.character(x))
+          return(stripped_string)
+        }
+        return(x)
+      }
+      
+      #fix column names
+      names(ia_fishobs) <- word(names(ia_fishobs), 1, sep = fixed(":"))
+      
+      cols_5 <- c("Survey.Notes", "Sample.Notes", "Survey.Comment")
+      # Loop through each column and update values
+      for (col in cols_5) {
+        ia_fishobs[, (col) := lapply(.SD[[col]], strip_first_word)]
+      }
+      
+      
+      # Fill NAs, set Keys
+      ia_fishobs[,(cols_5):= lapply(.SD, as.character), .SDcols = cols_5]
+      notes_corrections[,(cols_5):= lapply(.SD, as.character), .SDcols = cols_5]
+      
+      #bring in the new gear type names:
+      names(notes_corrections) %in% c(names(ia_fishobs))
+      
+      
+      setkeyv(notes_corrections, cols_5)
+      # ia_fishobs[ , Sample.GearTypeDesc := as.character(Sample.GearTypeDesc) , ]
+      # ia_fishobs[ , Sample.Depth := as.character(Sample.Depth) , ]
+      setkeyv(ia_fishobs, cols_5)
+      
+      notes_corrections[notes_corrections==''] <- NA
+      
+      #avoiding name amtching or issues
+      setnames(notes_corrections, "flag" , "new_flag")
+      
+      ia_fishobs[notes_corrections,  on = cols_5 , `:=` (delete = delete, target_species = `Target Species`, new_flag = new_flag)  ]   
+      
+      
+      #execute these marks:
+      ia_fishobs[ ,.N , .(delete, target_species, new_flag) ]
+        ia_fishobs <- ia_fishobs[is.na(delete)]
+      
+      ia_fishobs[ new_flag == "gear issue", flag := ifelse(is.na(flag),
+                                                                          "gear issue" ,
+                                                                          fpaste(flag, "gear issue", sep = ";" )
+                                                                          ),
+            ]
+      #shove all into one column as a long string
+      ia_fishobs[, notes_1 := apply(.SD, 1, function(row) {
+        non_na_elements <- na.omit(row)
+        paste(names(non_na_elements), ":", non_na_elements, collapse = "; ")
+      }), .SDcols = cols_5]
+      
+      ia_fishobs[ , .N , .(notes_1) ]
+      
+      ia_fishobs[ ,(cols_5) := NULL]
+      ia_fishobs[ ,c("delete", "new_flag") := NULL]
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       
       
 # clean up these names and match overall schema
 #need to 1. fix current cols to match 2. add missing cols 3.drop all extras 
 ia_fishobs <- clean_names(ia_fishobs) #clean up names a touch
 
-#then open into excel an align with the schema (see these IA example files)
+# then open into excel an align with the schema (see these IA example files)
 # fwrite(as.data.table(names(ia_fishobs)), file = "Data_and_scripts/Data/output/ia_names.csv")
 
 # use the exported csv to align with the column names in the column schema GSheet (https://docs.google.com/spreadsheets/d/1zfevASMxRMxMYNWm3Hq1yR2Qk0zcJV_JnO0LBeODaPQ/edit#gid=0) . 
@@ -770,11 +1020,24 @@ ia_fishobs[ , length(unique(lake_name)) , is.na(lake_id)]
 #now mwlaxeref
 ia_fishobs[ , nhdhr_id := mwlaxeref::ia_to_nhdhr(ia_fishobs, from_colname = "lake_id", )$nhdhr.id , ]
 
-ia_fishobs[ , length(unique(paste(lake_name))) , .("Has_state_lake_ID" = !is.na(lake_id), "Has_state_lake_ID" = !is.na(nhdhr_id)) ]
+ia_fishobs[ , length(unique(paste(lake_name))) , .("Has_state_lake_ID" = !is.na(lake_id), "HasNHD_ID" = !is.na(nhdhr_id)) ]
 
 
 #fixing species names
-ia_fishobs
+ia_fishobs[ , .N , species_1]
+
+#do this a different way -- this way takes ~ 8 hours!
+# ia_fishobs[ , species_1 := make_clean_names(species_1) ,]
+# ia_fishobs[ , species_1 := gsub("\\_\\d+$", "",species_1) ,]
+
+
+#Exclude rivers and streams
+ia_fishobs[ ,.N , waterbody_type]
+
+ia_fishobs <- ia_fishobs[!(waterbody_type %in% c("Trout Stream", "River"))]
+
+
+
 ```
 
 

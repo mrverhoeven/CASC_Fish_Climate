@@ -58,21 +58,13 @@ flag - this column contains a character string with issues describing each row, 
 
 ## To do list:
 
-Here are a few outstanding notes I need before I can finish importing to the broader midwestern database:
-- units for length are [milimeters]?-units for weights are [grams]?
--units for effort are: net-nights or minutes or haul
-- if I want to count all the WAEcaught in a survey i should sum all from length_weight, aged, and binned, right?
-- is there any other data in the binned fish (specifically, length/size info would be useful) see line 230
-- one weird binned fish count (total count < 0)
-4. No cisco?
+
 
 1. Amend original file names in data explainer to recognize sheet from which each dataset came
-2. Ensure nothing_caught is asisgned at the total_effort_ident level
+2. Ensure nothing_caught is assisgned at the total_effort_ident level
     - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
-3. Current parquet includes speiceis.1 == "<Null>"
-
-
-
+3. Current parquet includes species.1 == "<Null>"
+4. 
 
 
 

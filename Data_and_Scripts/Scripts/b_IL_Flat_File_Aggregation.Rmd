@@ -1466,7 +1466,7 @@ il_data %>%
 
 il_data %>% 
   filter(lake_name == "Jacksonville, Lake" & year == "2012") %>% 
-  distinct(lake_name, total_effort_ident, sub_effort_ident, total_effort_1, sub_effort_1) %>% 
+  distinct(lake_name, total_effort_ident, sampling_method, sub_effort_ident, total_effort_1, sub_effort_1) %>% 
   collect() %>% 
   print(n = nrow(.))
 ``` 

@@ -151,8 +151,8 @@ mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, ]
 mi_statustrends_lenage_20May2021[survey_id == 2446, ]
 
 # do the counts match across all levels?
-mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count)]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, sum(total_count)]
+mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count.1)]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, sum(total_count.1)]
 nrow(mi_statustrends_lenage_20May2021[survey_id == 2446, ])
 
 #no. not even close. I suspect this is bc of a species seletion that happened in the catch data:
@@ -160,12 +160,12 @@ mi_statustrends_catch_16Mar2021[survey_id == 2446, length(unique(species.1))]
 mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, length(unique(species.1))]
 mi_statustrends_lenage_20May2021[survey_id == 2446, length(unique(species.1)) ]
 #view species lists:
-mi_statustrends_catch_16Mar2021[survey_id == 2446,sum(total_count) , species.1]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446,sum(total_count) , species.1]
+mi_statustrends_catch_16Mar2021[survey_id == 2446,sum(total_count.1) , species.1]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 2446,sum(total_count.1) , species.1]
 mi_statustrends_lenage_20May2021[survey_id == 2446, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
 #view species lists:
-mi_statustrends_catch_16Mar2021[survey_id == 4079,sum(total_count) , species.1]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 4079,sum(total_count) , species.1]
+mi_statustrends_catch_16Mar2021[survey_id == 4079,sum(total_count.1) , species.1]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 4079,sum(total_count.1) , species.1]
 mi_statustrends_lenage_20May2021[survey_id == 4079, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
 
 
@@ -179,7 +179,8 @@ mi_statustrends_catch_16Mar2021[ , .( catch_nrows = .N) , survey_id]
 mi_statustrends_catchlengthclass_03July2023[ , .( catchlen_nrows = .N) , survey_id ]
 mi_statustrends_lenage_20May2021[ , .( lenage_nrows = .N) , survey_id] 
 
-#data summary by surveys
+
+  
 data_coverage <- 
 merge(
   merge(
@@ -188,9 +189,8 @@ merge(
           mi_statustrends_catch_16Mar2021[ , .( catch_nrows = .N) , survey_id], all = T),
     mi_statustrends_catchlengthclass_03July2023[ , .( catchlen_nrows = .N) , survey_id ], all = T), 
   mi_statustrends_lenage_20May2021[ , .( lenage_nrows = .N) , survey_id], all = T),
-  mi_survey_id_crosswalk_23May2023[,.(crosswalk_nrows = .N) , Survey_Number ],by.x = "survey_id", by.y = "Survey_Number", all = T)
-  
-
+  mi_survey_id_crosswalk_23May2023[,.(crosswalk_nrows = .N) , Survey_Number ],by.x = "survey_id", by.y = "Survey_Number", all = T
+)
 
 
 ```
@@ -212,15 +212,15 @@ mi_statustrends_effort_16Mar2021[ , .N , species.1 ]
 mi_statustrends_effort_16Mar2021[ , species.1 := NULL ,]
 
 #view species lists:
-mi_statustrends_catch_16Mar2021[ ,sum(total_count) , species.1]
-mi_statustrends_catchlengthclass_03July2023[ ,sum(total_count) , species.1]
+mi_statustrends_catch_16Mar2021[ ,sum(total_count.1) , species.1]
+mi_statustrends_catchlengthclass_03July2023[ ,sum(total_count.1) , species.1]
 mi_statustrends_lenage_20May2021[ , .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
 
 #dump the species not of interest to us here:
 mi_statustrends_catchlengthclass_03July2023 <- mi_statustrends_catchlengthclass_03July2023[species.1 %in% mi_statustrends_catch_16Mar2021[ , unique(species.1)]]
 
 #column name diffs
-colnames(mi_statustrends_catchlengthclass_03July2023)[colnames(mi_statustrends_catchlengthclass_03July2023)== "sampling_method" ] <- "sampling_method_abbrev"
+colnames(mi_statustrends_catchlengthclass_03July2023)[colnames(mi_statustrends_catchlengthclass_03July2023)== "sampling_method.1" ] <- "sampling_method_abbrev"
 
 #add lake_id to lengthclass file:
 mi_statustrends_catchlengthclass_03July2023[mi_statustrends_effort_16Mar2021[ ,.N , .(lake_id, lake_name.1, survey_id)], on = c("lake_name.1", "survey_id"), lake_id := lake_id ] 
@@ -244,27 +244,27 @@ mi_statustrends_catchlengthclass_03July2023[mi_statustrends_catch_16Mar2021[ ,.N
 #uncount catch
 #uncount the catch files into an indiv-as-row format:
 #with lengths scope
-mi_statustrends_catchlengthclass_03July2023[ ,summary(total_count) , ]
-mi_statustrends_catchlengthclass_03July2023[ , .N , total_count == 0] #do we lose anything if we drop these?
+mi_statustrends_catchlengthclass_03July2023[ ,summary(total_count.1) , ]
+mi_statustrends_catchlengthclass_03July2023[ , .N , total_count.1 == 0] #do we lose anything if we drop these?
 
-#here we check if the surveyXsample methods are all covere in the >0 total_count data (same dataset)
-mi_statustrends_catchlengthclass_03July2023[total_count == 0 , .N , .(survey_id, sampling_method_abbrev)]
-sum(!mi_statustrends_catchlengthclass_03July2023[total_count == 0 , paste(survey_id, sampling_method_abbrev)] %in% mi_statustrends_catchlengthclass_03July2023[total_count>0, paste(survey_id,sampling_method_abbrev)])
+#here we check if the surveyXsample methods are all covere in the >0 total_count.1 data (same dataset)
+mi_statustrends_catchlengthclass_03July2023[total_count.1 == 0 , .N , .(survey_id, sampling_method_abbrev)]
+sum(!mi_statustrends_catchlengthclass_03July2023[total_count.1 == 0 , paste(survey_id, sampling_method_abbrev)] %in% mi_statustrends_catchlengthclass_03July2023[total_count.1>0, paste(survey_id,sampling_method_abbrev)])
 #how about in the effort data? There's no effort data that we would lose if we drop those zeros. 
-sum(!mi_statustrends_catchlengthclass_03July2023[total_count == 0 , paste(survey_id, sampling_method_abbrev)] %in% mi_statustrends_effort_16Mar2021[, paste(survey_id,sampling_method_abbrev)])
+sum(!mi_statustrends_catchlengthclass_03July2023[total_count.1 == 0 , paste(survey_id, sampling_method_abbrev)] %in% mi_statustrends_effort_16Mar2021[, paste(survey_id,sampling_method_abbrev)])
 
 #execute the uncount, dropping those zero total counts in the mix (This line is generating a warning in the next line)
 mi_statustrends_catchlengthclass_03July2023_uncount <- 
-  uncount(mi_statustrends_catchlengthclass_03July2023[total_count!=0], total_count, .remove = T, .id = "ident_l")
+  uncount(mi_statustrends_catchlengthclass_03July2023[total_count.1!=0], total_count.1, .remove = T, .id = "ident_l")
 
 #add a surveyxgear ident for indiv fish
 mi_statustrends_catchlengthclass_03July2023_uncount[ , ident := seq_len(.N) , .(lake_name.1, lake_id, survey_id, sampling_method_abbrev, species.1) ]
 
 #no lengths scope          
-mi_statustrends_catch_16Mar2021[ , summary(total_count)]
+mi_statustrends_catch_16Mar2021[ , summary(total_count.1)]
 #execute
 mi_statustrends_catch_16Mar2021_uncount <- 
-  uncount(mi_statustrends_catch_16Mar2021, total_count, .remove = T, .id = "ident")
+  uncount(mi_statustrends_catch_16Mar2021, total_count.1, .remove = T, .id = "ident")
 
 
 
@@ -294,7 +294,7 @@ sum(!
       ]
 )
 
-mi_statustrends_catch_16Mar2021[ , summary(total_count) ,]
+mi_statustrends_catch_16Mar2021[ , summary(total_count.1) ,]
 
 # and how many surveyX gears are not shown in the effort file? ZERO!                
 sum(!mi_statustrends_catch_16Mar2021_uncount[ ,
@@ -428,7 +428,7 @@ abline(1,0)
 mi_catch_eff_merge[ total_effort_1.1_effort != total_effort_1.1_mergedcatch , .N , .(total_effort_1.1_mergedcatch, total_effort_1.1_effort)]
 #I think that the merged catch values were assigned to indiv fish (like "this fish was caught in ONE net lift") and the effort file has survey X gear total efforts
 mi_statustrends_catchlengthclass_03July2023[ , summary(total_effort_1.1) , ] 
-mi_statustrends_catchlengthclass_03July2023[total_effort_1.1 > 1 , summary(total_count), sampling_method_abbrev]
+mi_statustrends_catchlengthclass_03July2023[total_effort_1.1 > 1 , summary(total_count.1), sampling_method_abbrev]
 # mi_statustrends_catch_16Mar2021[ , summary(total_effort_1.1) , ]    #this won run b/c no col for effort in that       
 mi_statustrends_effort_16Mar2021[ , summary(total_effort_1.1) ,]          
 # well--- I don't know what to make of all this, but for now I'll be keeping both of these "total_effort" variables, and leaning on the one originating in the effort file

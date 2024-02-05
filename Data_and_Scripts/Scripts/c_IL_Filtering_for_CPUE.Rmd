@@ -1364,9 +1364,53 @@ il_data %>%
   summarise(min = min(total_effort_1), max = max(total_effort_1), mean = mean(total_effort_1)) %>% 
   collect()
 
+il_filtered_species %>%
+  ggplot() +
+  geom_point(aes(total_effort_1, cpue)) + 
+  facet_grid(species_1~sampling_method, scales = "free")
+
+il_filtered_species %>%
+  ggplot() +
+  geom_histogram(aes(cpue)) + 
+  facet_grid(species_1~sampling_method, scales = "free")
+ggsave()
+
+il_filtered_species %>%
+  filter(str_detect("Trap net",sampling_method)) %>% 
+  ggplot() +
+  geom_histogram(aes(cpue)) + 
+  facet_grid(species_1~sampling_method, scales = "free")
+
+
+il_filtered_species %>% 
+  group_by(sampling_method, species_1) %>% 
+  arrange(species_1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+il_filtered_species %>% 
+  filter(species_1 == "yellow_perch") %>% 
+  ggplot() +
+  geom_histogram(aes(cpue)) + 
+  facet_grid(~sampling_method, scales = "free")
+
+il_data %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.)) 
+
+il_data %>% 
+  filter(sampling_method == "Boat electrofishing AC (Day)" | sampling_method == "Boat electrofishing DC (Day)") %>% 
+  collect() %>% 
+  ggplot() + 
+  geom_histogram(aes(length_1, fill = sampling_method), alpha = .5) + 
+  facet_wrap(~species_1, scales = "free")
+
 il_filtered_species %>% 
   ggplot() + 
   geom_point(aes(total_effort_1, cpue)) + 
   facet_grid(species_1~sampling_method, scales = "free")
+
 ```
 

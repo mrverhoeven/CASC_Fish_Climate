@@ -13,6 +13,29 @@ library(tidyverse)
 library(arrow)
 ```
 
+#2/5 cpe data dump
+```{r}
+#reading in individual state cpe 
+wi <- read_csv("Filtered_CPEs/WI_all_cpue_filtered.csv")
+mn <- read_csv("Filtered_CPEs/MN_all_cpue_filtered.csv")
+mi <- read_csv("Filtered_CPEs/MI_all_cpue_filtered.csv")
+il <- read_csv("Filtered_CPEs/IL_all_cpue_filtered.csv") 
+sd <- read_csv("Filtered_CPEs/SD_all_cpue_filtered.csv")
+ia <- read_csv("Filtered_CPEs/IA_all_cpue_filtered.csv")
+indy <- read_csv("Filtered_CPEs/IN_all_cpue_filtered.csv")
+
+#make sure i get ride of columns that are not survey level or helpful to Chris
+cross_state <- row_bins(wi, mn, mi, il, sd, ia, indy)
+
+#write final cpe
+write_csv(cross_state, "all_state_cpue_8Dec23.csv")
+```
+
+
+
+
+
+
 #data
 ```{r}
 wi <- read_csv("WI_all_cpue_filtered.csv") %>%

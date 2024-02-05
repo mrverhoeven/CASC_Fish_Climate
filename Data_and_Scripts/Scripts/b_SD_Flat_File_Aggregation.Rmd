@@ -60,7 +60,7 @@ flag - this column contains a character string with issues describing each row, 
 
 
 
-1. Amend original file names in data explainer to recognize sheet from which each dataset came
+1. Amend original file names in data explainer to recognize sheet from which each dataset came, carry these through to 
 
 
 
@@ -466,7 +466,15 @@ sd_merged_ce[ , state := "South Dakota"  , ]
 #date
 sd_merged_ce[ , date := as.IDate(date) , ]
 
+#more gear corrections
+sd_gears <- fread( file = "Data_and_scripts/Data/input/ia_sd_gear_newnames2.csv") #read in 
 
+sd_gears <- sd_gears[state == "South Dakota"]
+
+sd_merged_ce[ , .N , sampling_method_2 ]
+sd_merged_ce[ , sampling_method_2 := as.character(sampling_method_2) , ]
+
+sd_merged_ce[sd_gears, on = .(sampling_method = old_gear), sampling_method_2 := new_gear]
 
 
 
@@ -527,7 +535,7 @@ sd_data %>%
   collect()
 
   sd_data %>% 
-  group_by(state, sampling_method) %>%
+  group_by(state, sampling_method, sampling_method_2) %>%
   summarise(
     n_effort_idents = n_distinct(total_effort_ident),
     n_walleye = sum(species_1 == "walleye", na.rm = T),

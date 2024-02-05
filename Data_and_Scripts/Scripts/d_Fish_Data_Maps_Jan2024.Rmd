@@ -236,27 +236,6 @@ rm(wi_lake_names, wi_lat_long)
 
 ```
 
-old code to remove rivers, creeks, streams, etc. from WI dataset
-%>%
-  left_join(glm_dat, by =c("nhdhr_id" = "site_id"))%>% #try to get more waterbody names
-  mutate(lake_name = if_else(!is.na(lake_name.x), lake_name.x, lake_name.y)) %>%
-  mutate(River = str_detect(lake_name, "river")) %>%
-  mutate(Creek = str_detect(lake_name, "creek"))%>%
-  mutate(Canal = str_detect(lake_name, "canal"))%>%
-  mutate(Stream = str_detect(lake_name, "stream"))%>%
-  mutate(Brook = str_detect(lake_name, "brook"))%>% 
-  mutate(Flowage = str_detect(lake_name, "flowage"))%>% 
-  mutate(Channel = str_detect(lake_name, "channel"))%>% 
-  mutate(Ditch = str_detect(lake_name, "ditch"))%>% 
-  mutate(Lotic = case_when(River == TRUE ~ 1,
-                           Creek == TRUE ~ 1,
-                           Canal == TRUE ~ 1,
-                           Stream == TRUE ~ 1,
-                           Brook == TRUE ~ 1,
-                           Flowage == TRUE ~ 1,
-                           Channel == TRUE ~ 1,
-                           Ditch == TRUE ~ 1,
-                           TRUE ~ 0)) %>%
 
 
 # MI all data
@@ -372,6 +351,8 @@ in_filtered_r <- in_data %>%
 # IN Glacial Lakes 
     # Holly will work on cleaing this up in the IN parquet
 IN_crosswalk <- readRDS("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Crosswalks/IN_DNR_nhdhr_xwalk.rds")
+
+MGLP_crosswalk <- readRDS("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Crosswalks/mglp_nhdhr_xwalk.rds")
 
 IN_FINFO_List_read <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IN_Data/in_raw_disaggregated_data/in_lake_id_list_1Dec2023.csv")
 

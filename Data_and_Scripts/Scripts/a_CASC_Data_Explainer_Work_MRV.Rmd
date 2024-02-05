@@ -10,7 +10,8 @@ output: html_document
 
 The answer is yes, and the idea was that within a state, the suffixes could be dropped where the col name is otherwise not duplicated (this will avoid breaking working code in all the other states)
 
-2. Build in somethign to strip ; or, after the last word in a string from the data explainer file. 
+2. Build in something to strip ; or, after the last word in a string from the data explainer file. 
+    - currently getting baked into the data import in each file
 
 
 

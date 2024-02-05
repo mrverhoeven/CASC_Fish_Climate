@@ -1406,5 +1406,11 @@ il_data %>%
   ggplot() + 
   geom_histogram(aes(length_1, fill = sampling_method), alpha = .5) + 
   facet_wrap(~species_1, scales = "free")
+
+il_filtered_species %>% 
+  ggplot() + 
+  geom_point(aes(total_effort_1, cpue)) + 
+  facet_grid(species_1~sampling_method, scales = "free")
+
 ```
 

@@ -136,7 +136,93 @@ new <- read_csv("all_state_cpue_6Feb24.csv") %>%
 
 #combined
 compare <- bind_rows(old, new)
-```
+
+compare %>% 
+  group_by(filtering, state) %>% 
+  count() %>% 
+  pivot_wider(id_cols = state,
+              names_from = filtering,
+              values_from = n)
+#surveys by state
+
+table.gears <- compare %>% 
+  distinct(state, sampling_method, filtering) %>% 
+  pivot_wider(id_cols = state,
+              names_from = filtering,
+              values_from = sampling_method)
+table.gears
+  
+#gear types by state
+compare %>% 
+  filter(state == "Illinois") %>% 
+  ggplot() +
+  geom_bar(aes(x = sampling_method, fill = filtering), position = "dodge") +
+  facet_wrap(~state, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+compare %>% 
+  filter(state == "Indiana") %>% 
+  ggplot() +
+  geom_bar(aes(x = sampling_method, fill = filtering), position = "dodge") +
+  facet_wrap(~state, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+compare %>% 
+  filter(state == "Iowa") %>% 
+  ggplot() +
+  geom_bar(aes(x = sampling_method, fill = filtering), position = "dodge") +
+  facet_wrap(~state, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+compare %>% 
+  filter(state == "Michigan") %>% 
+  ggplot() +
+  geom_bar(aes(x = sampling_method, fill = filtering), position = "dodge") +
+  facet_wrap(~state, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+compare %>% 
+  filter(state == "Minnesota") %>% 
+  ggplot() +
+  geom_bar(aes(x = sampling_method, fill = filtering), position = "dodge") +
+  facet_wrap(~state, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+compare %>% 
+  filter(state == "South Dakota") %>% 
+  ggplot() +
+  geom_bar(aes(x = sampling_method, fill = filtering), position = "dodge") +
+  facet_wrap(~state, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+compare %>% 
+  filter(state == "Wisconsin") %>% 
+  ggplot() +
+  geom_bar(aes(x = sampling_method, fill = filtering), position = "dodge") +
+  facet_wrap(~state, scales = "free") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#units 
+compare %>% 
+  distinct(state, sampling_method, total_effort_1_units) %>% 
+  print(n = nrow(.))
+
+#wisconsin
+compare %>% 
+  filter(state == "Wisconsin" & filtering == "new") %>% 
+  ggplot() +
+  geom_histogram(aes(total_effort_1)) +
+  facet_wrap(~sampling_method, scales = "free")
+
+check <- compare %>% 
+  filter(nhdhr_id == "nhdhr_77358700" & year(date) == 2000) 
+
+#old vs new gears
+compare %>% 
+  filter(state == "Iowa") %>% 
+  ggplot() +
+  geom_histogram(aes(total))
+``` 
 
 
 

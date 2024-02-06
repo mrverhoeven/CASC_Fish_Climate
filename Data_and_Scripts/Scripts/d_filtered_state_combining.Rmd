@@ -16,21 +16,127 @@ library(arrow)
 #2/5 cpe data dump
 ```{r}
 #reading in individual state cpe 
-wi <- read_csv("Filtered_CPEs/WI_all_cpue_filtered.csv")
-mn <- read_csv("Filtered_CPEs/MN_all_cpue_filtered.csv")
-mi <- read_csv("Filtered_CPEs/MI_all_cpue_filtered.csv")
-il <- read_csv("Filtered_CPEs/IL_all_cpue_filtered.csv") 
-sd <- read_csv("Filtered_CPEs/SD_all_cpue_filtered.csv")
-ia <- read_csv("Filtered_CPEs/IA_all_cpue_filtered.csv")
-indy <- read_csv("Filtered_CPEs/IN_all_cpue_filtered.csv")
+wi <- read_csv("filtered_cpe_files/WI_all_cpue_filtered.csv") %>% 
+  select(lake_id,
+         lake_name,
+         nhdhr_id,
+         county,
+         date,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_unit,
+         species_1,
+         count,
+         cpue) %>% 
+  rename(total_effort_1_units = total_effort_1_unit) %>% 
+  mutate(lake_id = as.character(lake_id))
+mn <- read_csv("filtered_cpe_files/MN_all_cpue_filtered.csv") %>% 
+  select(lake_id,
+         lake_name,
+         nhdhr_id,
+         county,
+         date,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue) %>% 
+  mutate(lake_id = as.character(lake_id))
+mi <- read_csv("filtered_cpe_files/MI_all_cpue_filtered.csv") %>% 
+  rename(lake_name = lake_name.1,
+         date = date.1,
+         nhdhr_id = nhdhr.id,
+         total_effort_1 = total_effort_1.1_effort,
+         total_effort_1_units = effort_units.1) %>% 
+  select(lake_id,
+         lake_name,
+         nhdhr_id,
+         county,
+         date,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue) %>% 
+  mutate(lake_id = as.character(lake_id))
+il <- read_csv("filtered_cpe_files/IL_all_cpue_filtered.csv") %>% 
+  rename(nhdhr_id = nhdr_id) %>% 
+  select(lake_id,
+         lake_name,
+         nhdhr_id,
+         county,
+         date,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue) %>% 
+  mutate(lake_id = as.character(lake_id))
+sd <- read_csv("filtered_cpe_files/SD_all_cpue_filtered.csv") %>% 
+  select(lake_id,
+         lake_name,
+         nhdhr_id,
+         county,
+         date,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue) %>% 
+  mutate(lake_id = as.character(lake_id))
+ia <- read_csv("filtered_cpe_files/IA_all_cpue_filtered.csv") %>% 
+  select(lake_id,
+         lake_name,
+         nhdhr_id,
+         county,
+         date,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue) %>% 
+  mutate(lake_id = as.character(lake_id))
+indy <- read_csv("filtered_cpe_files/IN_all_cpue_filtered.csv") %>% 
+  select(lake_id,
+         lake_name,
+         nhdhr_id,
+         county,
+         date,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue) %>% 
+  mutate(lake_id = as.character(lake_id))
 
 #make sure i get ride of columns that are not survey level or helpful to Chris
-cross_state <- row_bins(wi, mn, mi, il, sd, ia, indy)
+cross_state <- bind_rows(wi, mn, mi, il, sd, ia, indy)
 
 #write final cpe
-write_csv(cross_state, "all_state_cpue_8Dec23.csv")
+write_csv(cross_state, "all_state_cpue_6Feb24.csv")
 ```
 
+#comparison of data
+```{r}
+#old 
+old <- read_csv("all_state_cpue_8Dec23.csv") %>% 
+  rename(date = date_1,
+         lake_name = lake_name_1) %>% 
+  mutate(filtering = "old")
+
+#new
+new <- read_csv("all_state_cpue_6Feb24.csv") %>% 
+  mutate(filtering = "new")
+
+#combined
+compare <- bind_rows(old, new)
+```
 
 
 

@@ -916,9 +916,9 @@ ia_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "bluegill"), 
                                  adult_black_crappie_cpue %>% 
                                    mutate(species_1 = "black_crappie"),
-                                 adult_largemouth_cpue %>% 
+                                 adult_largemouth_bass_cpue %>% 
                                    mutate(species_1 = "largemouth_bass"), 
-                                 adult_smallmouth_cpue %>% 
+                                 adult_smallmouth_bass_cpue %>% 
                                    mutate(species_1 = "smallmouth_bass"), 
                                  adult_northern_pike_cpue %>% 
                                    mutate(species_1 = "northern_pike"), 

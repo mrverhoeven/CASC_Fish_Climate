@@ -19,6 +19,10 @@ mi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab",
 glimpse(mi_data)
 
 mi_data %>% 
+  filter(species.1 == "taxon_NA") %>% 
+  glimpse()
+
+mi_data %>% 
   collect() %>% 
   distinct(effort_ident, .keep_all = T) %>%
   ggplot() +
@@ -105,7 +109,7 @@ adult_walleye_cpue <- adult_walleye %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'walleye')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(is.na(species.1) ~ 0,
+  mutate(count = case_when(species.1 == "taxon_NA" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1.1_effort)) %>%
@@ -259,7 +263,7 @@ adult_black_crappie_cpue <- adult_black_crappie %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'black_crappie')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(is.na(species.1) ~ 0,
+  mutate(count = case_when(species.1 == "taxon_NA" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1.1_effort)) %>%
@@ -412,7 +416,7 @@ adult_bluegill_cpue <- adult_bluegill %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'bluegill')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(is.na(species.1) ~ 0,
+  mutate(count = case_when(species.1 == "taxon_NA" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1.1_effort)) %>%
@@ -563,7 +567,7 @@ adult_cisco_cpue <- adult_cisco %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'cisco')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(is.na(species.1) ~ 0,
+  mutate(count = case_when(species.1 == "taxon_NA" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1.1_effort)) %>%
@@ -716,7 +720,7 @@ adult_largemouth_cpue <- adult_largemouth %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'largemouth_bass')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(is.na(species.1) ~ 0,
+  mutate(count = case_when(species.1 == "taxon_NA" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1.1_effort)) %>%
@@ -867,7 +871,7 @@ adult_smallmouth_cpue <- adult_smallmouth %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'smallmouth_bass')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(is.na(species.1) ~ 0,
+  mutate(count = case_when(species.1 == "taxon_NA" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1.1_effort)) %>%
@@ -1018,7 +1022,7 @@ adult_northern_pike_cpue <- adult_northern_pike %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'northern_pike')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(is.na(species.1) ~ 0,
+  mutate(count = case_when(species.1 == "taxon_NA" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1.1_effort)) %>%
@@ -1222,7 +1226,7 @@ adult_yellow_perch_cpue <- adult_yellow_perch %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species.1 == 'yellow_perch')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(is.na(species.1) ~ 0,
+  mutate(count = case_when(species.1 == "taxon_NA" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1.1_effort)) %>%

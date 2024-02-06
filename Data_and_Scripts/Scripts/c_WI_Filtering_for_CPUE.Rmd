@@ -7,8 +7,8 @@ editor_options:
   chunk_output_type: console
 ---
 
-1/5 updates:
--everything works great besides the order in which I have to collect the SMB and LMB good surveys
+2/5:
+-big difference in the number of bluegill surverys from good surveys to cpe calcuations was due to the filter that takes only surveys with 1 distinct value in the targeted species columns. Running the adult bluegill with and with out the filter proves the difference. The water temps make up the remaining difference between what is shown in good surveys and cpe
 
 # Libraries 
 ```{r}
@@ -87,6 +87,15 @@ good_surveys <- wi_data %>%
          targeted_in_survey == "Y") %>% 
   #select(-water_temp) %>% 
   collect() 
+
+good_surveys %>% 
+  distinct(total_effort_ident, water_temp) %>% 
+  count() %>% 
+  filter(n > 2) %>% 
+  print(n = nrow(.))
+
+good_surveys %>% 
+  distinct(total_effort_ident) 
 
 #second step of filtering 
 ##gathering good records associated with "good surveys" 
@@ -220,6 +229,11 @@ good_surveys <- wi_data %>%
   #select(-water_temp) %>% 
   collect() 
 
+good_surveys %>% 
+  distinct(total_effort_ident) %>% 
+  count()
+#1492
+
 #gather fish records from good surveys
 adult_black_crappie <- wi_data %>%
   right_join(good_surveys) %>%
@@ -231,6 +245,8 @@ adult_black_crappie <- wi_data %>%
 adult_black_crappie_cpue <- adult_black_crappie %>% 
   #grouping by variables to get survey fish count 
   group_by(total_effort_ident) %>% 
+  mutate(species = case_when(is.na(species) ~ "taxon_na",
+                             TRUE ~ species)) %>% 
   #counts fish of a particular species in a survey 
   mutate(count = sum(species == 'black_crappie')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
@@ -272,7 +288,7 @@ adult_black_crappie %>%
 
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_black_crappie %>% 
-  distinct(date,
+  distinct(
     total_effort_ident) %>% 
   glimpse()
 
@@ -349,7 +365,7 @@ good_surveys <- wi_data %>%
 #gathering fish from good surveys
 adult_bluegill <- wi_data %>% 
   right_join(good_surveys) %>%
-  collect() %>%
+  collect() %>% 
   group_by(total_effort_ident) %>%  
   filter(n_distinct(target_species_indivfish) == 1 & n_distinct(secondary_target_species) == 1)
 
@@ -357,6 +373,8 @@ adult_bluegill <- wi_data %>%
 adult_bluegill_cpue <- adult_bluegill %>% 
   #grouping by variables to get survey fish count 
   group_by(total_effort_ident) %>% 
+  mutate(species = case_when(is.na(species) ~ "taxon_na",
+                             TRUE ~ species)) %>% 
   #counts fish of a particular species in a survey 
   mutate(count = sum(species == 'bluegill')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
@@ -399,22 +417,20 @@ adult_bluegill %>%
   count() %>% 
   print(n = nrow(.))
 
+adult_bluegill %>% 
+  filter(is.na(target_species_effort)) %>% 
+  glimpse()
+
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_bluegill %>% 
-  distinct(date,
-    sampling_method,
+  distinct(
     total_effort_ident,
-    total_effort_1,
-    water_temp,
-    month_min, 
-    month_max,
-    water_temp_min,
-    water_temp_max,
-    effort_min,
-    effort_max,
-    targeted_in_survey,
     water_temp) %>% 
   glimpse()
+
+adult_bluegill %>% 
+  distinct(total_effort_ident) %>% 
+  count()
 
 adult_bluegill %>% 
   distinct(total_effort_ident) %>% 

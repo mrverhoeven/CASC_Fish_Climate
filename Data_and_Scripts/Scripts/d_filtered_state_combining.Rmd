@@ -178,6 +178,10 @@ indy <- read_csv("Filtered_CPEs/IN_all_cpue_filtered.csv") %>%
 cross_state <- bind_rows(wi, mn, mi, il, sd, ia, indy)
 
 write_csv(cross_state, "all_state_cpue_8Dec23.csv")
+wi <- read_csv("all_state_cpue_8Dec23.csv") %>% 
+  filter(state == "Wisconsin") %>% 
+  group_by(species_1) %>% 
+  count()
 ```
 
 #basic review of combination

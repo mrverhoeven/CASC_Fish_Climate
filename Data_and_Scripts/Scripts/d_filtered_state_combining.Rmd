@@ -259,6 +259,23 @@ compare %>%
   filter(state == "Iowa") %>% 
   ggplot() +
   geom_histogram(aes(total))
+
+#check coords
+new %>%
+  distinct(lake_id, .keep_all = T) %>%
+  group_by(state) %>%
+  summarise(no.lats = sum(is.na(lat_unspec)),
+            has.lats = sum(!is.na(lat_unspec)))
+
+new %>% 
+  filter(state == "Illinois") %>% 
+  filter(is.na(lat_unspec)) %>% 
+  count()
+
+new %>% 
+  filter(state == "Indiana") %>% 
+  distinct(lake_id) %>% 
+  count()
 ``` 
 
 

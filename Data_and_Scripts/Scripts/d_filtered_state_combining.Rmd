@@ -141,6 +141,8 @@ indy <- read_csv("filtered_cpe_files/IN_all_cpue_filtered.csv") %>%
          nhdhr_id,
          county,
          date,
+    month,
+    year,
          sampling_method,
     total_effort_ident,
          total_effort_1,
@@ -276,6 +278,12 @@ new %>%
   filter(state == "Indiana") %>% 
   distinct(lake_id) %>% 
   count()
+
+#making na indy dates work for Chris
+check <- indy %>% 
+  distinct(total_effort_ident, date, month, year) 
+
+write_csv(indy, "indy_month_year.csv")
 ``` 
 
 

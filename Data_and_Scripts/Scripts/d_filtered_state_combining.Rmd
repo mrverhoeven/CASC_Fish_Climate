@@ -284,6 +284,23 @@ check <- indy %>%
   distinct(total_effort_ident, date, month, year) 
 
 write_csv(indy, "indy_month_year.csv")
+
+#only 10 Wisconsin cert gill nets
+library(mwlaxeref)
+
+new %>% 
+  filter(state == "Wisconsin" & sampling_method == "vertical_gill_net") %>% 
+  group_by(sampling_method, nhdhr_id, lat_unspec) %>% 
+  count()
+
+wis_vert <- new %>% 
+  filter(state == "Wisconsin" & sampling_method == "vertical_gill_net") %>% 
+  local_to_nhdhr(from_colname = "lake_id", states = "wi") %>% 
+  select(-nhdhr_id,
+         -filtering) %>% 
+  rename(nhdhr_id = nhdhr.id)
+
+write_csv(wis_vert, "vert_gill_wi_nhdids.csv")
 ``` 
 
 

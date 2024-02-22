@@ -3898,3 +3898,163 @@ prop %>%
   geom_smooth(aes(year, prop))
 ```
 
+#summary of gears for iowa
+```{r}
+ia_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "ia_file_arrow"))
+glimpse(ia_data)
+
+ia_data %>% 
+  group_by(length_unit_1) %>% 
+  count() %>% 
+  collect()
+
+ia_data %>% 
+  group_by(length_bin_unit) %>% 
+  count() %>% 
+  collect()
+
+ia_data %>% 
+  group_by(length_bin) %>% 
+  count() %>% 
+  collect()
+
+ia_data %>% 
+  filter(species_1 %in% c("Walleye",
+                          "Bluegill", 
+                          "Black Crappie", 
+                          "Largemouth Bass", 
+                          "Smallmouth Bass", 
+                          "Northern Pike",
+                          "Yellow Perch")) %>% 
+  filter(sampling_method %in% c("Electrofishing", "Fyke Netting", "Gill Netting")) %>%
+  filter(!str_detect(sampling_method_2, c("Backpack | Barge"))) %>%
+  group_by(species_1, sampling_method) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+ia_data %>% 
+  mutate(length.update = case_when(!is.na(length_bin) ~ (as.numeric(sub(".*-(\\d+\\.\\d+).*", "\\1", length_bin)) +
+                            as.numeric(sub(".*-(\\d+\\.\\d+)$", "\\1", length_bin))) / 2,
+                            TRUE ~ length_1),
+         length.update = (length.update + (length.update - 9.99))/2) %>% 
+  group_by(length_bin) %>% 
+  summarise(mean(length.update, na.rm = T)) %>% 
+  collect()
+
+ia_data %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  collect()
+
+ia_data %>% 
+  filter(species_1 %in% c("Walleye",
+                          "Bluegill", 
+                          "Black Crappie", 
+                          "Largemouth Bass", 
+                          "Smallmouth Bass", 
+                          "Northern Pike",
+                          "Yellow Perch")) %>% 
+  filter(sampling_method %in% c("Electrofishing", "Fyke Netting", "Gill Netting")) %>%
+  mutate(length.update = case_when(!is.na(length_bin) ~ (as.numeric(sub(".*-(\\d+\\.\\d+).*", "\\1", length_bin)) +
+                            as.numeric(sub(".*-(\\d+\\.\\d+)$", "\\1", length_bin))) / 2,
+                            TRUE ~ length_1)) %>% 
+  mutate(length.update = case_when(!is.na(length_bin) ~ ((length.update + (length.update - 9.99))/2),
+                                   TRUE ~ length.update)) %>% 
+  collect() %>% 
+  filter(!str_detect(sampling_method_2, c("Backpack | Barge"))) %>%
+  filter(length.update < 60) %>% 
+  ggplot() +
+  geom_density(aes(length.update, fill = sampling_method_2)) +
+  facet_grid(sampling_method ~ species_1, scales = "free")
+
+ia_data %>% 
+  filter(species_1 %in% c("Walleye",
+                          "Bluegill", 
+                          "Black Crappie", 
+                          "Largemouth Bass", 
+                          "Smallmouth Bass", 
+                          "Northern Pike",
+                          "Yellow Perch")) %>% 
+  filter(sampling_method %in% c("Electrofishing", "Fyke Netting", "Gill Netting")) %>%
+  mutate(length.update = case_when(!is.na(length_bin) ~ (as.numeric(sub(".*-(\\d+\\.\\d+).*", "\\1", length_bin)) +
+                            as.numeric(sub(".*-(\\d+\\.\\d+)$", "\\1", length_bin))) / 2,
+                            TRUE ~ length_1)) %>% 
+  mutate(length.update = case_when(!is.na(length_bin) ~ ((length.update + (length.update - 9.99))/2),
+                                   TRUE ~ length.update)) %>% 
+  collect() %>% 
+  filter(!str_detect(sampling_method_2, c("Backpack | Barge"))) %>%
+  filter(length.update < 60) %>% 
+  ggplot() +
+  geom_histogram(aes(length.update, fill = sampling_method_2)) +
+  facet_grid(sampling_method ~ species_1, scales = "free")
+
+
+ia_data %>% 
+  filter(species_1 %in% c("Walleye",
+                          "Bluegill", 
+                          "Black Crappie", 
+                          "Largemouth Bass", 
+                          "Smallmouth Bass", 
+                          "Northern Pike",
+                          "Yellow Perch")) %>% 
+  filter(sampling_method %in% c("Electrofishing", "Fyke Netting", "Gill Netting")) %>% 
+  distinct(total_effort_ident, date, sampling_method) %>% 
+  mutate(jul_day = yday(date)) %>% 
+  collect() %>% 
+  ggplot() +
+  geom_density(aes(jul_day, fill = sampling_method), alpha = .5)
+
+ia_data %>% 
+  filter(species_1 %in% c("Walleye",
+                          "Bluegill", 
+                          "Black Crappie", 
+                          "Largemouth Bass", 
+                          "Smallmouth Bass", 
+                          "Northern Pike",
+                          "Yellow Perch")) %>% 
+  filter(sampling_method %in% c("Electrofishing", "Fyke Netting", "Gill Netting")) %>% 
+  distinct(total_effort_ident, date, sampling_method) %>% 
+  mutate(jul_day = yday(date)) %>% 
+  collect() %>% 
+  ggplot() +
+  geom_histogram(aes(jul_day, fill = sampling_method), alpha = .5)
+
+check <- ia_data %>% 
+  filter(species_1 %in% c("Walleye",
+                          "Bluegill", 
+                          "Black Crappie", 
+                          "Largemouth Bass", 
+                          "Smallmouth Bass", 
+                          "Northern Pike",
+                          "Yellow Perch")) %>% 
+  filter(sampling_method %in% c("Electrofishing", "Fyke Netting", "Gill Netting")) %>% 
+  filter(!str_detect(sampling_method_2, c("Backpack | Barge"))) %>%
+  filter(!is.na(total_effort_1)) %>% 
+  collect() %>% 
+  group_by(total_effort_ident, species_1, sampling_method) %>% 
+  summarise(total_effort_ident = unique(total_effort_ident), sampling_method = unique(sampling_method), total_effort_1 = unique(total_effort_1), n = n()) %>% 
+  mutate(cpe = n/total_effort_1)
+
+check %>% 
+  ggplot() +
+  geom_smooth(aes(total_effort_1, cpe, color = sampling_method)) + 
+  facet_wrap(~species_1, scales = "free")
+
+check %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(total_effort_1), mean = mean(total_effort_1), max = max(total_effort_1), n = n())
+
+check %>% 
+  filter(total_effort_1 < 50) %>% 
+  ggplot() +
+  geom_jitter(aes(total_effort_1, cpe, color = sampling_method)) + 
+  geom_smooth(aes(total_effort_1, cpe, color = sampling_method), se = F) +
+  facet_grid(species_1~ sampling_method, scales = "free")
+
+ia_data %>% 
+  group_by(total_effort_1_units) %>% 
+  count() %>% 
+  collect()
+```
+

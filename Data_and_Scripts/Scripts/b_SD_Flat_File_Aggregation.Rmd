@@ -60,21 +60,9 @@ flag - this column contains a character string with issues describing each row, 
 
 ## To do list:
 
-Here are a few outstanding notes I need before I can finish importing to the broader midwestern database:
-- units for length are [milimeters]?-units for weights are [grams]?
--units for effort are: net-nights or minutes or haul
-- if I want to count all the WAEcaught in a survey i should sum all from length_weight, aged, and binned, right?
-- is there any other data in the binned fish (specifically, length/size info would be useful) see line 230
-- one weird binned fish count (total count < 0)
-4. No cisco?
-
-1. Amend original file names in data explainer to recognize sheet from which each dataset came
-2. Ensure nothing_caught is asisgned at the total_effort_ident level
-    - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
-3. Current parquet includes speiceis.1 == "<Null>"
 
 
-
+1. Amend original file names in data explainer to recognize sheet from which each dataset came, carry these through to 
 
 
 
@@ -247,10 +235,19 @@ sd_catch_indivfish_2Nov2023 %>%
 ###
 
 sd_catch_indivfish_2Nov2023[ , .N , .(survey_id, species.1) ]
-sd_catch_indivfish_2Nov2023[ , .N , .(species.1) ]
+sd_catch_indivfish_2Nov2023[ , .N , .(species.1) ] %>% print( n = nrow(.))
+
+sd_catch_indivfish_2Nov2023[species.1 %in% c("<Null>", "None", "Uncoded"), species.1 := "Unknown" ]
+
+
 
 #then there's the batch count data:
 names(sd_catch3_batchcounts_2Nov2023)
+
+sd_catch3_batchcounts_2Nov2023[ , .N , .(species.1) ] %>% print( n = nrow(.))
+sd_catch3_batchcounts_2Nov2023[species.1 %in% c("<Null>", "None", "Uncoded"), species.1 := "Unknown" ]
+
+
 sd_catch3_batchcounts_2Nov2023[, .N , .(survey_id, species.1) ]
   sd_catch3_batchcounts_2Nov2023[, .N , .(survey_id, species.1) ][N>1]
 #based on this format I would not expect to see multi batch counts for one survey...
@@ -258,9 +255,15 @@ sd_catch3_batchcounts_2Nov2023[sd_catch3_batchcounts_2Nov2023[, .N , .(survey_id
 #some are because of nulls   
 #remove null records 
   sd_catch3_batchcounts_2Nov2023[total_count.1 == 0 , .N  ,]
-  sd_catch3_batchcounts_2Nov2023 <-  sd_catch3_batchcounts_2Nov2023[ total_count.1 > 1 ,  ]
+  sd_catch3_batchcounts_2Nov2023[total_count.1 == 1 , .N  ,]
+  sd_catch3_batchcounts_2Nov2023 <-  sd_catch3_batchcounts_2Nov2023[ total_count.1 > 0 ,  ]
+  
+
   
 #okay, so there are two (or more) different vals for batch counts, let's check to make sure that the effort data are one gear per lake kinda thing on the survey_id field
+
+  
+  
 #check effort data--is there more than one record per survey_id?
 sd_effort_lakesurveysdata_2Nov2023[ , .N , .(survey_id) ][N>1]
 sd_effort_lakesurveysdata_2Nov2023[survey_id == "{E02AD9C6-0877-475B-9BAA-1973CCA1DCFB}"] #only one case..we're going to drop that second record
@@ -280,18 +283,23 @@ sd_catch_indivfish_2Nov2023 <- rbindlist(list(sd_batchcounts_uncounted,sd_catch_
   rm(sd_batchcounts_uncounted)
 
 #clean up species names to ease merge to age
-sd_catch_indivfish_2Nov2023[ , .N , tolower(species.1)]
+sd_catch_indivfish_2Nov2023[ ,  species.1 := tolower(species.1)]
+
+
 sd_length_age_2Nov2023[ , species.1 := gsub(" ","_", tolower(species.1)) ,]
   sd_length_age_2Nov2023[ , .N , species.1][order(species.1)]
-#drop blank rows
-  sd_length_age_2Nov2023[species.1 == "<null>" | is.na(species.1)]
-sd_length_age_2Nov2023 <-    sd_length_age_2Nov2023[!(species.1 == "<null>" | is.na(species.1))]
+
+#check lenth age species
+sd_length_age_2Nov2023[ , .N , .(species.1) ] %>% print( n = nrow(.))
+sd_length_age_2Nov2023[species.1 %in% c("<null>", "none", "uncoded"), species.1 := "unknown" ]
+  sd_length_age_2Nov2023[ is.na(species.1), species.1 := "unknown"]
+# sd_length_age_2Nov2023 <-    sd_length_age_2Nov2023[!(species.1 == "<null>" | is.na(species.1))]
   sd_catch_indivfish_2Nov2023[species.1 == "<null>" | is.na(species.1), .N]
-sd_catch_indivfish_2Nov2023 <-    sd_catch_indivfish_2Nov2023[!(species.1 == "<null>" | is.na(species.1))]
+# sd_catch_indivfish_2Nov2023 <-    sd_catch_indivfish_2Nov2023[!(species.1 == "<null>" | is.na(species.1))]
 
   
 sd_catch_indivfish_2Nov2023[ , species.1 := gsub("_$", "" , gsub("__", "_", gsub(" ","_",gsub(paste(c("[(]", "[)]"), collapse = "|") , "_" , tolower(species.1))))) ,  ]  
-  sd_catch_indivfish_2Nov2023[ , .N , species.1]
+  sd_catch_indivfish_2Nov2023[ , .N , species.1] %>% print(n = nrow(.))
   sd_catch_indivfish_2Nov2023[ , sort(unique(species.1))]
 
 # the "lamprey family" aged critter does not have a parallel in the catch file
@@ -326,16 +334,20 @@ rm(sd_length_age_2Nov2023)
 #check out and pare down the effort data:
 sd_effort_lakesurveysdata_2Nov2023[ , .N , .(sampling_method.1, sampling_method_abbrev) ][order(sampling_method_abbrev)] #no need to keep the samping method abbrev
 
-## HOlly exploration for filtering workshop
-Notes_SD_Effort <- sd_effort_lakesurveysdata_2Nov2023 %>%
-  group_by(garbage_bin_notes.3)%>%
-  summarise(Number_of_instances = n())%>%
-  mutate(garbage_bin_notes.3 = str_replace_all(garbage_bin_notes.3, "\\\\", "/"))%>%
-  separate_wider_delim(garbage_bin_notes.3, delim = "/", names =c("pt1", "pt2", "pt3", "pt4", "pt5", "pt6", "pt7", "pt8", "pt9", "pt10", "pt11", "pt12", "p13"), too_few = "align_end") #may contain survey purpose info or filtering info
+# 
+# ## HOlly exploration for filtering workshop
+# Notes_SD_Effort <- sd_effort_lakesurveysdata_2Nov2023 %>%
+#   group_by(garbage_bin_notes.3)%>%
+#   summarise(Number_of_instances = n())%>%
+#   mutate(garbage_bin_notes.3 = str_replace_all(garbage_bin_notes.3, "\\\\", "/"))%>%
+#   separate_wider_delim(garbage_bin_notes.3, delim = "/", names =c("pt1", "pt2", "pt3", "pt4", "pt5", "pt6", "pt7", "pt8", "pt9", "pt10", "pt11", "pt12", "p13"), too_few = "align_end") #may contain survey purpose info or filtering info
+# 
+# #write_csv(Notes_SD_Effort, "SD_effort_file_path.csv")
+# ####
+# sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ , .(survey_id, date.1, lake_id, lake_name.1, location_notes.1, county,  site_id.1, site_id.2, sampling_method, total_effort_1, effort_units.1, original_file_name.1) , ]
 
-#write_csv(Notes_SD_Effort, "SD_effort_file_path.csv")
-####
-sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ , .(survey_id, date.1, lake_id, lake_name.1, location_notes.1, county,  site_id.1, site_id.2, sampling_method, total_effort_1, effort_units.1, original_file_name.1) , ]
+sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ , .(survey_id, date.1, lake_id, lake_name.1, location_notes.1, county,  site_id.1, site_id.2, sampling_method.1, total_effort_1, effort_units.1, original_file_name.1) , ]
+
 
 #check lake list info required?
 sd_effort_lakesurveysdata_2Nov2023[ , .N , .(lake_id,lake_name.1)]
@@ -348,7 +360,7 @@ sd_effort_lakesurveysdata_2Nov2023[ is.na(lake_id)] #one missing lake ID
   
 #drop records for which we have no way to connect a fish to a location
   sd_catch_indivfish_2Nov2023[ str_detect(survey_id, "ull") ,.N , ]
-  sd_catch_indivfish_2Nov2023 <- sd_catch_indivfish_2Nov2023[ !str_detect(survey_id, "ull") , , ]
+  # sd_catch_indivfish_2Nov2023 <- sd_catch_indivfish_2Nov2023[ !str_detect(survey_id, "ull") , , ]
   
   
   sd_effort_lakesurveysdata_2Nov2023[str_detect(survey_id, "ull") , , ]
@@ -373,39 +385,55 @@ write_csv(SD_Gears_2, "SD_gears.csv")
   
   #missing data
   sd_merged_ce[is.na(lake_id), .N, .(survey_id, lake_id, lake_name.1) ]
-  sd_merged_ce <- sd_merged_ce[ !is.na(date.1) ]
+  # sd_merged_ce <- sd_merged_ce[ !is.na(date.1) ]
   
 
   
   
 #need a total effort ident in here:  
 #can see multiple sampling events for one gear over a short span of dates
-sd_merged_ce[ , .N , .(lake_id, lake_name.1, date(date.1), sampling_method) ][order(lake_id, date)]
-  sd_merged_ce[lake_id == "ANR-Lake-4-000" , .N,  .(lake_id, lake_name.1, date(date.1), sampling_method) ][order(lake_id, date)]
+sd_merged_ce[ , .N , .(lake_id, lake_name.1, date(date.1), sampling_method.1) ][order(lake_id, date)]
+  sd_merged_ce[lake_id == "ANR-Lake-4-000" , .N,  .(lake_id, lake_name.1, date(date.1), sampling_method.1) ][order(lake_id, date)]
 #could roll together lakeXgearXyear?
-sd_merged_ce[lake_id == "ANR-Lake-4-000" , .N,  .(lake_id, lake_name.1, year(date.1), sampling_method) ][order(lake_id, year)]
+sd_merged_ce[lake_id == "ANR-Lake-4-000" , .N,  .(lake_id, lake_name.1, year(date.1), sampling_method.1) ][order(lake_id, year)]
 
 
 setnames(sd_merged_ce, old =  c("survey_id", "total_effort_1", "effort_units.1"),  new =  c("sub_effort_ident", "sub_effort_1", "sub_effort_units"))
 
-sd_merged_ce[ ,`:=` (total_effort_ident = .GRP)  , .(lake_id, lake_name.1, year(date.1), sampling_method) ]
+sd_merged_ce[ ,`:=` (total_effort_ident = .GRP)  , .(lake_id, lake_name.1, year(date.1), sampling_method.1) ]
 
 #any no catch data?
   sd_merged_ce[ , sum(!is.na(species.1)) , .(sub_effort_ident) ] #yes! every sub_effort_ident with a zero here is a no catch
-sd_merged_ce[ , nothing_caught := is.na(species.1) , ]
+sd_merged_ce[ , sub_nothing_caught := sum(!is.na(species.1))==0 , sub_effort_ident ]
 
 #now calc effort for each total_effort_ident
 sd_merged_ce[ , length(unique(sub_effort_ident)) , .(total_effort_ident)  ]
 tot_eff_1 <- sd_merged_ce[ , .N , .(total_effort_ident,sub_effort_ident,sub_effort_1)  ][ ,  .("total_eff_1" = sum(sub_effort_1)) ,.(total_effort_ident)]
 sd_merged_ce[tot_eff_1, on = ("total_effort_ident"), total_effort_1 := total_eff_1 , ]
-sd_merged_ce[ , total_effort_1_units := "unspecified" , ]
-rm(tot_eff_1)
+
+#add a total effort nothing caught
+sd_merged_ce[ , all(sub_nothing_caught)  , .(total_effort_ident)][ ,summary(V1)]
+sd_merged_ce[ , total_effort_nothing_caught := all(sub_nothing_caught)  , .(total_effort_ident)]
+
+#note here that because we have allowed NA species fish records to stay in the database as NAs, then used species as our gen of nothing caught, we have essentially said those records can stay in, but that they dont count towards catch. 
+
+
+
+# units from file
+sd_effort_lakesurveysdata_2Nov2023[ , summary(total_effort_1) , sampling_method.1 ] %>% print(n = nrow(.))
+
+gear_units <- fread("Data_and_Scripts/Data/input/SD_gear_unitizer.csv")
+
+sd_merged_ce[gear_units, on = .(sampling_method.1 = sampling_method) , total_effort_1_units :=  sampling_method_2 ]
+
+sd_merged_ce[ , .N , .(sampling_method.1, total_effort_1_units) ]
+rm(gear_units, tot_eff_1)
 
 
 unique(sd_merged_ce$lake_id)
 
-mwlaxeref::lake_id_xref %>% filter(state == "sd") %>% 
-  group_by(local.id) %>% count() %>% print(n = nrow(.))
+# mwlaxeref::lake_id_xref %>% filter(state == "sd") %>% 
+#   group_by(local.id) %>% count() %>% print(n = nrow(.))
 
 ```
 
@@ -415,15 +443,15 @@ mwlaxeref::lake_id_xref %>% filter(state == "sd") %>%
 #most have matches in the lake locations file
 sd_locs <- sd_lakelocations_1Dec2023
 
-sd_merged_ce[, unique(lake_id) , ]%in%sd_locs$`StateID,C,75`
+sd_merged_ce[, unique(lake_id) , ]%in%sd_locs$lake_id
 
-sd_merged_ce[sd_locs, on = .("lake_id" = `StateID,C,75` ) , `:=` ("lat_unspec" = `Latitude,N,19,8`, "lon_unspec" = `Longitude,N,19,8`) ]
+sd_merged_ce[sd_locs, on = .(lake_id = lake_id ) , `:=` ("lat_unspec" = lat_unspec, "lon_unspec" = lon_unspec) ]
 
 # export a few unmatched ones for stste verification:
 fwrite(sd_merged_ce[is.na(lat_unspec), .N , .(lake_id, lake_name.1, county, location_notes.1)], file = "Data_and_Scripts/Data/output/sd_lakes_loc_unknown.csv")
 
 #now try a lakenameXcounty combo:
-sd_merged_ce[sd_locs, on = .(lake_name.1 = `Name,C,50`, county = `County,C,254` ) , `:=` ("lat_2" = `Latitude,N,19,8`, "lon_2" = `Longitude,N,19,8`) ]
+sd_merged_ce[sd_locs, on = .(lake_name.1 = lake_name.1, county = county ) , `:=` ("lat_2" = lat_unspec, "lon_2" = lon_unspec) ]
 #move these into position, remove old, summarize
 sd_merged_ce[is.na(lon_unspec), `:=` ("lat_unspec" = lat_2, "lon_unspec" = lon_2) ]
 sd_merged_ce[ ,`:=` (lat_2= NULL, lon_2 = NULL)]
@@ -435,26 +463,79 @@ sd_merged_ce[ ,`:=` (lat_2= NULL, lon_2 = NULL)]
 
 ## Match Columns to parquet schema
 ```{r}
-#tidying and aligning
-sd_merged_ce[ , state := "South Dakota" ,]
-sd_merged_ce[ , nhdhr_id := NA,]#we don't have a crosswalk for these...
-sd_merged_ce <- clean_names(sd_merged_ce)
-sd_merged_ce[ , date_1 := as.IDate(date_1) , ]
-sd_merged_ce[ ,unique(notes_1)]
-sd_merged_ce[ , notes_1 := NULL]
+# clean up these names and match overall schema
+#need to 1. fix current cols to match 2. add missing cols 3.drop all extras 
+sd_merged_ce <- clean_names(sd_merged_ce) #clean up names a touch
 
 
-paste(names(sd_merged_ce),collapse = ",")
-cols <- c("state", "county", "lake_name_1", "lake_id", "nhdhr_id", "date_1", 
-          "sampling_method", "total_effort_ident", "total_effort_1","total_effort_1_units",
-          "site_id_1","site_id_2",
-          "sub_effort_ident","sub_effort_1","sub_effort_units", 
-          "species_1","length_1","length_unit_1","age", "aging_structure_1", "weight_1", "weight_unit_1", "sex",  
-          "original_file_name_1_indivfish", "original_file_name_1_effort","nothing_caught", "lat_unspec","lon_unspec","location_notes_1")
+sd_merged_ce[ , site_id_1:= paste(site_id_1,site_id_2, sep = ":") , ]
 
-setcolorder(sd_merged_ce, cols)
+sd_merged_ce[ , original_file_name := paste(original_file_name_1indivfish, original_file_name_1effort , sep = ":") , ]
 
-rm(cols, sd_catch_indivfish_2Nov2023, sd_effort_lakesurveysdata_2Nov2023, sd_locs)
+
+# then open into excel an align with the schema (see these IA example files)
+# fwrite(as.data.table(names(sd_merged_ce)), file = "Data_and_scripts/Data/output/sd_names.csv")
+
+# use the exported csv to align with the column names in the column schema GSheet (https://docs.google.com/spreadsheets/d/1zfevASMxRMxMYNWm3Hq1yR2Qk0zcJV_JnO0LBeODaPQ/edit#gid=0) . 
+# - if you delete a column from your state's names in the sheet, the code below will drop those cols automatically from the data product.
+# - put an NA in the table in each place where your data have no equivalent col and the code below will fill those with NAs in the data product
+# - keep the order of the table in line with the column schema GSheet and that will automatically reorder your data to match the schema GSheet
+# after aligning the names with the schema bring that back in (note that the )
+sd_renamer <- fread( file = "Data_and_scripts/Data/input/sd_renamer.csv") #read in 
+setnames(sd_renamer, "fields in all parquet", "schema")
+sd_renamer[south_dakota == "", south_dakota := NA ]
+
+
+#drop extras
+dropcols <- names(sd_merged_ce)[!(names(sd_merged_ce) %in% sd_renamer[,  south_dakota])]
+sd_merged_ce[ , (dropcols) := NULL , ]
+
+
+
+#rename ia to fit the schema
+sd_renamer[match(names(sd_merged_ce),sd_renamer[,south_dakota]), schema]
+
+setnames(sd_merged_ce, 
+         old = names(sd_merged_ce),
+         new = sd_renamer[match(names(sd_merged_ce),sd_renamer[,south_dakota]), schema])
+
+
+#missing cols
+sd_renamer[,schema] %in% names(sd_merged_ce)
+names(sd_merged_ce) %in% sd_renamer[,schema]
+
+#add misssing names:
+addcols <- sd_renamer[is.na(south_dakota) , schema ,]
+sd_merged_ce[ ,(addcols) := NA , ]
+
+newcolorder <- sd_renamer[ ,schema]
+
+
+setcolorder(sd_merged_ce, newcolorder)
+
+
+#generate an obs_id
+
+sd_merged_ce[ , .N , obs_id ]
+sd_merged_ce[ , obs_id := .I , ]
+
+#set state
+sd_merged_ce[ , state := as.character(state) , ]
+sd_merged_ce[ , state := "South Dakota"  , ]
+
+
+#date
+sd_merged_ce[ , date := as.IDate(date) , ]
+
+#more gear corrections
+sd_gears <- fread( file = "Data_and_scripts/Data/input/ia_sd_gear_newnames2.csv") #read in 
+
+sd_gears <- sd_gears[state == "South Dakota"]
+
+sd_merged_ce[ , .N , sampling_method_2 ]
+sd_merged_ce[ , sampling_method_2 := as.character(sampling_method_2) , ]
+
+sd_merged_ce[sd_gears, on = .(sampling_method = old_gear), sampling_method_2 := new_gear]
 
 
 
@@ -478,33 +559,58 @@ glimpse(sd_data)
 
 ```
 
-
-# Effort Merge
-```{r}
-#in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
-
-
-                        
-``` 
-          
-          
-          
-# Data tidying                        
-```{r}                       
-### dataset cleanup and tidying. MI work left here as an idea of a previous state's work
-
-
-    
-                        
-                        
-```                        
-                        
+                
  
 
 
 # Review & QC datasets
 ```{r}
-#here I do some very basic checks on what the data structure and general outputs look like (i.e., s this thing behaving like the obs-level file I think it is?). MI work left here as an idea of a previous state's work. In my opinion, it is not our job to QC the actual observations at this point (like, is a WAE really going to be 500mm at age zero), but instead to use this QC as a check on the operations performed in this script.  
+#get the surveys and gears and show how many surveys and how many of each species was caught in those surveys 
+
+#total effort review:
+sd_data %>% 
+  group_by(total_effort_ident,total_effort_1,total_effort_1_units, sampling_method, year(date), lake_name, lake_id) %>% 
+  count() %>%
+  collect()
+  
+
+# ensure nothing caught is assigned at the total effort ident level
+sd_data %>%
+  group_by(total_effort_ident) %>% 
+  summarise(n_distinct(total_effort_nothing_caught)) %>% 
+  collect()
+
+
+
+sd_data %>% 
+  group_by(total_effort_ident,total_effort_1,total_effort_1_units, sampling_method) %>%
+  summarise(walleye = sum(species_1 == "walleye", na.rm = T),
+            yellow_perch = sum(species_1 == "yellow_perch", na.rm = T),
+            black_crappie = sum(species_1 == "black_crappie", na.rm = T),
+            bluegill = sum(species_1 == "bluegill", na.rm = T),
+            smallmouth_bass = sum(species_1 == "smallmouth_bass", na.rm = T),
+            largemouth_bass = sum(species_1 == "largemouth_bass", na.rm = T),
+            northern_pike = sum(species_1 == "northern_pike", na.rm = T),
+            lake_whitefish = sum(species_1 == "lake_whitefish", na.rm = T)
+            ) %>%
+  collect()
+
+  sd_data %>% 
+  group_by(state, sampling_method, sampling_method_2) %>%
+  summarise(
+    n_effort_idents = n_distinct(total_effort_ident),
+    n_walleye = sum(species_1 == "walleye", na.rm = T),
+    n_yellow_perch = sum(species_1 == "yellow_perch", na.rm = T),
+    n_black_crappie = sum(species_1 == "black_crappie", na.rm = T),
+    n_bluegill = sum(species_1 == "bluegill", na.rm = T),
+    n_smallmouth_bass = sum(species_1 == "smallmouth_bass", na.rm = T),
+    n_largemouth_bass = sum(species_1 == "largemouth_bass", na.rm = T),
+    n_northern_pike = sum(species_1 == "northern_pike", na.rm = T),
+    n_lake_whitefish = sum(species_1 == "lake_whitefish", na.rm = T)
+  ) %>%
+    collect() %>% 
+    {. ->> sd_sample_sz}
+
 
 
        

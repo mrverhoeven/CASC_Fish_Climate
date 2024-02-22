@@ -206,5 +206,16 @@ wi_cisco_final <- wi_cisco_one_fish_per_row %>%
          total_effort_ident = cur_group_id())%>%
   mutate(date = as.IDate(date))%>%
   select(-cpue)
+
+write_csv(wi_cisco_final, "wi_cisco_targeted_8nov2023.csv")
+```
+
+quick effort check to see when these surveys took place
+```{r}
+wi_cisco_check <- wi_cisco_clean%>%
+  mutate(date = mdy(date))%>%
+  mutate(month = month(date))%>%
+  filter(month > 8)%>%
+  filter(total_count > 0) #probably want to extend filter window for VGN to go through September
 ```
 

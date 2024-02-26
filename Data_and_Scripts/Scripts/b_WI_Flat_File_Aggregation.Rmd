@@ -31,16 +31,16 @@ DONE  13. cleannames() to colnames
 DONE  14. Update the total effort ident grouping to be at the surveyXgearXdate level
 DONE  17. Ensure nothing_caught is assigned at the total_effort_ident level
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
-      16. Why are no cisco showing up in WI?
+DONE  16. Why are no cisco showing up in WI?
             Currently we do have about 30 ish surveys in there  
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
       18. Drop extra columns.
       19. Make sure all cols match the column names and descriptions thing
       21. Convert length units to mm (2/1 - decided not to convert based on discussion of sig. digits)
       22. Many lengthed fish do not have a unit on their length
-      24. Check with Paul Frater that inclusions cover what we need
       15. Update the WI data to include all species sent by Paul F in November 2023
       25. Set all to state == Wisconsin
+      26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
       
 
       
@@ -1159,6 +1159,31 @@ wi_inland_fishobservations_19Mar2021[ , .N , waterbody_type ]
 wi_inland_fishobservations_19Mar2021 <- wi_inland_fishobservations_19Mar2021[waterbody_type %in% c("Lake/Pond", "Backwater", "Reservoir/Flowage", "Unspecified Open Water"), , ]
 
 
+cisco <- fread("Data_and_scripts/Data/input/wi_cisco_targeted_8nov2023.csv")
+
+
+cisco[ , ,  ]
+
+wi_inland_fishobservations_19Mar2021[ , date := as.IDate(date) ,]
+
+colnames(cisco)
+setnames(cisco,
+         old = c("sampling_method_1", "species_1", "total_effort_1_units", "nothing_caught"), 
+         new = c("sampling_method", "species", "total_effort_1_unit", "total_effort_nothing_caught"))
+wi_inland_fishobservations_19Mar2021 <- rbindlist(list(cisco, wi_inland_fishobservations_19Mar2021), use.names = TRUE, fill = TRUE)
+
+wi_inland_fishobservations_19Mar2021[ , state := "Wisconsin" , ]
+
+
+
+
+
+
+
+
+
+
+
 ```
 
 
@@ -1173,6 +1198,8 @@ write_dataset(dataset = wi_inland_fishobservations_19Mar2021, path = "Data_and_S
 wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow/")
 
 glimpse(wi_data)
+
+
 ```
 
 

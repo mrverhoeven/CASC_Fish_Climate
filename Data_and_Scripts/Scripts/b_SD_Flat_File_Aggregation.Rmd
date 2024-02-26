@@ -60,7 +60,7 @@ flag - this column contains a character string with issues describing each row, 
 
 
 
-1. Amend original file names in data explainer to recognize sheet from which each dataset came, carry these through to 
+1. Amend original file names in data explainer to recognize sheet from which each dataset came, carry these through to the original filenames concat column.
 
 
 

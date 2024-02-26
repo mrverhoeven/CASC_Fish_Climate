@@ -14,22 +14,50 @@ library(arrow)
 library(data.table)
 library(tidyr)
 library(tibble)
+library(ggplot2)
 ```
+#_________________________________________________________________________________
+Old MN age combining code
+Code to combine the MN files that were read in above
+```{r}
+
+#mn_aged_fish_2_29Sep2021[ , garbage_bin.22 := as.character(garbage_bin.22) , ]
+
+# mn <- merge.data.table(mn_aged_fish_1_29Sep2021, mn_aged_fish_2_29Sep2021) # use rbindlist so data types can be different
+
+# Combine mn_aged_fish_1 and _2 because they are the same file that was split in two by the data provider
+mn_age_join_1 <- rbindlist(list(mn_aged_fish_1_29Sep2021, mn_aged_fish_2_29Sep2021), use.names = T, fill = T) #fill will add NAs if things don't match
+
+# combine aged_fish_1 and _2 to the other aged fish file from MN
+mn_age_join_2 <- rbindlist(list(mn_age_join_1, mn_aged_fish_29Sep2021), use.names = T, fill = T)%>%
+  mutate(lake_id = str_pad(lake_id, 8, side = "left", pad = "0")) # all MN age files together with properly formatted lake IDs
+
+# check for any duplicates (concerned about mn_aged_1 and_2 and mn_aged)
+    # okay this may be bad because the same species can be caught multiple times in each gear for each survey... ditching this for now, will work on removing duplicates after everything is merged
+# MN_age_check_dupes <- mn_age_join_1 %>%semi_join(mn_aged_fish_29Sep2021, by = c("survey_id", "species.1", "sampling_method_abbrev" )) #986,203 duplicates out of 2,050,425
+
+#LOTS of duplicates, trying other functions to find a better way to do this
+# mn_age_distinct <- mn_age_join_2 %>% distinct(survey_id, species.1, sampling_method_abbrev, .keep_all = T) #21,323
+
+```
+
+#________________________________________________________________________________________
+
 
 Read in CASC Data Explainer
 ```{r}
-CASC_Data_explainer <- read_excel("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
+CASC_Data_explainer <- read_excel("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")
 ```
 
 
 ```{r}
-MN_files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = "mn_")
+MN_files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data", pattern = "mn_")
 n <- length(MN_files_list)
 
 # Code from Mike
 for(i in 1:n) {
   assign(gsub(".csv","", MN_files_list[i]),
-         read_csv(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
+         read_csv(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_raw_disaggregated_data/",
                                MN_files_list[i]))) #don't use 'read.csv2, only get one column
 } 
 ```
@@ -171,3 +199,44 @@ MN_Flat_14Feb23 <- bind_rows(MN1, MN2, MN3, MN4, MN5, MN6, MN7)
 write_csv(MN_Flat_14Feb23, "MN_Flat_14Feb23.csv")
 ```
 
+Make some pretty figures
+```{r}
+LMB_SMB <- MN_Flat_14Feb23 %>%
+  filter(Species %in% c("largemouth bass", "smallmouth bass"))%>%
+  group_by(Survey_ID, Species, Sampling_Method, Total_Effort_1)%>%
+  summarise(Catch = sum(Total_Count))%>%
+  mutate(CPUE = Catch/Total_Effort_1)%>%
+  drop_na(CPUE)%>%
+  filter(CPUE < 1000)%>%
+  filter(CPUE > 0)
+
+#EF_LMB_SMB <- read_csv("EF_LMB_SMB_14Feb23.csv")
+
+EF_bass <- EF_LMB_SMB %>%
+  select(SURVEY_ID, COMMON_NAME, GEAR, EFFORT, TOTAL_CATCH, CPUE)%>%
+  rename(Survey_ID = 1, Species = 2, Sampling_Method = 3, Total_Effort_1 = 4, Catch = 5)%>%
+  drop_na(CPUE)%>%
+  filter(CPUE < 1000)%>%
+  filter(CPUE > 0)
+
+all_bass <- bind_rows(LMB_SMB, EF_bass)
+
+LMB_SMB_plot <- ggplot(all_bass, aes(x = CPUE, color = Sampling_Method, fill = Sampling_Method))+
+  geom_density(alpha = .2)+
+  facet_wrap(~Species)+
+  scale_x_log10()+
+  labs(title = "Bass CPUE by Gear MN", x = "non-zero CPUE (log scale)")
+
+LMB_SMB_plot
+```
+
+MN_mean_CPUE_by_gear <- ggplot(MN_mean_CPUE_no_0, aes(x = COMMON_NAME, y = CPUE, group = COMMON_NAME, fill = COMMON_NAME))+
+  geom_boxplot(color = "black")+
+  geom_jitter(aes(color = COMMON_NAME), alpha = .05)+
+  theme_classic()+
+  facet_wrap(.~GEAR_CATEGORY)+
+  theme(axis.text.x=element_text(size=9, angle=45, hjust=1, vjust=1))+
+  scale_y_log10()+
+  labs(title = "MN CPUE by Gear", y = "non-zero CPUE (log scale)")
+  
+MN_mean_CPUE_by_gear

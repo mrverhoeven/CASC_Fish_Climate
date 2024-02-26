@@ -3,6 +3,8 @@ title: "SD_Flat_File_Aggregation"
 author: "Mike Verhoeven"
 date: "`r Sys.Date()`"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 # Preamble
 
@@ -90,7 +92,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -103,7 +105,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data/",
                                           files_list[i]),
          drop = c("V1")))
   
@@ -200,6 +202,37 @@ rm(cde,names, unusedbits, cols, filei, files_list, i, maxn, n)
 sd_catch_indivfish_2Nov2023 <- rbindlist(list(sd_catch1_indivfish_2Nov2023,sd_catch2_indivfish_2Nov2023))
   rm(sd_catch1_indivfish_2Nov2023, sd_catch2_indivfish_2Nov2023)
   names(sd_catch_indivfish_2Nov2023)
+  
+  
+#HOlly's exploration for filter workshop
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(garbage_bin_notes.1)%>%
+  summarise(total = n())%>%
+  filter(total > 1)%>%
+  print(n=nrow(.)) #appears that this "object ID" is an individual ID for each fish
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(notes.1)%>%
+  summarise(total = n())%>%
+  print(n=nrow(.)) #serial number not unique to the fish, no helpful notes
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(mark_recap_data_notes.1)%>%
+  summarise(total = n())%>%
+  print(n=nrow(.)) #mark recap data notes just lists the type of tag used
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(mark_recap_data_notes.2)%>%
+  summarise(total = n())%>%
+  print(n=nrow(.)) #mark recap data notes 2 is just the number on the tag
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(mark_recap_data_notes.3)%>%
+  summarise(total = n())%>%
+  print(n=nrow(.)) #mark recap notes 3 is tag color, all are null or NA, one is orange
+  
+###
 
 sd_catch_indivfish_2Nov2023[ , .N , .(survey_id, species.1) ]
 sd_catch_indivfish_2Nov2023[ , .N , .(species.1) ] %>% print( n = nrow(.))
@@ -300,7 +333,21 @@ rm(sd_length_age_2Nov2023)
 
 #check out and pare down the effort data:
 sd_effort_lakesurveysdata_2Nov2023[ , .N , .(sampling_method.1, sampling_method_abbrev) ][order(sampling_method_abbrev)] #no need to keep the samping method abbrev
+
+# 
+# ## HOlly exploration for filtering workshop
+# Notes_SD_Effort <- sd_effort_lakesurveysdata_2Nov2023 %>%
+#   group_by(garbage_bin_notes.3)%>%
+#   summarise(Number_of_instances = n())%>%
+#   mutate(garbage_bin_notes.3 = str_replace_all(garbage_bin_notes.3, "\\\\", "/"))%>%
+#   separate_wider_delim(garbage_bin_notes.3, delim = "/", names =c("pt1", "pt2", "pt3", "pt4", "pt5", "pt6", "pt7", "pt8", "pt9", "pt10", "pt11", "pt12", "p13"), too_few = "align_end") #may contain survey purpose info or filtering info
+# 
+# #write_csv(Notes_SD_Effort, "SD_effort_file_path.csv")
+# ####
+# sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ , .(survey_id, date.1, lake_id, lake_name.1, location_notes.1, county,  site_id.1, site_id.2, sampling_method, total_effort_1, effort_units.1, original_file_name.1) , ]
+
 sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ , .(survey_id, date.1, lake_id, lake_name.1, location_notes.1, county,  site_id.1, site_id.2, sampling_method.1, total_effort_1, effort_units.1, original_file_name.1) , ]
+
 
 #check lake list info required?
 sd_effort_lakesurveysdata_2Nov2023[ , .N , .(lake_id,lake_name.1)]
@@ -321,6 +368,20 @@ sd_effort_lakesurveysdata_2Nov2023[ is.na(lake_id)] #one missing lake ID
 #now we merge the effort and catch:
   
   sd_merged_ce <- merge(sd_catch_indivfish_2Nov2023, sd_effort_lakesurveysdata_2Nov2023, by = ("survey_id"), all = TRUE, suffixes = c("indivfish","effort" ))
+  
+#Holly's exploration for filter workshop
+SD_Gears <- sd_merged_ce %>%
+  group_by(sampling_method.1, species.1)%>%
+  summarise(Total_Obs = n())
+
+SD_Gears_2 <- sd_merged_ce %>%
+  group_by(sampling_method.1)%>%
+  summarise(Total_Obs = n())
+
+
+write_csv(SD_Gears, "SD_gears_species.csv")
+write_csv(SD_Gears_2, "SD_gears.csv")
+####
   
   #missing data
   sd_merged_ce[is.na(lake_id), .N, .(survey_id, lake_id, lake_name.1) ]

@@ -8,12 +8,17 @@ editor_options:
 ---
 # Preamble
 
-#notes as of 1/25/24:
+#notes as of 2/26/24:
 -all surveys/sub surveys were made their own survey. Each part has their own unique effort ident with either the target species listed or the "non-target species" listed
 -no nhdids exist
 -sub effort idents were created so that call sub efforts have a unique ident. net number was also retained to identify agency nets/runs within a survey
 -the aging file did not contain a separate effort file - 0s might not be fully represented - a flag was created
 -some surveys/runs contain 0 effort indicative of errors in the agency data themselves - a flag was created
+
+
+-naming schema: -made net/run (agency provided) into site_id 
+                -moved sub sampling desgination to gear data notes 
+                -target species lists species with either Y or N at the end
 
 
 ##Libraries
@@ -28,6 +33,7 @@ library(tidyr)
 library(lubridate)
 library(bit64)
 library(mwlaxeref)
+library(tidyverse)
 options(scipen = 999)
 ```
 
@@ -934,7 +940,7 @@ il_data_merged_age <- il_data_merged_age %>%
 ```{r}
 #row binding the two data frames together
 #I am creating a source column so that I can retain unique total effort idents from the previous creation in separate chunks
-il_data <- bind_rows(il_data_merged_age %>% 
+il_data.prep <- bind_rows(il_data_merged_age %>% 
                             mutate(source = 1),
                           il_data.catch %>% 
                             mutate(source = 2)) %>% 
@@ -943,32 +949,32 @@ il_data <- bind_rows(il_data_merged_age %>%
   mutate(survey_effort_id = paste0(survey_effort_id, ".", source)) %>% 
   mutate(sub_effort_ident = paste0(sub_effort_ident, ".", source)) 
 
-il_data %>% 
+il_data.prep %>% 
   group_by(sampling_method_agg) %>% 
   count()
 
 #does the total effort id work?
-il_data %>% 
+il_data.prep %>% 
   group_by(survey_effort_id, original_file_name.1_agedfish, original_file_name.1_indvifish, original_file_name.1_effort) %>% 
   count()
 #looks good - all surveys from the age file have an x.1 while all surveys from the catch file have an an x.2
 
 #hows how many fish came from catch and aged fish surveys (with the caveat that some nas produced here are from surveys that did not catch fish)
-il_data %>% 
+il_data.prep %>% 
   group_by(original_file_name.1_indvifish) %>% 
   count()
 
-il_data %>% 
+il_data.prep %>% 
   group_by(original_file_name.1_agedfish) %>% 
   count()
 
-il_data %>% 
+il_data.prep %>% 
   group_by(survey_id, original_file_name.1_agedfish, lake_name.1) %>% 
   count() %>% 
   print(n = nrow(.))
 #here we can see many files from the aged fish data share a survey id - survey id in the age file is meaningless
 
-effort.check <- il_data %>% 
+effort.check <- il_data.prep %>% 
   distinct(survey_effort_id, sub_effort_ident, lake_id, year, date.1, sampling_method_agg, total_effort_2, total_effort_1, .keep_all = T) %>% 
   select(survey_effort_id, sub_effort_ident, lake_id, year, date.1, sampling_method_agg, total_effort_2, total_effort_1, survey_effort)
 
@@ -981,167 +987,232 @@ no_effort <- il_aged_fish_surveys_12Dec2023 %>%
 
 #Data tidying                        
 ```{r}                       
-glimpse(il_data)
+glimpse(il_data.prep)
 
-il_data %>% 
+il_data.prep %>% 
   filter(survey_type.1 == "Sample Type:Targeted Species" | survey_type.1 == "Sample_Type:Targeted Species") %>% 
   distinct(survey_effort_id) %>% 
   glimpse()
 
-il_data %>% 
+il_data.prep %>% 
   group_by(no_target, target_species_1, target_species_2, target_species_3) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   filter(no_target == "Black Crappie, Bluegill") %>% 
   group_by(species.1) %>% 
   count()
 
-il_data %>% 
+il_data.prep %>% 
   filter(no_target == "Bluegill") %>% 
   group_by(species.1) %>% 
   count()
 
-il_data %>% 
+il_data.prep %>% 
   filter(no_target == "Black Crappie") %>% 
   group_by(species.1) %>% 
   count()
 
-il_data %>% 
+il_data.prep %>% 
   group_by(state) %>% 
   count()
 
-il_data %>% 
+il_data.prep %>% 
   group_by(county) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(lake_name.1, lake_id) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(lake_name.1, lake_id) %>% 
   count() %>% 
   group_by(lake_id) %>% 
   count() %>% 
   filter(n >1)
 
-il_data %>% 
+il_data.prep %>% 
   filter(lake_name.1 == "Pistakee Lake") %>% 
   group_by(survey_effort_id, gear_data_notes.1, survey_id, year, total_effort_2, total_effort_1, survey_effort) %>% 
   count() %>% 
   print(n = nrow(.))
 #It appears there are subtle differences in the survey method spelling which led to differences 
 
-il_data %>% 
+il_data.prep %>% 
   group_by(date.1) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(survey_type.1) %>% 
   count() %>% 
   print(n = nrow(.))
 #they are all impoundment surveys?
 
-il_data %>% 
+il_data.prep %>% 
   group_by(sampling_method.1) %>% 
   count() %>% 
   print(n = nrow(.))
 #sampling method seems to be more sampling method agg
 
-il_data %>% 
+il_data.prep %>% 
   group_by(gear_data_notes.1) %>% 
   count() %>% 
   print(n = nrow(.))
 #gear notes 1 is more of the sampling method
 
-il_data %>% 
+il_data.prep %>% 
   group_by(total_effort_2) %>% 
   count() %>% 
   print(n = nrow(.))
 #this column needs to be renamed to sub-survey level effort id (net/shocking period)
 
-il_data %>% 
+il_data.prep %>% 
   group_by(subsample_time_1, subsample_time_2, subsample_time_3) %>% 
   count() %>% 
   print(n = nrow(.))
 #gives subsample times 
 
-il_data %>% 
+il_data.prep %>% 
   group_by(target_species_1, subsample_time_1) %>%
   mutate(subsample_time_1 = gsub("Subsample Time:", "", subsample_time_1)) %>% 
   mutate(target_species_1 = gsub("Subsample Species:", "", target_species_1)) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(target_species_2, subsample_time_2) %>% 
   mutate(subsample_time_2 = gsub("Subsample Time:", "", subsample_time_2)) %>% 
   mutate(target_species_2 = gsub("Subsample Species:", "", target_species_2)) %>%
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(target_species_3, subsample_time_3) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(target_species_1, target_species_2, target_species_3) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   mutate(species.1 = str_to_lower(species.1),
          species.1 = str_replace_all(species.1, " ", "_")) %>% 
   group_by(species.1) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(species.1) %>% 
   filter(!is.na(length.1)) %>% 
   summarise(min = min(length.1), mean = mean(length.1), max = max(length.1))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(species.1) %>% 
   filter(!is.na(weight.1)) %>% 
   summarise(min = min(weight.1), mean = mean(weight.1), max = max(weight.1))
 
-il_data %>% 
+il_data.prep %>% 
    mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
                                    TRUE ~ NA)) %>% 
   group_by(weight_unit.1) %>% 
   count() %>% 
   print(n = nrow(.))
 
-il_data %>% 
+il_data.prep %>% 
   group_by(sex) %>% 
   count() %>% 
   print(n = nrow(.))
 #not much sex data
 
-il_data %>% 
+il_data.prep %>% 
   group_by(reproductive_condition_notes) %>% 
   count() %>% 
   print(n = nrow(.))
 #no maturity - useless column
 
-il_data %>% 
+il_data.prep %>% 
   group_by(aging_structure.1) %>% 
   count() %>% 
   print(n = nrow(.))
 #limited aging data
 
-il_data %>% 
+il_data.prep %>% 
   group_by(age) %>% 
   count() %>% 
   print(n = nrow(.))
 #hardly any age data
+
+il_data.prep %>% 
+  group_by(subsampling_survey) %>% 
+  count()
+
+#look into merging no target and target species columns 
+il_data.prep %>% 
+  group_by(no_target) %>% 
+  count()
+
+il_data.prep %>% 
+  mutate(no_target = tolower(gsub(",\\s+", ",", no_target))) %>%
+  mutate(no_target = gsub("\\s+", "_", no_target)) %>%
+  mutate(no_target = strsplit(no_target, ",")) %>%
+  mutate(no_target = lapply(no_target, function(x) paste0(x, "N"))) %>%
+  mutate(no_target = sapply(no_target, function(x) paste(x, collapse = ","))) %>% 
+  mutate(no_target = case_when(no_target == "NAN" ~ NA,
+                               TRUE ~ no_target)) %>% 
+  group_by(no_target) %>% 
+  count()
+
+
+il_data.prep %>% 
+  group_by(target_species) %>% 
+  count()
+
+il_data.prep %>% 
+  #cleaning up no target species column
+  mutate(no_target = tolower(gsub(",\\s+", ",", no_target))) %>%
+  mutate(no_target = gsub("\\s+", "_", no_target)) %>%
+  mutate(no_target = strsplit(no_target, ",")) %>%
+  mutate(no_target = lapply(no_target, function(x) paste0(x, "N"))) %>%
+  mutate(no_target = sapply(no_target, function(x) paste(x, collapse = ","))) %>% 
+  mutate(no_target = case_when(no_target == "NAN" ~ NA,
+                               TRUE ~ no_target)) %>% 
+  
+  #cleaning up target species column
+  mutate(target_species = tolower(gsub(" ", "_", target_species)),
+         target_species = case_when(!is.na(target_species) ~ paste0(target_species, "Y"))) %>% 
+  #combining the columns
+  mutate(combined_species = paste(target_species, no_target, sep = ",")) %>% 
+  group_by(target_species, no_target, combined_species) %>% 
+  count()
+
+il_data.prep %>%
+  #preparing no target column for combining
+  mutate(no_target = tolower(gsub(",\\s+", ",", no_target))) %>%
+  mutate(no_target = gsub("\\s+", "_", no_target)) %>%
+  mutate(no_target = strsplit(no_target, ",")) %>%
+  mutate(no_target = lapply(no_target, function(x) paste0(x, "N"))) %>%
+  mutate(no_target = sapply(no_target, function(x) paste(x, collapse = ","))) %>%
+  mutate(no_target = case_when(no_target == "NAN" ~ NA,
+                               TRUE ~ no_target)) %>% 
+  #parparing target_species for combining 
+  mutate(target_species = tolower(gsub(" ", "_", target_species)),
+         target_species = case_when(!is.na(target_species) ~ paste0(target_species, "Y"))) %>% 
+  #combining columns and make sure NAs look nice
+  mutate(combined_species = ifelse(is.na(target_species) & is.na(no_target), NA,
+                                   ifelse(is.na(target_species), no_target,
+                                          ifelse(is.na(no_target), target_species,
+                                                 paste(target_species, no_target, sep = ","))))) %>%
+  
+  group_by(target_species, no_target, combined_species) %>% 
+  count()
+
 
 #####################final tidy#########################################
 #nhdids
@@ -1150,7 +1221,7 @@ crosswalks <- mwlaxeref::lake_id_xref %>%
   count()
 #no crosswalks exist for il
 
-il_data <- il_data %>% 
+il_data <- il_data.prep %>% 
   #lower case with no spaces for species name
   mutate(species.1 = str_to_lower(species.1),
          species.1 = str_replace_all(species.1, " ", "_")) %>% 
@@ -1163,16 +1234,16 @@ il_data <- il_data %>%
   mutate(total_effort_1_units = "minutes",
          sub_effort_1_units = "minutes") %>% 
   #survey type
-  mutate(survey_type.1 = gsub("Sample Type:", "", survey_type.1),
-         survey_type.1 = gsub("Sample_Type:", "", survey_type.1)) %>%  #cleans up column name
+  mutate(survey_type = gsub("Sample Type:", "", survey_type.1),
+         survey_type = gsub("Sample_Type:", "", survey_type)) %>%  #cleans up column name
   #adding in length units
   #no units were specified within data but general assumption is mm
   mutate(length_unit.1 = "mm") %>% 
   #renaming sampling hierarchy
   rename(sampling_method.big = sampling_method.1) %>% 
   rename(sampling_method = sampling_method_agg) %>% 
-  rename(sampling_method.1 = gear_data_notes.1) %>% 
-  mutate(sampling_method.1 = gsub("Gear Used:", "", sampling_method.1)) %>% 
+  rename(sampling_method.2 = gear_data_notes.1) %>% 
+  mutate(sampling_method.2 = gsub("Gear Used:", "", sampling_method.2)) %>% 
   mutate(sampling_method = gsub("Gear Used:", "", sampling_method)) %>% 
   #renaming effort hierarchy
   #this renames the survey level effort as total_effort_1 with the effort grouping noted by survey_effort_1_id
@@ -1191,53 +1262,78 @@ il_data <- il_data %>%
   ungroup() %>% 
   #cleaning date
   mutate(date.1 = mdy(date.1)) %>% 
+  #migrates the designation if a surveys is associated with subsampling to gear_data_notes
+  mutate(subsampling_survey = case_when(is.na(subsampling_survey) ~ "subsampling_survey:N",
+                                        subsampling_survey == "N" ~ "subsampling_survey:N",
+                                        subsampling_survey == "Y" ~ "subsampling_survey:Y")) %>% 
+  #the next three chunks of code are for navigating no target and target columns
+  #preparing no target column for combining
+  mutate(no_target = tolower(gsub(",\\s+", ",", no_target))) %>%
+  mutate(no_target = gsub("\\s+", "_", no_target)) %>%
+  mutate(no_target = strsplit(no_target, ",")) %>%
+  mutate(no_target = lapply(no_target, function(x) paste0(x, "N"))) %>%
+  mutate(no_target = sapply(no_target, function(x) paste(x, collapse = ","))) %>%
+  mutate(no_target = case_when(no_target == "NAN" ~ NA,
+                               TRUE ~ no_target)) %>% 
+  #preparing target_species for combining 
+  mutate(target_species = tolower(gsub(" ", "_", target_species)),
+         target_species = case_when(!is.na(target_species) ~ paste0(target_species, "Y"))) %>% 
+  #combining columns and make sure NAs look nice
+  mutate(combined_species = ifelse(is.na(target_species) & is.na(no_target), NA,
+                                   ifelse(is.na(target_species), no_target,
+                                          ifelse(is.na(no_target), target_species,
+                                                 paste(target_species, no_target, sep = ","))))) %>%
+  ungroup() %>% 
   #added targeted species column to targeted surveys
   #columns that still need to be added
-  ungroup() %>% 
-  mutate(nhdr_id = NA,
+  mutate(nhdr_id = as.character(NA),
          year = year(date.1),
          month = month(date.1),
-         survey_type_2 = NA,
-         survey_type_3 = NA,
-         survey_type_4 = NA,
-         total_effort_3 = NA,
-         total_effort_3_units = NA,
-         total_effort_2_units = NA,
-         water_temp = NA,
-         water_temp_units = NA,
-         water_clarity = NA,
-         Water_clarity_units = NA,
-         lat_start = NA,
-         lon_start = NA,
-         lat_end = NA,
-         lon_end = NA,
-         aging_structure_2 = NA,
-         obs_id = row_number(),
-         total_effort_2 = NA,
-         gear_data_notes_1 = NA,
-         site_id_1 = NA,
-         site_id_2 = NA,
-         site_id_3 = NA,
-         site_id_4 = NA,
-         batch_weight = NA,
-         batch_weight_units = NA,
-         age_class = NA,
-         species_abbrev = NA,
-         ind_fish_ident = NA,
-         waterbody_type = NA,
-         location_notes_1 = NA,
-         notes_1 = NA,
-         original_file_name.1_winnebago = NA,
-         original_file_name.1_histcatch = NA,
-         original_file_name.1_catchlengths = NA,
-         area_group = NA,
+         survey_type_2 = as.character(NA),
+         survey_type_3 = as.character(NA),
+         survey_type_4 = as.character(NA),
+         gear_data_notes = subsampling_survey,
+         target_species_2 = as.character(NA),
+         total_effort_3 = as.numeric(NA),
+         total_effort_3_units = as.character(NA),
+         total_effort_2_units = as.character(NA),
+         water_temp = as.numeric(NA),
+         water_temp_units = as.character(NA),
+         water_clarity = as.numeric(NA),
+         Water_clarity_units = as.character(NA),
+         lat_start = as.numeric(NA),
+         lon_start = as.numeric(NA),
+         lat_end = as.numeric(NA),
+         lon_end = as.numeric(NA),
+         aging_structure_2 = as.character(NA),
+         obs_id = as.character(row_number()),
+         total_effort_2 = as.numeric(NA),
+         site_id = as.character(net_id),
+         batch_weight = as.character(NA),
+         batch_weight_units = as.character(NA),
+         age_class = as.character(NA),
+         ind_fish_ident = as.character(NA),
+         waterbody_type = as.character(NA),
+         location_notes_1 = as.character(NA),
+         notes_1 = as.character(NA),
+         area_group = as.character(NA),
          lake_name = lake_name.1,
          date = date.1,
-         sub_effort_2 = NA,
-         sub_effort_2_units = NA,
+         sub_effort_2 = as.numeric(NA),
+         sub_effort_2_units = as.character(NA),
          lakesize = lake_area_acres,
-         lakesize_units = "acres"
+         lakesize_units = "acres",
+         target_species = combined_species,
+         lake_id = as.character(lake_id),
+         length_bin = as.character(length_bin),
+         length.1 = as.numeric(length.1)
          ) %>% 
+  #migrates all original file names to a single column
+  unite("original_file_names", c(original_file_name.1_agedfish,
+                                      original_file_name.1_indvifish,
+                                      original_file_name.1_effort), 
+                                      remove = T, 
+                                      na.rm = T) %>% 
   #selecting columns to retain
   select(state, 
          county, 
@@ -1248,14 +1344,15 @@ il_data <- il_data %>%
          year,
          month,
          survey_id,
-         survey_type.1,
+         survey_type,
          survey_type_2,
          survey_type_3,
          survey_type_4,
          sampling_method,
-         sampling_method.1,
-         no_target,
+         sampling_method.2,
+         gear_data_notes,
          target_species,
+         target_species_2,
          total_effort_ident,
          total_effort_1, 
          total_effort_2,
@@ -1264,26 +1361,21 @@ il_data <- il_data %>%
          total_effort_2_units,
          total_effort_3_units,
          total_survey_nothing_caught,
-         gear_data_notes_1,
          water_temp,
          water_temp_units,
+         water_clarity,
+         Water_clarity_units,
          lat_start,
          lon_start,
          lat_end,
          lon_end,
-         water_clarity,
-         Water_clarity_units,
-         site_id_1,
+         site_id,
          sub_effort_ident,
          sub_effort_1,
          sub_effort_1_units,
          sub_effort_2,
          sub_effort_2_units,
-         site_id_2,
-         site_id_3,
-         site_id_4,
          sub_survey_nothing_caught,
-         net_id,
          species.1,
          length.1,
          length_unit.1,
@@ -1299,13 +1391,7 @@ il_data <- il_data %>%
          sex,
          age_class,
          flag,
-         original_file_name.1_agedfish,
-         original_file_name.1_indvifish,
-         original_file_name.1_effort,
-         original_file_name.1_winnebago,
-         original_file_name.1_histcatch,
-         original_file_name.1_catchlengths,
-         species_abbrev,
+         original_file_names,
          ind_fish_ident,
          lakesize,
          lakesize_units,
@@ -1315,9 +1401,7 @@ il_data <- il_data %>%
          waterbody_type,
          location_notes_1,
          notes_1,
-         obs_id,
-         no_target,
-         subsampling_survey
+         obs_id
          )
 #no crosswalk for lake id exists for nhdids
 
@@ -1369,7 +1453,7 @@ il_data %>%
 #this shows a survey where the total survey is false for total effort nothing caught but true in a few sub levels
 
 il_data %>% 
-  group_by(survey_type_1) %>% 
+  group_by(survey_type) %>% 
   count()
 
 il_data %>% 
@@ -1379,18 +1463,18 @@ il_data %>%
 #how do total effort and sub effort align?
 #data were provided in the run or number id - we have created a sub effort column in which all values are unique 
 check <- il_data %>% 
-  distinct(total_effort_ident, sub_effort_ident, net_id, total_effort_1, sub_effort_1)
+  distinct(total_effort_ident, sub_effort_ident, site_id, total_effort_1, sub_effort_1)
 
 
 
 il_data %>% 
   filter(lake_name == "Baldwin Lake" & year == "2012") %>% 
-  distinct(total_effort_ident, sub_effort_ident, net_id, total_effort_ident, sub_effort_1, total_effort_1,  no_target, target_species)
+  distinct(total_effort_ident, sub_effort_ident, site_id, total_effort_ident, sub_effort_1, total_effort_1, target_species)
 
 #example for vic
 example <- il_data %>% 
   filter(lake_name == "Baldwin Lake" & year == "2012") %>% 
-  distinct(lake_name, date, total_effort_ident, sub_effort_ident, no_target, target_species, total_effort_1)
+  distinct(lake_name, date, total_effort_ident, sub_effort_ident, target_species, total_effort_1)
 
 example.cpe <- il_data %>% 
   filter(lake_name == "Baldwin Lake" & year == "2012") %>% 
@@ -1401,8 +1485,8 @@ example.cpe <- il_data %>%
          cpe.blg = count.blg/total_effort_1,
          cpe.cc = count.cc/total_effort_1,
          cpe.lmb = count.lmb/total_effort_1) %>% 
-  distinct(lake_name, date, total_effort_ident, sub_effort_ident, no_target, target_species, total_effort_1, .keep_all = T) %>% 
-  select(lake_name, date, total_effort_ident, sub_effort_ident, no_target, target_species, total_effort_1, count.blg, count.cc, count.lmb, cpe.blg, cpe.cc, cpe.lmb)
+  distinct(lake_name, date, total_effort_ident, sub_effort_ident, target_species, total_effort_1, .keep_all = T) %>% 
+  select(lake_name, date, total_effort_ident, sub_effort_ident, target_species, total_effort_1, count.blg, count.cc, count.lmb, cpe.blg, cpe.cc, cpe.lmb)
 
 baldwin_check <- il_catch_age_effort_30Nov23_uncount %>% 
   filter(lake_name.1 == "Baldwin Lake" & year == "2012") %>% 
@@ -1417,18 +1501,18 @@ baldwin_original <- il_effort_30Nov23_fixed %>%
   rename(`net/run` = total_effort_2)
 
 il_data %>% 
-  distinct(total_effort_ident, survey_type_1) %>% 
-  group_by(survey_type_1) %>% 
+  distinct(total_effort_ident, survey_type) %>% 
+  group_by(survey_type) %>% 
   count()
 
 il_data %>% 
   filter(sub_survey_nothing_caught == T) %>% 
-  distinct(total_effort_ident, sub_effort_ident, survey_type_1) %>% 
-  group_by(survey_type_1) %>% 
+  distinct(total_effort_ident, sub_effort_ident, survey_type) %>% 
+  group_by(survey_type) %>% 
   count()
 
 il_data %>% 
-  group_by(sampling_method, sampling_method_1) %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -1469,6 +1553,18 @@ il_data %>%
   distinct(lake_name, total_effort_ident, sampling_method, sub_effort_ident, total_effort_1, sub_effort_1) %>% 
   collect() %>% 
   print(n = nrow(.))
+
+il_data %>% 
+  group_by(original_file_names) %>% 
+  count()
+
+il_data %>% 
+  group_by(target_species) %>% 
+  count()
+
+il_data %>% 
+  group_by(nhdr_id) %>% 
+  count()
 ``` 
 
 

@@ -23,6 +23,8 @@ library(ggplot2)
 options(scipen = 999)
 ```
 
+ - re-running 2/22/2024
+ 
 Plan:
 Product 1): map showing all lakes with data
 - read in individual state parquet files
@@ -46,25 +48,7 @@ lat_longs <- glm_metadat %>%
 
 
 # MN all data
-ignore below, it is bad
 
-mn_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/mn_file_arrow")
-glimpse(mn_data) #33,811,236 rows (fish obs)
-
-mn_filtered <- mn_data %>% #by assigning it a new name 'mn_filtered' it pulls it into your environment
-  group_by(lake_id, nhdhr.id, lake_name.1, county) %>% 
-  count() %>% 
-  collect() %>%
-  left_join(lat_longs, by = c("nhdhr.id" = "site_id"))%>%
-  rename(nhdhr_id = nhdhr.id,
-         state_id = lake_id,
-         lake_name = lake_name.1,
-         total_obs = n,
-         lat = centroid_lat,
-         lon = centroid_lon)%>%
-  mutate(state_id = as.character(state_id))%>%
-  select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
-  print(n = nrow(.)) #6765 lakes #BAD must only group with MN DOW
 
 ```{r}
 mn_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/mn_file_arrow")
@@ -76,13 +60,14 @@ mn_dow <- mn_data %>%
   collect()%>%
   print(n = nrow(.)) #4148 lakes 
 
-mn_filtered <- mn_data %>%
+mn_filtered <- mn_data %>% # group by lake name, lake_id 
   group_by(lake_id)%>%
   collect()%>%
-  summarise(lake_name = first(lake_name.1, na_rm = TRUE),
+  summarise(lake_name = first(lake_name, na_rm = TRUE), #
             nhdhr_id = first(nhdhr.id, na_rm = TRUE),
             county = first(county, na_rm = TRUE), #still missing some county names but oh well
-            total_obs = n())%>%
+            total_obs = n(),
+            total_effort_idents = n_distinct(total_effort_ident))%>%
   left_join(lat_longs, by = c("nhdhr_id" = "site_id"))%>%
   rename(state_id = lake_id,
          lat = centroid_lat,
@@ -236,27 +221,6 @@ rm(wi_lake_names, wi_lat_long)
 
 ```
 
-old code to remove rivers, creeks, streams, etc. from WI dataset
-%>%
-  left_join(glm_dat, by =c("nhdhr_id" = "site_id"))%>% #try to get more waterbody names
-  mutate(lake_name = if_else(!is.na(lake_name.x), lake_name.x, lake_name.y)) %>%
-  mutate(River = str_detect(lake_name, "river")) %>%
-  mutate(Creek = str_detect(lake_name, "creek"))%>%
-  mutate(Canal = str_detect(lake_name, "canal"))%>%
-  mutate(Stream = str_detect(lake_name, "stream"))%>%
-  mutate(Brook = str_detect(lake_name, "brook"))%>% 
-  mutate(Flowage = str_detect(lake_name, "flowage"))%>% 
-  mutate(Channel = str_detect(lake_name, "channel"))%>% 
-  mutate(Ditch = str_detect(lake_name, "ditch"))%>% 
-  mutate(Lotic = case_when(River == TRUE ~ 1,
-                           Creek == TRUE ~ 1,
-                           Canal == TRUE ~ 1,
-                           Stream == TRUE ~ 1,
-                           Brook == TRUE ~ 1,
-                           Flowage == TRUE ~ 1,
-                           Channel == TRUE ~ 1,
-                           Ditch == TRUE ~ 1,
-                           TRUE ~ 0)) %>%
 
 
 # MI all data
@@ -314,7 +278,7 @@ ia_filtered <- ia_data %>%
   summarise(lat = first(lat_unspec),
             lon = first(lon_unspec),
             total_obs = n(),
-            lake_name = first(lake_name.1, na_rm = TRUE),
+            lake_name = first(lake_name, na_rm = TRUE),
             county = first(county, na_rm = TRUE))%>%
   rename(state_id = lake_id,)%>%
   mutate(nhdhr_id = NA)%>%
@@ -322,7 +286,7 @@ ia_filtered <- ia_data %>%
   mutate(state = "IA")%>%
   print(n = nrow(.))
   
-
+#write_csv(ia_filtered, "ia_filtered_22Feb2024.csv")
 ```
 
 # IL all data
@@ -333,7 +297,7 @@ glimpse(il_data) #634,747 rows (fish obs)
 il_filtered <- il_data %>% 
   group_by(lake_id)%>% 
   collect() %>%
-  summarise(lake_name = first(lake_name_1, na_rm = TRUE),
+  summarise(lake_name = first(lake_name, na_rm = TRUE),
             nhdhr_id = first(nhdr_id , na_rm = TRUE),
             county = first(county, na_rm = TRUE), #still missing some county names but oh well
             total_obs = n(),
@@ -345,6 +309,7 @@ il_filtered <- il_data %>%
   mutate(state = "IL")%>%
   print(n = nrow(.)) # 345 lakes
 
+#write_csv(il_filtered, "il_filtered_22Feb2024.csv")
 ```
 
 # IN all data
@@ -360,10 +325,10 @@ in_filtered_r <- in_data %>%
   collect() %>%
   summarise(lat = first(lat_unspec),
             lon = first(lon_unspec),
+            nhdhr_id = first(nhdhr_id , na_rm = TRUE),
             county = first(county),
-            lake_name = first(lake_name_1),
+            lake_name = first(lake_name),
             n = n())%>%
-  mutate(nhdhr_id = NA)%>%
    rename(state_id = lake_id,
          total_obs = n,)%>%
   select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
@@ -372,6 +337,8 @@ in_filtered_r <- in_data %>%
 # IN Glacial Lakes 
     # Holly will work on cleaing this up in the IN parquet
 IN_crosswalk <- readRDS("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Crosswalks/IN_DNR_nhdhr_xwalk.rds")
+
+MGLP_crosswalk <- readRDS("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Crosswalks/mglp_nhdhr_xwalk.rds")
 
 IN_FINFO_List_read <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IN_Data/in_raw_disaggregated_data/in_lake_id_list_1Dec2023.csv")
 
@@ -428,47 +395,55 @@ in_filtered_gl <- in_data %>%
 
 in_filtered <- bind_rows(in_filtered_gl, in_filtered_r)
 print(in_filtered)
+
+
+
+# update 2/22/2024
+in_filtered <- in_data %>%
+  group_by(lake_id) %>% 
+  collect() %>%
+  summarise(lat = first(lat_unspec),
+            lon = first(lon_unspec),
+            nhdhr_id = first(nhdhr_id , na_rm = TRUE),
+            county = first(county),
+            lake_name = first(lake_name),
+            n = n())%>%
+   rename(state_id = lake_id,
+         total_obs = n,)%>%
+  select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
+  mutate(state = "IN")
+#write_csv(in_filtered, "in_filtered_22Feb2024.csv")
 ```
 
-#### old updated 1/19/2024
-in_filtered <- in_data %>% 
-  group_by(lake_id, county, lake_name_1, lat_unspec, lon_unspec) %>% 
-  count() %>% 
-  collect() %>%
-  mutate(nhdhr_id = NA)%>%
-   rename(state_id = lake_id,
-         lake_name = lake_name_1,
-         total_obs = n,
-         lon = lon_unspec,
-         lat = lat_unspec)%>%
-  select(nhdhr_id, state_id, lake_name, county, total_obs, lat, lon)%>%
-  print(n = nrow(.)) #243 lakes
-
-#missing lat longs from 160 lakes
-
-
-
-
-in_data <- open_dataset("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
-glimpse(in_data)
-
-MN example
-write_dataset(dataset = mn_dat, path = "Data_and_Scripts/Data/output/mn_file_arrow")
-
-mn_data <- open_dataset("Data_and_Scripts/Data/output/mn_file_arrow/")
-
-glimpse(mn_data)
 
 
 # combine all states lat longs
 ```{r}
+#OUT OF DATE, RERUN
 all_lat_lons <- bind_rows(ia_filtered, il_filtered, in_filtered, mi_filtered, mn_filtered, sd_filtered, wi_filtered) #updated 1/19/2024 added state and cleaned up a bit
 
 write_csv(all_lat_lons, "all_lakes_loc_19Jan2024.csv")
 all_lat_lons <- read_csv("all_lat_lons_19Jan2024.csv") 
 
 ```
+# memory is crashing so this will be a quick update for the time being
 
+"nhdhr_id"  "state_id"  "lake_name" "county"    "total_obs" "lat"       "lon"       "state"  
+
+```{r}
+all_lat_lons_update <- all_lat_lons %>%
+  filter(state %in% c("MN", "WI", "SD", "IL", "MI"))
+
+all_lat_lons_2 <- bind_rows(all_lat_lons_update, ia_filtered)
+
+all_lat_lons <- bind_rows(all_lat_lons_2, in_filtered)
+write_csv(all_lat_lons, "all_lakes_loc_22Feb2024.csv")
+```
+
+- number of years of data
+- number of total effort idents
+- number of gill nets set over time (total effort)
+- number of total ef minutes
 
 Make the map
 ```{r}
@@ -482,7 +457,7 @@ library(viridis)
 library(sp)
 library(tidyr)
 
-all_lat_lons <- read_csv("all_lat_lons_9Jan2024.csv")
+#all_lat_lons <- read_csv("all_lat_lons_22Feb2024.csv")
 
 # remove points outside of midwest
 lat_longs_edit <- all_lat_lons %>%
@@ -490,7 +465,8 @@ lat_longs_edit <- all_lat_lons %>%
   filter(state_id != "SHP84")%>%
   filter(state_id != "118")%>%
   filter(state_id != "{C47CE045-4D52-4279-B982-E47E1409874F}")%>%
-  filter(state_id != "FMI10")
+  filter(state_id != "FMI10")%>%
+  filter(state_id != "RED24")
 
 Midwest_noND <- map_data("state", region = c("minnesota", "wisconsin", "south dakota", "iowa", "illinois", "indiana", "michigan"))
 
@@ -521,7 +497,7 @@ All_Lakes_map_obs
 
 ```{r}
 # Load in data dump for Chris Custer to make CPUE maps
-CC_Dat <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Data for Collaborators/Preliminary_CPUE_Data/all_state_cpue_8Dec23.csv")
+CC_Dat <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Data for Collaborators/CPUE_Data/all_state_cpue_6Feb24.csv")
 ```
 
 

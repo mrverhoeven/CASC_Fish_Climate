@@ -141,7 +141,7 @@ for(i in 1:n) {
 #Data Review
 ```{r}
 # review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
-# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (posisbly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
+# consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (possibly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
 
 
 #aged fish
@@ -989,6 +989,11 @@ no_effort <- il_aged_fish_surveys_12Dec2023 %>%
 ```{r}                       
 glimpse(il_data.prep)
 
+#exploring dates in IL
+dates <- il_data.prep %>% 
+  group_by(survey_id, sampling_method_agg, survey_effort_id, sub_effort_ident, total_effort_2, date.1) %>% 
+  count()
+
 il_data.prep %>% 
   filter(survey_type.1 == "Sample Type:Targeted Species" | survey_type.1 == "Sample_Type:Targeted Species") %>% 
   distinct(survey_effort_id) %>% 
@@ -1260,8 +1265,15 @@ il_data <- il_data.prep %>%
   group_by(total_effort_ident) %>% 
   mutate(total_survey_nothing_caught = all(sub_survey_nothing_caught)) %>% 
   ungroup() %>% 
-  #cleaning date
-  mutate(date.1 = mdy(date.1)) %>% 
+  #cleaning up dates
+  mutate(date_sample = mdy(date.1)) %>% 
+  group_by(sub_effort_ident) %>% 
+  mutate(date_sub_effort_ident = first(date_sample)) %>% 
+  ungroup() %>% 
+  group_by(total_effort_ident) %>% 
+  mutate(date_total_effort_ident = first(date_sample)) %>% 
+  ungroup() %>% 
+  mutate(date_survey = date_total_effort_ident) %>% 
   #migrates the designation if a surveys is associated with subsampling to gear_data_notes
   mutate(subsampling_survey = case_when(is.na(subsampling_survey) ~ "subsampling_survey:N",
                                         subsampling_survey == "N" ~ "subsampling_survey:N",
@@ -1287,8 +1299,8 @@ il_data <- il_data.prep %>%
   #added targeted species column to targeted surveys
   #columns that still need to be added
   mutate(nhdr_id = as.character(NA),
-         year = year(date.1),
-         month = month(date.1),
+         year = year(date_sample),
+         month = month(date_sample),
          survey_type_2 = as.character(NA),
          survey_type_3 = as.character(NA),
          survey_type_4 = as.character(NA),
@@ -1340,7 +1352,10 @@ il_data <- il_data.prep %>%
          lake_name,
          lake_id,
          nhdr_id,
-         date,
+         date_survey,
+         date_total_effort_ident,
+         date_sub_effort_ident,
+         date_sample,
          year,
          month,
          survey_id,
@@ -1564,6 +1579,11 @@ il_data %>%
 
 il_data %>% 
   group_by(nhdr_id) %>% 
+  count()
+
+#how do my dates look?
+dates <- il_data %>% 
+  group_by(lake_name, sampling_method, total_effort_ident, sub_effort_ident, date_survey, date_total_effort_ident, date_sub_effort_ident, date_sample) %>% 
   count()
 ``` 
 

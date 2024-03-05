@@ -19,6 +19,11 @@ mi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab",
 glimpse(mi_data)
 
 mi_data %>% 
+  collect() %>% 
+  group_by(sampling_method) %>% 
+  summarise(walleye = sum(species.1 == "walleye"))
+
+mi_data %>% 
   filter(species.1 == "taxon_NA") %>% 
   glimpse()
 

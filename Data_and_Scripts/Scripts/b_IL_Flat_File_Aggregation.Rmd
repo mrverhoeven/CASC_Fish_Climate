@@ -1298,7 +1298,7 @@ il_data <- il_data.prep %>%
   ungroup() %>% 
   #added targeted species column to targeted surveys
   #columns that still need to be added
-  mutate(nhdr_id = as.character(NA),
+  mutate(nhdhr_id = as.character(NA),
          year = year(date_sample),
          month = month(date_sample),
          survey_type_2 = as.character(NA),
@@ -1322,7 +1322,7 @@ il_data <- il_data.prep %>%
          total_effort_2 = as.numeric(NA),
          site_id = as.character(net_id),
          batch_weight = as.character(NA),
-         batch_weight_units = as.character(NA),
+         batch_weight_unit = as.character(NA),
          age_class = as.character(NA),
          ind_fish_ident = as.character(NA),
          waterbody_type = as.character(NA),
@@ -1338,7 +1338,9 @@ il_data <- il_data.prep %>%
          target_species = combined_species,
          lake_id = as.character(lake_id),
          length_bin = as.character(length_bin),
-         length.1 = as.numeric(length.1)
+         length.1 = as.numeric(length.1),
+         total_effort_nothing_caught = total_survey_nothing_caught,
+         sub_effort_nothing_caught = sub_survey_nothing_caught
          ) %>% 
   #migrates all original file names to a single column
   unite("original_file_names", c(original_file_name.1_agedfish,
@@ -1351,7 +1353,7 @@ il_data <- il_data.prep %>%
          county, 
          lake_name,
          lake_id,
-         nhdr_id,
+         nhdhr_id,
          date_survey,
          date_total_effort_ident,
          date_sub_effort_ident,
@@ -1375,7 +1377,7 @@ il_data <- il_data.prep %>%
          total_effort_1_units,
          total_effort_2_units,
          total_effort_3_units,
-         total_survey_nothing_caught,
+         total_effort_nothing_caught,
          water_temp,
          water_temp_units,
          water_clarity,
@@ -1390,7 +1392,7 @@ il_data <- il_data.prep %>%
          sub_effort_1_units,
          sub_effort_2,
          sub_effort_2_units,
-         sub_survey_nothing_caught,
+         sub_effort_nothing_caught,
          species.1,
          length.1,
          length_unit.1,
@@ -1402,7 +1404,7 @@ il_data <- il_data.prep %>%
          weight.1,
          weight_unit.1,
          batch_weight,
-         batch_weight_units,
+         batch_weight_unit,
          sex,
          age_class,
          flag,

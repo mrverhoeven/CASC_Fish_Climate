@@ -24,6 +24,13 @@ sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab",
 glimpse(sd_data)
 
 sd_data %>% 
+  distinct(total_effort_ident, sub_effort_ident, sampling_method, sampling_method_2) %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+sd_data %>% 
   distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
   collect() %>% 
   ggplot() +

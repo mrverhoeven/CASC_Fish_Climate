@@ -21,6 +21,44 @@ library(viridis) #more color palettes
 library(gganimate)
 ```
 
+#hiving
+```{r}
+#opening from pre-constucted file path
+data <- open_dataset("Data_and_Scripts/Data/output/midwest_data", partitioning = c("state"))
+glimpse(data)
+#there is a "parent" folder named midwest_data
+#each state gets a folder labeled state="X"
+#each state parquet gets put into the respective state folder
+#arrow does its magic!
+
+#can we look at each state simultaneously? 
+data %>% 
+  group_by(state) %>% 
+  count() %>% 
+  collect()
+
+data %>% 
+  filter(species_1 == "walleye") %>% 
+  group_by(state) %>% 
+  count() %>% 
+  collect()
+
+data %>% 
+  distinct(state, total_effort_ident) %>% 
+  group_by(state) %>% 
+  count() %>% 
+  collect()
+#this is bomb
+
+data %>% 
+  group_by(state, species_1) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(species_1) %>% 
+  print(n = nrow(.)) 
+```
+
+
 #2/5 cpe data dump
 ```{r}
 #reading in individual state cpe 

@@ -56,6 +56,18 @@ data %>%
   collect() %>% 
   arrange(species_1) %>% 
   print(n = nrow(.)) 
+
+data %>% 
+  group_by(state) %>% 
+  summarise(min.year = min(year, na.rm = T),
+            max.year = max(year, na.rm = T)) %>% 
+  collect()
+
+data %>% 
+  group_by(state) %>% 
+  summarise(min.month = min(month, na.rm = T),
+            max.month = max(month, na.rm = T)) %>% 
+  collect()
 ```
 
 

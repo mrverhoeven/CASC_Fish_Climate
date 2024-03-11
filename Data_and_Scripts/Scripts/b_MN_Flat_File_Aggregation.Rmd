@@ -82,7 +82,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -95,7 +95,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -963,7 +963,7 @@ mn_dat[, c("targeted_or_standard_effort", "targeted_or_standard_indivfish", "tar
               mn_dat[ , .N , is.na(date_clean)]
               
               #dump all extra dates:
-              mn_dat[ , c("date.1_effort", "date.2_effort", "end_date", "date.2_indivfish", "date.1_indivfish", "date") := NULL, ]
+              #mn_dat[ , c("date.1_effort", "date.2_effort", "end_date", "date.2_indivfish", "date.1_indivfish", "date") := NULL, ]
               
               
 # add an effort_ident column "lake_id", "date_clean" , "sampling_method_abbrev", "survey_type.1"effort_ident := .GRP
@@ -1229,6 +1229,215 @@ mn_dat <- left_join(mn_dat, area, by = c("lake_id" = "DOW")) %>%
 #need to 1. fix current cols to match 2. add missing cols 3.drop all extras 
 mn_dat <- clean_names(mn_dat) #clean up names a touch
 
+#which date columns to keep?
+dates <- mn_dat %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  mutate(date_1_effort = as.Date(date_1_effort, format = "%m/%d/%Y"),
+         date_2_effort = as.Date(date_2_effort, format = "%m/%d/%Y"),
+         date_1_indivfish = as.Date(date_1_indivfish, format = "%m/%d/%Y"),
+         date_2_indivfish = as.Date(date_2_indivfish, format = "%m/%d/%Y")) %>% 
+  select(lake_name,
+         sampling_method,
+    date_clean,
+         date_1_effort,
+         date_2_indivfish,
+    date_2_effort,
+         date_1_indivfish)
+#dates from effort columns have the most data but still a large number of NAs
+#is this to do with historical surveys? - this is looking at a gear date in a lake
+mn_dat %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  group_by(survey_type) %>% 
+  summarise(na_dates = sum(is.na(date_2_effort)),
+            has_dates = sum(!is.na(date_2_effort)),
+            survey_date_na = sum(is.na(date_clean)),
+            survey_has_dates = sum(!is.na(date_clean)))
+#totally!
+#we can see here that every survey has a survey date but the coverage for a gearxlakexyear date is variable based on survey type
+#within a total effort ident there is never more than 1 case of a date
+
+
+#Denver's clean up of columns and names
+mn_dat_trial <- mn_dat %>% 
+  mutate(county = county_effort,
+         lake_id = as.character(lake_id),
+         date_survey = date_clean,
+         date_total_effort_ident = as.Date(date_2_effort, format = "%m/%d/%Y"),
+         date_sub_effort_ident = as.Date(NA),
+         date_sample = as.Date(NA),
+         year = year(date_clean),
+         month = month(date_clean),
+         survey_id = as.character(NA),
+         survey_type_2 = as.character(NA),
+         survey_type_3 = as.character(NA),
+         survey_type_4 = as.character(NA),
+         sampling_method_2 = sampling_method_desc,
+         target_species_2 = as.character(NA),
+         total_effort_1 = total_effort,
+         total_effort_2 = as.numeric(NA),
+         total_effort_3 = as.numeric(NA),
+         total_effort_1_units = total_effort_unit,
+         total_effort_2_units = as.character(NA),
+         total_effort_3_units = as.character(NA),
+         total_effort_nothing_caught = nothing_caught,
+         water_temp_units = case_when(!is.na(water_temp) ~ "fahrenheit",
+                                      TRUE ~ NA),
+         water_clarity = as.numeric(NA),
+         water_clarity_units = as.character(NA),
+         lat_start = as.numeric(NA),
+         lon_start = as.numeric(NA),
+         lat_end = as.numeric(NA),
+         lon_end = as.numeric(NA),
+         sub_effort_ident = as.character(NA),
+         sub_effort_1 = as.numeric(NA),
+         sub_effort_1_units = as.character(NA),
+         sub_effort_2 = as.numeric(NA),
+         sub_effort_2_units = as.character(NA),
+         sub_effort_nothing_caught = NA,
+         species_1 = species,
+         length_1 = as.numeric(length),
+         length_unit_1 = length_unit, 
+         length_bin = as.character(NA),
+         length_bin_unit = as.character(NA),
+         weight_1 = weight,
+         weight_unit_1 = weight_unit,
+         batch_weight = as.character(NA),
+         batch_weight_unit = as.character(NA),
+         flag = note_flag,
+         ind_fish_ident = as.character(sample_id),
+         lakesize = lake_area_dow_acres,
+         lakesize_units = case_when(!is.na(lakesize) ~ "acres",
+                                    TRUE ~ NA),
+         area_group = as.character(area_group),
+         lat_unspec = as.numeric(NA),
+         lon_unspec = as.numeric(NA),
+         waterbody_type = lake_type,
+         location_notes_1 = location_notes,
+         obs_id = as.character(row_number())
+         ) %>% 
+  unite("notes_1", c(garbage_bin_notes_2_indivfish,
+                     reproductive_condition_notes),
+                     remove = T,
+                     na.rm = T) %>% 
+  select(state,
+         county,
+         lake_name,
+         lake_id,
+         nhdhr_id,
+         date_survey,
+         date_total_effort_ident,
+         date_sub_effort_ident,
+         date_sample,
+         year,
+         month,
+         survey_id,
+         survey_type,
+         survey_type_2,
+         survey_type_3,
+         survey_type_4,
+         sampling_method,
+         sampling_method_2,
+         gear_data_notes,
+         target_species,
+         target_species_2,
+         total_effort_ident,
+         total_effort_1,
+         total_effort_2,
+         total_effort_3,
+         total_effort_1_units,
+         total_effort_2_units,
+         total_effort_3_units,
+         total_effort_nothing_caught,
+         water_temp,
+         water_temp_units,
+         water_clarity,
+         water_clarity_units,
+         lat_start,
+         lon_start,
+         lat_end,
+         lon_end,
+         site_id,
+         sub_effort_ident,
+         sub_effort_1,
+         sub_effort_1_units,
+         sub_effort_2,
+         sub_effort_2_units,
+         sub_effort_nothing_caught,
+         species_1,
+         length_1,
+         length_unit_1,
+         length_bin,
+         length_bin_unit,
+         age,
+         aging_structure_1,
+         aging_structure_2,
+         weight_1,
+         weight_unit_1,
+         batch_weight,
+         batch_weight_unit,
+         sex,
+         age_class,
+         flag,
+         original_file_names,
+         ind_fish_ident,
+         lakesize,
+         lakesize_units,
+         area_group,
+         lat_unspec,
+         lon_unspec,
+         waterbody_type,
+         location_notes_1,
+         notes_1,
+         obs_id)
+glimpse(mn_dat_trial)
+  
+dates <- mn_dat_trial %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  select(total_effort_ident,
+         lake_name,
+         sampling_method,
+         date_survey,
+         date_total_effort_ident)
+#this shows that survey date is different than total effort ident date
+#Leech is a good example of this 
+#what is the survey date? it can't be the first sampling of a lake in a year... leech had ice fishing in feb but survey date shows may
+#total effort ident 1 - june total effort ident date when survey data is in aug
+rm(dates)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Save Parquet
+
+```{r}
+
+
+write_dataset(dataset = mn_dat_trial, path = "mn_file_arrow")
+
+mn_data <- open_dataset(sources = "Data_and_Scripts/mn_file_arrow/")
+
+glimpse(mn_data)
+
+```
+
+
+#sleuth out the MN duplicated data issues:
+
+
+```{r}
+#Mike code for reorganizing columns
 #then open into excel an align with the schema (see these IA example files)
 # fwrite(as.data.table(names(mn_dat)), file = "mn_names.csv")
 
@@ -1269,53 +1478,6 @@ setcolorder(mn_dat, newcolorder)
 
 mn_dat[ , .N , obs_id ]
 mn_dat[ , obs_id := .I , ]
-
-  
-  
-  
-  
-  
-  
-  
-  
-
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Save Parquet
-
-```{r}
-
-
-write_dataset(dataset = mn_dat, path = "mn_file_arrow")
-
-mn_data <- open_dataset(sources = "Data_and_Scripts/Data/output/mn_file_arrow/")
-mn_data <- open_dataset(sources = "Data_and_Scripts\\Data\\output\\mn_file_arrow\\")
-
-glimpse(mn_data)
-
-```
-
-
-#sleuth out the MN duplicated data issues:
-
-
-```{r}
-
 
 mn_data %>% 
   group_by(lake_name, lake_id, date, sampling_method) %>% 

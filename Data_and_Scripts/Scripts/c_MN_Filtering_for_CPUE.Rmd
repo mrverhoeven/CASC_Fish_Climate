@@ -1566,3 +1566,219 @@ mn_filtered_species <- bind_rows(adult_walleye_cpue %>%
 write_csv(mn_filtered_species, "MN_all_cpue_filtered.csv")
 ```
 
+#bottom feeders
+```{r}
+all_data <- open_dataset("Data_and_Scripts/Data/output/midwest_data", partitioning = c("state"))
+
+#filters for metric and selects columns needed for survey filtering
+filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
+  filter(metric == "adult_abundance" & state == "Minnesota" & species_1 == "bottom_feeders") %>% 
+  select(-metric,
+         -species_1,
+         -water_temp_min,
+         -water_temp_max,
+         -survey_type,
+         -area_group,
+         -month_min,
+         -month_max)
+
+#filters for surveys that are good measures of abundance for given fish species
+#first, merge the filter table with the data - selects for non-numeric parameters important for abundance 
+#second, collapse the data into survey level
+#third, filter the surveys based on numeric values 
+good_surveys <- all_data %>%
+  #filter for correct survey_type
+  mutate(survey_type_filter = case_when(survey_type %in% c("HISTORICAL", 
+                                                 "Large Lake Survey", 
+                                                 "Population Assessment",
+                                                 "Standard Survey",
+                                                 "Initial Survey",
+                                                 "Re-Survey") ~ "y", 
+                              TRUE ~ "n")) %>% 
+  right_join(filter_table_effort, by = c("state",
+                                        "sampling_method")) %>% 
+  distinct(lake_id,
+           date_survey,
+           sampling_method,
+           total_effort_ident,
+           total_effort_1,
+           effort_min,
+           effort_max,
+           survey_type_filter,
+           flag) %>% 
+  filter(total_effort_1 >= effort_min,
+         total_effort_1 <= effort_max,
+         survey_type_filter == "y") %>% 
+  collect() %>% 
+  #removing surveys that have a flag
+  group_by(total_effort_ident) %>% 
+  filter(all(is.na(flag))) %>% 
+  ungroup()  %>% 
+  select(-flag)
+
+#gather fish from the surveys deemed good for abundance of the given species
+bottom_feeders <- all_data %>%
+  filter(state == "Minnesota") %>% 
+  #filter the data for surveys that were good for species abundance
+  right_join(good_surveys) %>% 
+  collect() 
+
+#create cpue for species of interest
+bottom_feeders_cpue <- bottom_feeders %>% 
+  #grouping by survey level parameters to get survey level counts
+  group_by(total_effort_ident) %>% 
+  #counts fish of a particular species in a survey 
+  mutate(count_white_sucker = sum(species_1 == 'white_sucker'),
+         count_black_bullhead = sum(species_1 == 'black_bullhead'),
+         count_brown_bullhead = sum(species_1 == 'brown_bullhead'),
+         count_yellow_bullhead = sum(species_1 == 'yellow_bullhead'),
+         count_bigmouth_buffalo = sum(species_1 == 'bigmouth_buffalo'),
+         count_channel_catfish = sum(species_1 == 'channel_catfish'),
+         count_common_carp = sum(species_1 == 'common_carp')) %>% 
+  #surveys that did not catch fish (species column is na) return a catch of 0
+  mutate(count_white_sucker = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_white_sucker),
+         count_black_bullhead = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_black_bullhead),
+         count_brown_bullhead = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_brown_bullhead),
+         count_yellow_bullhead = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_yellow_bullhead),
+         count_bigmouth_buffalo = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_bigmouth_buffalo),
+         count_channel_catfish = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_channel_catfish),
+         count_common_carp = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_common_carp)) %>% 
+  #generates cpue from counts and efforts associated with that survey count
+  mutate(cpue_white_sucker = count_white_sucker/total_effort_1,
+         cpue_black_bullhead = count_black_bullhead/total_effort_1,
+         cpue_brown_bullhead = count_brown_bullhead/total_effort_1,
+         cpue_yellow_bullhead = count_yellow_bullhead/total_effort_1,
+         cpue_bigmouth_buffalo = count_bigmouth_buffalo/total_effort_1,
+         cpue_channel_catfish = count_channel_catfish/total_effort_1,
+         cpue_common_carp = count_common_carp/total_effort_1) %>%
+  #collapse data into survey level cpue (also works as a select function)
+  distinct(total_effort_ident,
+           total_effort_1,
+           .keep_all = T)  %>% 
+  filter(is.na(total_effort_nothing_caught)) %>% 
+  group_by(total_effort_ident) %>% 
+  filter(n_distinct(total_effort_1) == 1)
+
+#checking filtering
+
+#survey level checks
+#min effort by grouping
+good_surveys %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1),
+            n = n())
+
+#checks after collecting all fish data
+#is each sampling method correct for the filter?
+bottom_feeders %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  group_by(sampling_method) %>% 
+  summarise(min_effort = min(total_effort_1),
+            n = n())
+
+bottom_feeders %>% 
+  group_by(survey_type, sampling_method, survey_type_filter) %>% 
+  count()
+
+bottom_feeders %>% 
+  group_by(flag) %>% 
+  count()
+
+#do I retain all of the good surveys? - rows here should match good surveys 
+bottom_feeders %>% 
+  distinct(lake_id,
+           date_survey,
+           survey_type,
+           sampling_method,
+           total_effort_1) %>% 
+  group_by(sampling_method) %>% 
+  glimpse()
+#this is good it matches good survey total
+
+#this shows there are 61 total effort nothing caught is true
+
+#there are a handful of surveys that have multiple efforts within a total effort ident
+#this causes the good surveys to look bigger than the cpue total but ensure we get all fish records 
+bottom_feeders %>% 
+  distinct(total_effort_ident,
+           total_effort_1) %>% 
+  glimpse()
+#shows this matches good surveys
+
+bottom_feeders %>% 
+  filter(is.na(species_1)) %>% 
+  distinct(total_effort_ident) %>% 
+  glimpse()
+
+bottom_feeders %>% 
+  group_by(total_effort_ident,
+           total_effort_1) %>% 
+  count() %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  filter(n > 1)
+
+#the difference between good surveys and cpue surveys are:
+#61 nothing caught is true - remove
+#14 surveys that have more than one total effort (removes 28 records)
+#thus, there should be 89 more records in the good surveys than cpue
+#33134-33045 checks out
+
+
+#checks after calculating cpue
+#range of cpues?
+bottom_feeders_cpue %>% 
+  group_by(sampling_method) %>% 
+  summarise(min = min(cpue_common_carp), max = max(cpue_common_carp))
+
+#any na cpue?
+bottom_feeders_cpue %>% 
+  filter(is.na(cpue_common_carp))
+
+#surveys that have nothing caught?
+bottom_feeders_cpue %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue_common_carp) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+#selecting relevant rows 
+bottom_feeder_final <- bottom_feeders_cpue %>% 
+  select(state,
+         county,
+         lake_name,
+         lake_id,
+         nhdhr_id,
+         date_survey,
+         survey_type,
+         sampling_method,
+         total_effort_ident,
+         total_effort_1,
+         total_effort_1_units,
+         lakesize,
+         lakesize_units,
+         count_bigmouth_buffalo,
+         count_white_sucker,
+         count_black_bullhead,
+         count_brown_bullhead,
+         count_yellow_bullhead,
+         count_channel_catfish,
+         count_common_carp,
+         cpue_white_sucker,
+         cpue_black_bullhead,
+         cpue_brown_bullhead,
+         cpue_yellow_bullhead,
+         cpue_bigmouth_buffalo,
+         cpue_channel_catfish,
+         cpue_common_carp)
+write_csv(bottom_feeder_final, "MN_bottom_feeders_cpue.csv")
+```
+

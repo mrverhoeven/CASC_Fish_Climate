@@ -68,6 +68,23 @@ data %>%
   summarise(min.month = min(month, na.rm = T),
             max.month = max(month, na.rm = T)) %>% 
   collect()
+
+#trying from drive
+data.2 <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state"))
+
+glimpse(data.2)
+
+data.2 %>% 
+  group_by(state) %>% 
+  count() %>% 
+  collect()
+
+data.2 %>% 
+  filter(species_1 == "walleye") %>% 
+  group_by(state) %>% 
+  count() %>% 
+  collect()
+#it works like a charm
 ```
 
 

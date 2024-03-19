@@ -1380,30 +1380,26 @@ in_col_names_v <- unlist(in_col_names)
 #what is missing from in cols?
 missing <- as.data.frame(setdiff(parquet_v, in_col_names_v))
 
-#what exists in in that is NOT in the parquet schema
+#what exists in in that is NOT in the parquet schema and needs to be modified or removed
 additional <- as.data.frame(setdiff(in_col_names_v, parquet_v))
 
-in_hive_ready <- in_ALL_tidy %>%mutate(lake_name = lake_name.1, # CODE FROM DENVER MODIFY FOR IN
-         date_survey = as.Date(date.1),
-         date_total_effort_ident = as.Date(date.1),
+#once additional cols are dealt with, re-check missing to determine NA columns
+missing <- as.data.frame(setdiff(parquet_v, in_col_names_v))
+
+in_hive_ready <- in_ALL_tidy %>% # CODE FROM DENVER MODIFY FOR IN
+  mutate(date_survey = as.IDate(date),
+         date_total_effort_ident = as.IDate(date),
          date_sub_effort_ident = as.Date(NA),
          date_sample = as.Date(NA),
-         month = month(date.1),
-         survey_id = as.character(survey_id),
-         survey_type = survey_type.1_effort,
+         month = if_else(is.na(month), month(date), month),
          survey_type_2 = as.character(NA),
          survey_type_3 = as.character(NA),
          survey_type_4 = as.character(NA),
-         sampling_method_2 = sampling_method,
-         sampling_method = sampling_method_abbrev,
-         gear_data_notes = as.character(NA),
-         target_species = target_species_effort,
+         gear_data_notes = gear_data_notes_1,
          target_species_2 = as.character(NA),
-         total_effort_ident = as.character(effort_ident),
-         total_effort_1 = total_effort_1_effort,
+         total_effort_ident = as.character(total_effort_ident),
          total_effort_2 = as.numeric(NA),
          total_effort_3 = as.numeric(NA),
-         total_effort_1_units = effort_units.1,
          total_effort_2_units = as.character(NA),
          total_effort_3_units = as.character(NA),
          total_effort_nothing_caught = nothing_caught,
@@ -1422,41 +1418,24 @@ in_hive_ready <- in_ALL_tidy %>%mutate(lake_name = lake_name.1, # CODE FROM DENV
          sub_effort_2 = as.numeric(NA),
          sub_effort_2_units = as.character(NA),
          sub_effort_nothing_caught = as.logical(NA),
-         length_1 = as.numeric(NA),
-         length_unit_1 = as.character(NA),
-         length_bin = as.character(length.1),
-         length_bin_unit = "lower end of 1 inch length bin",
-         age = as.numeric(NA),
-         aging_structure_1 = as.character(NA),
+         length_bin = as.character(NA),
+         length_bin_unit = as.character(NA),
          aging_structure_2 = as.character(NA),
-         weight_1 = as.numeric(NA),
-         weight_unit_1 = as.character(NA),
          batch_weight = as.character(NA),
          batch_weight_unit = as.character(NA),
-         sex = as.character(NA),
          age_class = as.character(NA),
-         flag = as.character(NA),
+         sex = as.character(NA),
          ind_fish_ident = as.character(NA),
          lakesize = as.numeric(NA),
          lakesize_units = as.character(NA),
          area_group = as.character(NA),
-         lat_unspec = lat_unspec_effort,
-         lon_unspec = lon_unspec_effort,
-         waterbody_type = as.character(NA),
          location_notes_1 = as.character(NA),
-         notes_1 = as.character(NA),
-         obs_id = as.character(row_number())) %>% 
-   unite("original_file_names", c(original_file_name.1_catch,
-                                      original_file_name.1_catchlengths,
-                                      original_file_name.1_effort), 
-                                      remove = T, 
-                                      na.rm = T,
-         sep = " ") %>% 
+         notes_1 = paste("end date of survey", end_date, sep = " ")) %>% #is column 'age_id' important?
   select(state,
          county,
          lake_name,
          lake_id,
-         nhdhr.id,
+         nhdhr_id,
          date_survey,
          date_total_effort_ident,
          date_sub_effort_ident,
@@ -1496,7 +1475,7 @@ in_hive_ready <- in_ALL_tidy %>%mutate(lake_name = lake_name.1, # CODE FROM DENV
          sub_effort_2,
          sub_effort_2_units,
          sub_effort_nothing_caught,
-         species.1,
+         species_1,
          length_1,
          length_unit_1,
          length_bin,
@@ -1522,6 +1501,20 @@ in_hive_ready <- in_ALL_tidy %>%mutate(lake_name = lake_name.1, # CODE FROM DENV
          location_notes_1,
          notes_1,
          obs_id)
+
+# check before running select function
+
+in_col_names2 <- as.data.frame(colnames(in_hive_ready))
+
+# get names of parquet and current col names into vector format
+
+in_col_names_v2 <- unlist(in_col_names2)
+
+#what is missing from in cols?
+missing2 <- as.data.frame(setdiff(parquet_v, in_col_names_v2))
+
+#what exists in in that is NOT in the parquet schema and needs to be modified or removed
+additional2 <- as.data.frame(setdiff(in_col_names_v2, parquet_v))
 ```
 
 
@@ -1530,9 +1523,15 @@ Make IN Parquet
 in_no_age_tidy <- as_arrow_table(in_no_age_tidy)
 write_dataset(dataset = in_no_age_tidy, path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_no_age_file_arrow") #IN 
 
-in_ALL_tidy <- as_arrow_table(in_ALL_tidy)
-write_dataset(dataset = in_ALL_tidy, path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
+#in_ALL_tidy <- as_arrow_table(in_ALL_tidy)
+#write_dataset(dataset = in_ALL_tidy, path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
 
+in_hive <- as_arrow_table(in_hive_ready)
+write_dataset(dataset = in_hive, path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
+```
+
+check and read in parquet
+```{r}
 library(arrow)
 in_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/in_file_arrow")
 glimpse(in_data)

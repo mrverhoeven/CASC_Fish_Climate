@@ -37,7 +37,7 @@ Product 2): map showing us info on species, catch, etc.
 
 # Pull in glm lake metadata for states that are missing lat longs
 ```{r}
-glm_metadat <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Temp_projections_Summaries/glm_lake_metadata.csv")
+glm_metadat <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Temp_projections_Summaries/glm_lake_metadata.csv")
 
 lat_longs <- glm_metadat %>%
   filter(state %in% c("MN", "WI", "IN"))%>%
@@ -51,7 +51,7 @@ lat_longs <- glm_metadat %>%
 
 
 ```{r}
-mn_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/mn_file_arrow")
+mn_data <- open_dataset("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/mn_file_arrow")
 glimpse(mn_data)
 
 mn_dow <- mn_data %>%
@@ -82,11 +82,11 @@ mn_filtered <- mn_data %>% # group by lake name, lake_id
 
 # WI all data
 ```{r}
-wi_data <- open_dataset("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/wi_file_arrow")
+wi_data <- open_dataset("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Parquet files/wi_file_arrow")
 glimpse(wi_data) #12,798,306 rows (fish obs)
 
 
-wi_lat_long <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
+wi_lat_long <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
   mutate(lake.id = as.character(lake.id))
 
 # downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
@@ -205,7 +205,7 @@ wi_filtered <- wi_data %>%
   summarise(nhdhr_id = first(nhdhr_id),
             n = n())%>%
   left_join(wi_lat_long, by =c("lake_id" = "lake.id"))%>%
-  left_join(wi_lake_names, by = "lake_id")%>%
+  # left_join(wi_lake_names, by = "lake_id")%>%
   rename(state_id = lake_id,
          total_obs = n,
          lon = long)%>%
@@ -497,7 +497,7 @@ All_Lakes_map_obs
 
 ```{r}
 # Load in data dump for Chris Custer to make CPUE maps
-CC_Dat <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Data for Collaborators/CPUE_Data/all_state_cpue_6Feb24.csv")
+CC_Dat <- read_csv("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/Data for Collaborators/CPUE_Data/all_state_cpue_6Feb24.csv")
 ```
 
 
@@ -506,7 +506,7 @@ library(lubridate)
 
 NOP_CPUE_2010 <- CC_Dat %>%
   filter(species_1 == "northern_pike") %>%
-  mutate(year = year(date_1))%>%
+  mutate(year = year(date))%>%
   filter(year >= 2010)%>%
   group_by(lake_id)%>%
   summarise(Ave_CPUE_NOP_2010 = mean(cpue))%>%

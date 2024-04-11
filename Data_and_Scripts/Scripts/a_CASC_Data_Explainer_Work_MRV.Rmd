@@ -67,7 +67,7 @@ cde <- fread("https://docs.google.com/spreadsheets/d/e/2PACX-1vSE1oFKS5o65kqIkee
       .SDcols = cols ]  # do the rebuild on cols selected in the cols object
 
 #expand each col to the maxN of col names in any row that column
-  cols = colnames(cde)#what are current colnames
+  cols = copy(colnames(cde))#what are current colnames
   
   #get a vector of how many columns named in each cde column:
   maxn <- unlist(cde[, 

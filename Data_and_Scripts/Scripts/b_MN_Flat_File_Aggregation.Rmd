@@ -11,8 +11,9 @@ updated 11/29
 To Do:
 CHECK: Historical WAE survey duplication
   - check on outcome of fixes (section name: sleuth out the MN duplicated data issues)
-1. where gear notes marked with dippers, bring back dipper # into end of gear desc. 
+1. where gear notes marked with dippers, bring back dipper # into end of gear desc.
 2. Consider grabbing the mesh var?
+3. Daylight EFing (gear data notes 2 - keep it around for filtering)
   
 
 
@@ -1561,7 +1562,38 @@ local_to_nhdhr(data, from_colname = "dow_chr", state = "mn")
 
 
 
+#daylight sampling
+mn_effort_18aug2023 %>% 
+  filter(sampling_method_abbrev == "EW") %>% 
+  count()
 
+mn_effort_18aug2023 %>% 
+  filter(sampling_method_abbrev == "EW") %>% 
+  group_by(gear_data_notes.3) %>% 
+  count()
+
+mn_effort_18aug2023 %>% 
+  filter(sampling_method_abbrev == "EW") %>% 
+  ggplot() +
+  geom_histogram(aes(year, fill = gear_data_notes.3), alpha = .5)
+
+
+mn_effort_18aug2023 %>% 
+  filter(sampling_method_abbrev == "EW") %>% 
+  filter(gear_data_notes.3 == "DAYLIGHT_SAMPLING:Y") %>% 
+  group_by(gear_data_notes.3, garbage_bin_notes.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+mn_effort_18aug2023 %>% 
+  filter(sampling_method_abbrev == "EW") %>% 
+  filter(gear_data_notes.3 != "DAYLIGHT_SAMPLING:") %>% 
+  mutate(area = str_replace(garbage_bin_notes.1, "^AREA_NAME:", "")) %>% 
+  group_by(gear_data_notes.3, area) %>% 
+  count() %>% 
+  ggplot() +
+  geom_col(aes(x = area, y = n, fill = gear_data_notes.3)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 

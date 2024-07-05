@@ -31,7 +31,8 @@ library(arrow)
 
 #Data
 ```{r}
-mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "mn_file_arrow"))
+mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+  filter(state == "Minnesota")
 glimpse(mn_data)
 
 #creating columns for filtering by lake area
@@ -156,6 +157,19 @@ mn_data %>%
   group_by(flag) %>% 
   count() %>% 
   collect()
+
+mn_data %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  collect()
+
+#multipule effort idents for one survey?
+multi_ident <- mn_data %>% 
+  filter(lake_id == "28003200" &
+           date_total_effort_ident == "1996-07-16" &
+           sampling_method == "Standard 3/4-in mesh, double frame trap net sets") %>% 
+  collect()
+#looks like one is nothing caught and the other has fish
 ```
 
 General structure for each filtering chunks:
@@ -197,7 +211,7 @@ good_surveys <- mn_data %>%
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1,
@@ -210,8 +224,8 @@ good_surveys <- mn_data %>%
            flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-         month(date) <= month_max,
+         month(date_total_effort_ident) >= month_min,
+         month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y") %>% 
   collect() %>% 
   #removing surveys that have a flag
@@ -252,8 +266,8 @@ adult_walleye_cpue <- adult_walleye %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 #min effort by grouping
@@ -267,8 +281,8 @@ good_surveys %>%
 adult_walleye %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 adult_walleye %>% 
@@ -282,7 +296,7 @@ adult_walleye %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_walleye %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            survey_type,
            sampling_method,
            total_effort_1) %>% 
@@ -309,10 +323,50 @@ adult_walleye %>%
   count() %>% 
   filter(n > 1)
 
-#the difference between good surveys and cpue surveys are:
-#88 nothing caught is true - remove
-#13 surveys that have more than one total effort (removes 26 records)
+adult_walleye %>% 
+  distinct(total_effort_ident, total_effort_nothing_caught) %>% 
+  group_by(is.na(total_effort_nothing_caught)) %>% 
+  count()
 
+adult_black_crappie %>% 
+  distinct(lake_id,
+           date_total_effort_ident,
+           sampling_method,
+           #total_effort_ident,
+           total_effort_1,
+           area_group,
+           effort_min,
+           effort_max,
+           month_min,
+           month_max,
+           survey_type_filter) %>% 
+  glimpse()
+
+adult_black_crappie %>% 
+  group_by(lake_id,
+           date_total_effort_ident,
+           sampling_method,
+           #total_effort_ident,
+           total_effort_1,
+           area_group,
+           effort_min,
+           effort_max,
+           month_min,
+           month_max,
+           survey_type_filter) %>% 
+  summarise(n = n_distinct(total_effort_ident)) %>% 
+  filter(n > 1) %>% 
+  glimpse()
+#this survey has multiple effort idents?
+#more exploration leads to this survey having a record of nothing caught but also fish records with assoicated effort.
+
+#the difference between good surveys and cpue surveys are:
+#88 nothing caught is true - removed due to unlikely they caught nothing
+
+no_catch <- adult_walleye %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  filter(!is.na(total_effort_nothing_caught)) 
+rm(no_catch)
 
 #checks after calculating cpue
 #range of cpues?
@@ -327,7 +381,7 @@ adult_walleye_cpue %>%
 #surveys that have nothing caught?
 adult_walleye_cpue %>% 
   filter(total_effort_nothing_caught == "TRUE") %>% 
-  group_by(lake_name, survey_type, sampling_method, total_effort_1, date, total_effort_nothing_caught, cpue) %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -368,7 +422,7 @@ good_surveys <- mn_data %>%
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1,
@@ -381,14 +435,14 @@ good_surveys <- mn_data %>%
            flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-         month(date) <= month_max,
+         month(date_total_effort_ident) >= month_min,
+         month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y") %>% 
   collect() %>% 
   #removing surveys that have a flag
   group_by(total_effort_ident) %>% 
   filter(all(is.na(flag))) %>% 
-  ungroup()  %>% 
+  ungroup() %>% 
   select(-flag)
 
 #gather fish from the surveys deemed good for abundance of the given species
@@ -423,8 +477,8 @@ adult_black_crappie_cpue <- adult_black_crappie %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 #min effort by grouping
@@ -438,8 +492,8 @@ good_surveys %>%
 adult_black_crappie %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 adult_black_crappie %>% 
@@ -452,37 +506,25 @@ adult_black_crappie %>%
 
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_black_crappie %>% 
-  distinct(lake_id,
-           date,
-           survey_type,
-           sampling_method,
-           total_effort_1) %>% 
-  group_by(sampling_method) %>% 
+  distinct(total_effort_ident) %>% 
   glimpse()
 
 #there are a handful of surveys that have multiple efforts within a total effort ident
 #this causes the good surveys to look bigger than the cpue total but ensure we get all fish records 
 adult_black_crappie %>% 
-  distinct(total_effort_ident,
-           total_effort_1) %>% 
-  glimpse()
-
-adult_black_crappie %>% 
   distinct(total_effort_ident) %>% 
   glimpse()
 
-
 adult_black_crappie %>% 
   group_by(total_effort_ident,
-           total_effort_1) %>% 
+           date_total_effort_ident) %>% 
   count() %>% 
   group_by(total_effort_ident) %>% 
   count() %>% 
   filter(n > 1)
 
 #the difference between good surveys and cpue surveys are:
-#88 nothing caught is true - remove
-#13 surveys that have more than one total effort (removes 26 records)
+#88 nothing caught is true - removed 
 
 
 #checks after calculating cpue
@@ -498,7 +540,7 @@ adult_black_crappie_cpue %>%
 #surveys that have nothing caught?
 adult_black_crappie_cpue %>% 
   filter(total_effort_nothing_caught == "TRUE") %>% 
-  group_by(lake_name, survey_type, sampling_method, total_effort_1, date, total_effort_nothing_caught, cpue) %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -539,7 +581,7 @@ good_surveys <- mn_data %>%
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1,
@@ -552,8 +594,8 @@ good_surveys <- mn_data %>%
            flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-         month(date) <= month_max,
+         month(date_total_effort_ident) >= month_min,
+         month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y") %>% 
   collect() %>% 
   #removing surveys that have a flag
@@ -594,8 +636,8 @@ adult_bluegill_cpue <- adult_bluegill %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 #min effort by grouping
@@ -609,8 +651,8 @@ good_surveys %>%
 adult_bluegill %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 adult_bluegill %>% 
@@ -624,7 +666,7 @@ adult_bluegill %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_bluegill %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            survey_type,
            sampling_method,
            total_effort_1) %>% 
@@ -653,7 +695,6 @@ adult_bluegill %>%
 
 #the difference between good surveys and cpue surveys are:
 #88 nothing caught is true - remove
-#13 surveys that have more than one total effort (removes 26 records)
 
 
 #checks after calculating cpue
@@ -669,7 +710,7 @@ adult_bluegill_cpue %>%
 #surveys that have nothing caught?
 adult_bluegill_cpue %>% 
   filter(total_effort_nothing_caught == "TRUE") %>% 
-  group_by(lake_name, survey_type, sampling_method, total_effort_1, date, total_effort_nothing_caught, cpue) %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -710,7 +751,7 @@ good_surveys <- mn_data %>%
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1,
@@ -723,8 +764,8 @@ good_surveys <- mn_data %>%
            flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-         month(date) <= month_max,
+         month(date_total_effort_ident) >= month_min,
+         month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y") %>% 
   collect() %>% 
   #removing surveys that have a flag
@@ -765,8 +806,8 @@ adult_largemouth_bass_cpue <- adult_largemouth_bass %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 #min effort by grouping
@@ -780,8 +821,8 @@ good_surveys %>%
 adult_largemouth_bass %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 adult_largemouth_bass %>% 
@@ -795,7 +836,7 @@ adult_largemouth_bass %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_largemouth_bass %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            survey_type,
            sampling_method,
            total_effort_1) %>% 
@@ -824,7 +865,6 @@ adult_largemouth_bass %>%
 
 #the difference between good surveys and cpue surveys are:
 #88 nothing caught is true - remove
-#13 surveys that have more than one total effort (removes 26 records)
 
 
 #checks after calculating cpue
@@ -840,7 +880,7 @@ adult_largemouth_bass_cpue %>%
 #surveys that have nothing caught?
 adult_largemouth_bass_cpue %>% 
   filter(total_effort_nothing_caught == "TRUE") %>% 
-  group_by(lake_name, survey_type, sampling_method, total_effort_1, date, total_effort_nothing_caught, cpue) %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -881,7 +921,7 @@ good_surveys <- mn_data %>%
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1,
@@ -894,8 +934,8 @@ good_surveys <- mn_data %>%
            flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-         month(date) <= month_max,
+         month(date_total_effort_ident) >= month_min,
+         month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y") %>% 
   collect() %>% 
   #removing surveys that have a flag
@@ -936,8 +976,8 @@ adult_smallmouth_bass_cpue <- adult_smallmouth_bass %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 #min effort by grouping
@@ -951,8 +991,8 @@ good_surveys %>%
 adult_smallmouth_bass %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 adult_smallmouth_bass %>% 
@@ -966,7 +1006,7 @@ adult_smallmouth_bass %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_smallmouth_bass %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            survey_type,
            sampling_method,
            total_effort_1) %>% 
@@ -995,7 +1035,6 @@ adult_smallmouth_bass %>%
 
 #the difference between good surveys and cpue surveys are:
 #88 nothing caught is true - remove
-#13 surveys that have more than one total effort (removes 26 records)
 
 
 #checks after calculating cpue
@@ -1011,7 +1050,7 @@ adult_smallmouth_bass_cpue %>%
 #surveys that have nothing caught?
 adult_smallmouth_bass_cpue %>% 
   filter(total_effort_nothing_caught == "TRUE") %>% 
-  group_by(lake_name, survey_type, sampling_method, total_effort_1, date, total_effort_nothing_caught, cpue) %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -1059,7 +1098,7 @@ good_surveys <- mn_data %>%
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1,
@@ -1072,8 +1111,8 @@ good_surveys <- mn_data %>%
            flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-         month(date) <= month_max,
+         month(date_total_effort_ident) >= month_min,
+         month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y") %>% 
   collect() %>% 
   #removing surveys that have a flag
@@ -1115,8 +1154,8 @@ adult_cisco_cpue <- adult_cisco %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 #min effort by grouping
@@ -1130,8 +1169,8 @@ good_surveys %>%
 adult_cisco %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 adult_cisco %>% 
@@ -1145,7 +1184,7 @@ adult_cisco %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_cisco %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            survey_type,
            sampling_method,
            total_effort_1) %>% 
@@ -1174,7 +1213,6 @@ adult_cisco %>%
 
 #the difference between good surveys and cpue surveys are:
 #88 nothing caught is true - remove
-#13 surveys that have more than one total effort (removes 26 records)
 
 
 #checks after calculating cpue
@@ -1190,7 +1228,7 @@ adult_cisco_cpue %>%
 #surveys that have nothing caught?
 adult_cisco_cpue %>% 
   filter(total_effort_nothing_caught == "TRUE") %>% 
-  group_by(lake_name, survey_type, sampling_method, total_effort_1, date, total_effort_nothing_caught, cpue) %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -1231,7 +1269,7 @@ good_surveys <- mn_data %>%
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1,
@@ -1244,8 +1282,8 @@ good_surveys <- mn_data %>%
            flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-         month(date) <= month_max,
+         month(date_total_effort_ident) >= month_min,
+         month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y") %>% 
   collect() %>% 
   #removing surveys that have a flag
@@ -1286,8 +1324,8 @@ adult_northern_pike_cpue <- adult_northern_pike %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 #min effort by grouping
@@ -1301,8 +1339,8 @@ good_surveys %>%
 adult_northern_pike %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 adult_northern_pike %>% 
@@ -1316,7 +1354,7 @@ adult_northern_pike %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_northern_pike %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            survey_type,
            sampling_method,
            total_effort_1) %>% 
@@ -1345,7 +1383,6 @@ adult_northern_pike %>%
 
 #the difference between good surveys and cpue surveys are:
 #88 nothing caught is true - remove
-#13 surveys that have more than one total effort (removes 26 records)
 
 
 #checks after calculating cpue
@@ -1361,7 +1398,7 @@ adult_northern_pike_cpue %>%
 #surveys that have nothing caught?
 adult_northern_pike_cpue %>% 
   filter(total_effort_nothing_caught == "TRUE") %>% 
-  group_by(lake_name, survey_type, sampling_method, total_effort_1, date, total_effort_nothing_caught, cpue) %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -1402,7 +1439,7 @@ good_surveys <- mn_data %>%
                                         "sampling_method",
                                         "area_group")) %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1,
@@ -1415,8 +1452,8 @@ good_surveys <- mn_data %>%
            flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-         month(date) <= month_max,
+         month(date_total_effort_ident) >= month_min,
+         month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y") %>% 
   collect() %>% 
   #removing surveys that have a flag
@@ -1457,8 +1494,8 @@ adult_yellow_perch_cpue <- adult_yellow_perch %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 #min effort by grouping
@@ -1472,8 +1509,8 @@ good_surveys %>%
 adult_yellow_perch %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             n = n())
 
 adult_yellow_perch %>% 
@@ -1487,7 +1524,7 @@ adult_yellow_perch %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_yellow_perch %>% 
   distinct(lake_id,
-           date,
+           date_total_effort_ident,
            survey_type,
            sampling_method,
            total_effort_1) %>% 
@@ -1516,7 +1553,6 @@ adult_yellow_perch %>%
 
 #the difference between good surveys and cpue surveys are:
 #88 nothing caught is true - remove
-#13 surveys that have more than one total effort (removes 26 records)
 
 
 #checks after calculating cpue
@@ -1532,7 +1568,7 @@ adult_yellow_perch_cpue %>%
 #surveys that have nothing caught?
 adult_yellow_perch_cpue %>% 
   filter(total_effort_nothing_caught == "TRUE") %>% 
-  group_by(lake_name, survey_type, sampling_method, total_effort_1, date, total_effort_nothing_caught, cpue) %>% 
+  group_by(lake_name, survey_type, sampling_method, total_effort_1, date_total_effort_ident, total_effort_nothing_caught, cpue) %>% 
   count() %>% 
   print(n = nrow(.))
 

@@ -7,10 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-to do (12/4):
-1. figure out how to count nothing caught surveys
-   -our nothing caught is at the sub-survey level and causes issue counting for cpe when a survey has sub levels where some caught something and some caught nothing
-2. figure out if we have cisco data - if not remove cisco filter
 
 #Library
 ```{r}
@@ -21,6 +17,10 @@ library(arrow)
 #data
 ```{r}
 sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "sd_file_arrow"))
+glimpse(sd_data)
+
+sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+  filter(state == "South_Dakota")
 glimpse(sd_data)
 
 sd_data %>% 

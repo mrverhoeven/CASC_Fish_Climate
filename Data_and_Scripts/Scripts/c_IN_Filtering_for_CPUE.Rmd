@@ -7,10 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-#2/2 filtered walleye and left off
- -filtering for walleye (especially what is being input) needs to be checked
- -do filtering copying walleye for the rest of the doc
-
 #Library
 ```{r}
 library(tidyverse)
@@ -19,7 +15,8 @@ library(arrow)
 
 #data
 ```{r}
-in_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "in_no_age_file_arrow"))
+in_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+  filter(state == "Indiana")
 glimpse(in_data)
 ```
 

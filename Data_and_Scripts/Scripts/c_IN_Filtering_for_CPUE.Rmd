@@ -18,6 +18,26 @@ library(arrow)
 in_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
   filter(state == "Indiana")
 glimpse(in_data)
+
+in_data %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+in_data %>% 
+  group_by(target_species, target_species_2) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+in_data %>% 
+  group_by(survey_type) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n=nrow(.))
+#looks like sampling method and survey type are good
+#all targeted species are in target species 1 - string detect with captical letters at beginning of word and space
 ```
 
 #filtering walleye
@@ -29,7 +49,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_min,
          -water_temp_max,
          -area_group)
-
 
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey

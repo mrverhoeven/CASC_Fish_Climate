@@ -85,6 +85,102 @@ data.2 %>%
   count() %>% 
   collect()
 #it works like a charm
+
+#getting some basic statistics
+data.2 %>% 
+  filter(!is.na(age)) %>% 
+  summarise(min.year = min(year, na.rm = T),
+            max.year = max(year, na.rm = T)) %>% 
+  collect()
+
+data.2 %>% 
+  filter((sub_effort_nothing_caught == "FALSE" | is.na(sub_effort_nothing_caught))) %>%
+  filter((total_effort_nothing_caught == "FALSE" | is.na(total_effort_nothing_caught))) %>% 
+  filter(!is.na(age)) %>% 
+  glimpse()
+
+
+data.2 %>% 
+  filter(!is.na(age)) %>%
+  summarise(n_distinct(lake_id)) %>% 
+  collect()
+
+data.2 %>% 
+  filter(!is.na(age)) %>%
+  summarise(n_distinct(state)) %>% 
+  collect()
+
+#difference in MN between agency
+##no leading zero on lake ids in Minnesota 
+data.2 %>% 
+  filter(state == "Minnesota") %>% 
+  filter(lake_id == "4003000") %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  filter(year == 1991) %>%
+  group_by(species_1) %>% 
+  count() %>% 
+  collect()
+
+data.2 %>% 
+  filter(state == "Minnesota") %>% 
+  filter(lake_id == "4003000") %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  filter(year == 1991) %>% 
+  glimpse()
+
+data.2 %>% 
+  filter(state == "Minnesota") %>% 
+  filter(year < 2002) %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  group_by(is.na(length_1), survey_type) %>% 
+  count() %>% 
+  collect()
+
+data.2 %>% 
+  filter(state == "Minnesota") %>% 
+  filter(year < 2002) %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  filter(lake_id == "4003000") %>%
+  group_by(year, survey_type) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+data.2 %>% 
+  filter(state == "Minnesota") %>% 
+  filter(year >= 2002) %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  filter(lake_id == "4003000") %>%
+  group_by(year, survey_type) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+  
+
+
+
+glimpse(wi_data)
+wi_data %>% 
+  filter(!is.na(age)) %>%
+  filter(year(date) >1800 & year(date) < 2025) %>% 
+  summarise(min.year = min(year(date), na.rm = T),
+            max.year = max(year(date), na.rm = T)) %>% 
+  collect()
+
+wi_data %>% 
+  filter(!is.na(age)) %>%
+  filter(total_effort_nothing_caught == "FALSE" | is.na(total_effort_nothing_caught)) %>% 
+  filter(sub_nothing_caught == "FALSE" | is.na(sub_nothing_caught)) %>% 
+  glimpse()
+
+wi_data %>% 
+  distinct(lake_id) %>% 
+  count() %>% 
+  collect()
+
+wi_data %>% 
+  summarise(n_distinct(lake_id)) %>% 
+  collect()
 ```
 
 
@@ -231,9 +327,6 @@ indy <- read_csv("filtered_cpe_files/IN_all_cpue_filtered.csv") %>%
 #make sure i get ride of columns that are not survey level or helpful to Chris
 cross_state <- bind_rows(wi, mn, mi, il, sd, ia, indy)
 glimpse(cross_state)
-
-#write final cpe
-write_csv(cross_state, "all_state_cpue_6Feb24.csv")
 ```
 
 #comparison of data
@@ -440,6 +533,20 @@ new %>%
   group_by(lake_id, year(date)) %>% 
   count() %>% 
   filter(n > 1)
+
+new %>% 
+  summarise(min(year(date), na.rm = T),
+            max(year(date), na.rm = T))
+
+new %>% 
+  summarise(sum(count)) %>% 
+  collect()
+
+new %>% 
+  summarise(n_distinct(lake_id))
+
+new %>% 
+  summarise(n_distinct(state))
 ``` 
 
 #cool new figures with the new filtered data

@@ -456,8 +456,25 @@ sd_merged_ce[is.na(lon_unspec), `:=` ("lat_unspec" = lat_2, "lon_unspec" = lon_2
 sd_merged_ce[ ,`:=` (lat_2= NULL, lon_2 = NULL)]
 sd_merged_ce[ , .N , is.na(lat_unspec) ]
 
-#cleaning up some unit columns
-sd_merged_ce <- sd_merged_ce %>% 
+#adding crosswalk from MSU team
+crosswalk_msu <- read_csv("Data_and_Scripts/Data/input/MGLP_crosswalk_update.csv") %>% 
+  filter(STATE == "SD")
+rm(crosswalk_msu)
+
+
+sd_merged_ce <- sd_merged_ce %>%
+  #cleaning up some null columns up
+  mutate(weight.1 = case_when(weight.1 == "<Null>" ~ NA,
+                              TRUE ~ weight.1),
+         sex = case_when(sex == "Null" ~ NA,
+                         sex == "<Null>" ~ NA,
+                         TRUE ~ sex),
+         aging_structure.1 = case_when(aging_structure.1 == "<Null>" ~ NA,
+                                       TRUE ~ aging_structure.1),
+         notes.1 = case_when(notes.1 == "SerialNumber:<Null>" ~ NA,
+                             notes.1 == "SerialNumber:NA" ~ NA,
+                             TRUE ~ notes.1)) %>% 
+  #cleaning up some unit columns
   mutate(lakesize_units = case_when(!is.na(lakesize) ~ "acres",
                                     TRUE ~ NA),
          length_unit.1 = case_when(!is.na(length.1) ~ "mm",
@@ -642,7 +659,9 @@ gear <- sd_merged_ce_trial %>%
   count()
 rm(gear)
 
-glimpse(sd_merged_ce_trial)
+#exploring null values that are popping up
+df_with_null_string <- sd_merged_ce_trial[apply(sd_merged_ce_trial, 1, function(row) any(row == "<Null>")), ]
+rm(df_with_null_string)
 ```
 
 

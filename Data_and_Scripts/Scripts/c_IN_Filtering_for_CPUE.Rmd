@@ -38,6 +38,14 @@ in_data %>%
   print(n=nrow(.))
 #looks like sampling method and survey type are good
 #all targeted species are in target species 1 - string detect with captical letters at beginning of word and space
+
+in_data %>% 
+  #creating a y or n for if we could even expect the species to be present in the survey
+  mutate(species_included = case_when(grepl("Walleye", target_species) | is.na(target_species) ~ "y",
+                                      TRUE ~ "n")) %>% 
+  group_by(target_species, species_included) %>% 
+  summarise(n_distinct(total_effort_ident)) %>% 
+  collect()
 ```
 
 #filtering walleye
@@ -86,7 +94,7 @@ adult_walleye_cpue <- adult_walleye %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species_1 == 'walleye')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+  mutate(count = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1)) %>%
@@ -106,6 +114,11 @@ adult_walleye %>%
             max = max(total_effort_1), 
             mean = mean(total_effort_1), 
             n = n()) 
+
+adult_walleye %>% 
+  group_by(target_species) %>% 
+  count()
+
 
 adult_walleye %>% 
   distinct(lake_id,
@@ -134,7 +147,7 @@ adult_walleye_cpue %>%
 
 #surveys that have nothing caught?
 adult_walleye_cpue %>% 
-  filter(nothing_caught == "TRUE") %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
 
@@ -194,7 +207,7 @@ adult_black_crappie_cpue <- adult_black_crappie %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species_1 == 'black_crappie')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+  mutate(count = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1)) %>%
@@ -246,7 +259,7 @@ adult_black_crappie_cpue %>%
 
 #surveys that have nothing caught?
 adult_black_crappie_cpue %>% 
-  filter(nothing_caught == "TRUE") %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
 
@@ -306,7 +319,7 @@ adult_bluegill_cpue <- adult_bluegill %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species_1 == 'bluegill')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+  mutate(count = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1)) %>%
@@ -358,7 +371,7 @@ adult_bluegill_cpue %>%
 
 #surveys that have nothing caught?
 adult_bluegill_cpue %>% 
-  filter(nothing_caught == "TRUE") %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
 
@@ -418,7 +431,7 @@ adult_largemouth_bass_cpue <- adult_largemouth_bass %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species_1 == 'largemouth_bass')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+  mutate(count = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1)) %>%
@@ -470,7 +483,7 @@ adult_largemouth_bass_cpue %>%
 
 #surveys that have nothing caught?
 adult_largemouth_bass_cpue %>% 
-  filter(nothing_caught == "TRUE") %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
 
@@ -530,7 +543,7 @@ adult_smallmouth_bass_cpue <- adult_smallmouth_bass %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species_1 == 'smallmouth_bass')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+  mutate(count = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1)) %>%
@@ -582,7 +595,7 @@ adult_smallmouth_bass_cpue %>%
 
 #surveys that have nothing caught?
 adult_smallmouth_bass_cpue %>% 
-  filter(nothing_caught == "TRUE") %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
 
@@ -642,7 +655,7 @@ adult_northern_pike_cpue <- adult_northern_pike %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species_1 == 'northern_pike')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+  mutate(count = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1)) %>%
@@ -694,7 +707,7 @@ adult_northern_pike_cpue %>%
 
 #surveys that have nothing caught?
 adult_northern_pike_cpue %>% 
-  filter(nothing_caught == "TRUE") %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
 
@@ -754,7 +767,7 @@ adult_yellow_perch_cpue <- adult_yellow_perch %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species_1 == 'yellow_perch')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+  mutate(count = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1)) %>%
@@ -806,7 +819,7 @@ adult_yellow_perch_cpue %>%
 
 #surveys that have nothing caught?
 adult_yellow_perch_cpue %>% 
-  filter(nothing_caught == "TRUE") %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
 
@@ -866,7 +879,7 @@ adult_cisco_cpue <- adult_cisco %>%
   #counts fish of a particular species in a survey 
   mutate(count = sum(species_1 == 'cisco')) %>% 
   #surveys that did not catch fish (species column is na) return a catch of 0
-  mutate(count = case_when(nothing_caught == "TRUE" ~ 0,
+  mutate(count = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
                            TRUE ~ count)) %>% 
   #generates cpue from counts and efforts associated with that survey count
   mutate(cpue = count/as.numeric(total_effort_1)) %>%
@@ -918,7 +931,7 @@ adult_cisco_cpue %>%
 
 #surveys that have nothing caught?
 adult_cisco_cpue %>% 
-  filter(nothing_caught == "TRUE") %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
 
@@ -954,6 +967,22 @@ write_csv(in_filtered_species, "IN_all_cpue_filtered.csv")
 
 #Data exploration
 ```{r}
+in_filtered_species %>% 
+  ggplot() +
+  geom_histogram(aes(cpue, fill = sampling_method)) +
+  facet_wrap(~species_1, scales = "free")
+
+in_filtered_species %>% 
+  ggplot() +
+  geom_jitter(aes(total_effort_1, cpue, color = sampling_method)) +
+  facet_wrap(~species_1, scales = "free")
+
+in_filtered_species %>% 
+  filter(cpue == 0) %>% 
+  group_by(species_1, sampling_method) %>% 
+  count() %>% 
+  print(n=nrow(.))
+
 
 in_data %>% 
   group_by(sampling_method, total_effort_1, total_effort_1_units) %>% 

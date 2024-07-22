@@ -394,8 +394,8 @@ SD_Gears_2 <- sd_merged_ce %>%
   summarise(Total_Obs = n())
 
 
-write_csv(SD_Gears, "SD_gears_species.csv")
-write_csv(SD_Gears_2, "SD_gears.csv")
+#write_csv(SD_Gears, "SD_gears_species.csv")
+#write_csv(SD_Gears_2, "SD_gears.csv")
 ####
 rm(SD_Gears, SD_Gears_2)
   
@@ -472,7 +472,6 @@ crosswalk_msu <- read_csv("Data_and_Scripts/Data/input/MGLP_crosswalk_update.csv
   filter(STATE == "SD")
 rm(crosswalk_msu)
 
-
 sd_merged_ce <- sd_merged_ce %>%
   #cleaning up some null columns up
   mutate(weight.1 = case_when(weight.1 == "<Null>" ~ NA,
@@ -491,7 +490,9 @@ sd_merged_ce <- sd_merged_ce %>%
          length_unit.1 = case_when(!is.na(length.1) ~ "mm",
                                     TRUE ~ NA),
          weight_unit.1 = case_when(!is.na(weight.1) ~ "g",
-                                    TRUE ~ NA))
+                                    TRUE ~ NA),
+         total_effort_1_units = case_when(total_effort_1_units == "net-night" ~ "net_night",
+                                          TRUE ~ total_effort_1_units))
 #dates
 sd_merged_ce <- sd_merged_ce %>% 
   arrange(date.1) %>% 
@@ -540,7 +541,7 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          total_effort_ident = as.character(total_effort_ident),
          total_effort_2 = as.numeric(NA),
          total_effort_3 = as.numeric(NA),
-         total_effort_1_units = as.character(NA),
+         total_effort_1_units = total_effort_1_units,
          total_effort_2_units = as.character(NA),
          total_effort_3_units = as.character(NA),
          water_temp = as.numeric(NA),
@@ -552,7 +553,7 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          lat_end = as.numeric(NA),
          lon_end = as.numeric(NA),
          site_id = site_id_1,
-         sub_effort_1_units = sub_effort_units,
+         sub_effort_1_units = total_effort_1_units,
          sub_effort_2 = as.numeric(NA),
          sub_effort_2_units = as.character(NA),
          sub_effort_nothing_caught = sub_nothing_caught,
@@ -673,6 +674,11 @@ rm(gear)
 sd_merged_ce_trial %>% 
   filter(is.na(date_survey)) %>% 
   count()
+
+sd_merged_ce_trial %>% 
+  group_by(total_effort_1_units, sub_effort_1_units) %>% 
+  count() %>% 
+  collect()
 ```
 
 

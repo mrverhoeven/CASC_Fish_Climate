@@ -61,6 +61,7 @@ sd_data %>%
   arrange(species_1) %>% 
   collect() %>% 
   print(n = nrow(.))
+
 ```
 
 #filtering walleye
@@ -1060,5 +1061,40 @@ sd_data %>%
   count() %>% 
   collect() %>% 
   print(n = nrow(.))
+
+#in an older parquet there was a poor link between fish obs and effort - here is some code that explored it
+
+#looking at null sub effort 
+#all null sub effort comes from total effort ident 1
+te1 <- sd_data %>% 
+  filter(total_effort_ident == "1") %>% 
+  collect()
+
+te1 %>% 
+  group_by(sampling_method, date_survey, date_total_effort_ident, lake_name, total_effort_1) %>% 
+  count()
+#survey level info appears to be missing for all records
+#are these records really from the sample survey OR do they just get grouped together due to the lack of grouping info?
+#there are 5 different sub effort idents (one of which is <Null>)
+
+
+#total effort 1 is the only survey with na date
+sd_data %>% 
+  group_by(total_effort_ident, is.na(date_survey)) %>% 
+  count() %>% 
+  collect() %>% 
+  filter(`is.na(date_survey)` == TRUE)
+
+sd_data %>% 
+  filter(lake_name == "Elmore Pond") %>% 
+  group_by(sub_effort_ident) %>% 
+  count() %>% 
+  collect()
+
+sd_data %>% 
+  filter(total_effort_ident == "1") %>% 
+  group_by(sub_effort_ident) %>% 
+  count() %>% 
+  collect()
 ```
 

@@ -58,14 +58,10 @@ original_file_name.1_[...]
 FLAGS AND ISSUES:
 flag - this column contains a character string with issues describing each row, each issue separated with a comma. Use mutate(flag = paste(flag, "new issue description", sep = ",")) to add to this column without overwriting other issues already specified.
 
+# Update 7/22/24 (Denver)
+I ran into an issue in the parquet file where total effort ident "1" had no survey level info. I did some exploration and found it was due to poor survey id crosswalks between the individual fish object and the effort object. The survey id linkage was 1.) null in fish obs or 2.) survey id in fish was not found in the effort object. The surveys causing issue were removed. They must be removed because they were creating an erroneous total effort ident grouping for the surveys that just didn't have any info
+
 ## To do list:
-
-
-
-1. Amend original file names in data explainer to recognize sheet from which each dataset came, carry these through to the original filenames concat column.
-
-
-
 
 
 
@@ -368,6 +364,26 @@ sd_effort_lakesurveysdata_2Nov2023[ is.na(lake_id)] #one missing lake ID
   
   sd_merged_ce <- merge(sd_catch_indivfish_2Nov2023, sd_effort_lakesurveysdata_2Nov2023, by = ("survey_id"), all = TRUE, suffixes = c("indivfish","effort" ))
   
+    #missing data
+  sd_merged_ce[is.na(lake_id), .N, .(survey_id, lake_id, lake_name.1) ]
+  # sd_merged_ce <- sd_merged_ce[ !is.na(date.1) ]
+  
+  #denver 7/22/24 - the above line identifies an issue, current parquet has missing survey info from 3934 obs (everything listed here besides Elmore Pond)
+  #All of the records are listed under the same total effort ident
+sd_merged_ce %>% 
+  group_by(is.na(date.1)) %>% 
+  count()
+sd_merged_ce %>% 
+  filter(is.na(date.1)) %>% 
+  group_by(survey_id) %>% 
+  count()
+#removing records with NA dates removes 1.)null survey ids 2.)fish that had survey ids not present in lake survey data
+#3934 obs from these survey ids is the excate amount of obs within total effort 1 of the parquet
+ #this grouping was erroneously created - grouped together due to the lack of data, i will remove them and proceed 
+
+sd_merged_ce <- sd_merged_ce %>% 
+  filter(!is.na(date.1))
+  
 #Holly's exploration for filter workshop
 SD_Gears <- sd_merged_ce %>%
   group_by(sampling_method.1, species.1)%>%
@@ -381,12 +397,7 @@ SD_Gears_2 <- sd_merged_ce %>%
 write_csv(SD_Gears, "SD_gears_species.csv")
 write_csv(SD_Gears_2, "SD_gears.csv")
 ####
-  
-  #missing data
-  sd_merged_ce[is.na(lake_id), .N, .(survey_id, lake_id, lake_name.1) ]
-  # sd_merged_ce <- sd_merged_ce[ !is.na(date.1) ]
-  
-
+rm(SD_Gears, SD_Gears_2)
   
   
 #need a total effort ident in here:  
@@ -659,9 +670,9 @@ gear <- sd_merged_ce_trial %>%
   count()
 rm(gear)
 
-#exploring null values that are popping up
-df_with_null_string <- sd_merged_ce_trial[apply(sd_merged_ce_trial, 1, function(row) any(row == "<Null>")), ]
-rm(df_with_null_string)
+sd_merged_ce_trial %>% 
+  filter(is.na(date_survey)) %>% 
+  count()
 ```
 
 

@@ -4058,3 +4058,48 @@ ia_data %>%
   collect()
 ```
 
+#looking at updated cross walk
+```{r}
+library(mwlaxeref)
+#overall crosswalk
+cross <- read_csv("MGLP_FISH_LAKES.csv")
+glimpse(cross)
+
+#michigan
+mi <- cross %>% 
+  filter(STATE == "MI")
+
+mi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+  filter(state == "Michigan")
+glimpse(mi_data)
+
+#gathers lake info 
+mi_lakes <- mi_data %>% 
+  group_by(lake_id, nhdhr_id, lake_name, lat_unspec, lon_unspec, county) %>%
+  count() %>% 
+  collect() %>% 
+  replace_na(list(nhdhr_id = "NULL")) %>% 
+  distinct(lake_id, nhdhr_id, lake_name, lat_unspec, lon_unspec, county)
+
+#gathers lakes missing nhdid
+missing_mi_lakes <- mi_lakes %>% 
+  filter(nhdhr_id == "NULL")
+
+mi_crosswalk <- mi %>% 
+  filter(STATE_ID %in% missing_mi_lakes$lake_id & LAKE_NAME %in% missing_mi_lakes$lake_name)
+
+anti <- mi %>% 
+  rename(lake_id = STATE_ID,
+         lake_name = LAKE_NAME,
+         nhdhr_id = NHDHR_ID) %>% 
+ anti_join(mi_lakes, by = c("lake_id",
+                            "lake_name",
+                            "nhdhr_id"))
+#checking why there is a difference for Beaver Lake
+check <- data.frame(lake.id = c("45383", "4-1"))
+mi_to_nhdhr(check, from_colname ="lake.id")
+check.2 <- data.frame(nhdhr.id = "113471071")
+nhdhr_to_mi(check.2)
+#this shows that there are multiple local is for the nhdhrid but none match what msu gave us?
+```
+

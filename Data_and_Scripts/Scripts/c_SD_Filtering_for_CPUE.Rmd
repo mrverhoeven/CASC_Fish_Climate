@@ -16,52 +16,9 @@ library(arrow)
 
 #data
 ```{r}
-sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "sd_file_arrow"))
-glimpse(sd_data)
-
 sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
   filter(state == "South_Dakota")
 glimpse(sd_data)
-
-sd_data %>% 
-  distinct(total_effort_ident, sub_effort_ident, sampling_method, sampling_method_2) %>% 
-  group_by(sampling_method, sampling_method_2) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
-  collect() %>% 
-  ggplot() +
-  geom_histogram(aes(total_effort_1)) + 
-  #geom_vline(xintercept = c(24, .5)) +
-  facet_wrap(~sampling_method, scales = "free")
-
-sd_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1, total_effort_1_units) %>% 
-  group_by(sampling_method, total_effort_1_units) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(survey_type) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(target_species) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  arrange(species_1) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
 ```
 
 #filtering walleye
@@ -74,13 +31,13 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type,
          -area_group,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -state)
 
 good_surveys <- sd_data %>% 
-  right_join(filter_table_effort, by = c("state",
-                                         "sampling_method")) %>% 
+  right_join(filter_table_effort, by = c("sampling_method")) %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -89,8 +46,8 @@ good_surveys <- sd_data %>%
           month_max) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-        month(date) <= month_max) %>% 
+         month(date_total_effort_ident) >= month_min,
+        month(date_total_effort_ident) <= month_max) %>% 
   collect() 
 
 adult_walleye <- sd_data %>% 
@@ -102,7 +59,7 @@ adult_walleye <- sd_data %>%
 adult_walleye_cpue <- adult_walleye %>% 
   #grouping by variables to get survey fish count 
   group_by(total_effort_ident) %>% 
-  #creating non na species 1 variabesl so that no na cpe values are returned for sub effort nothing caught true
+  #creating non na species 1 variables so that no na cpe values are returned for sub effort nothing caught true
   mutate(species_1 = case_when(is.na(species_1) ~ "na_taxon",
                                TRUE ~ species_1)) %>% 
   #counts fish of a particular species in a survey 
@@ -121,8 +78,8 @@ adult_walleye_cpue <- adult_walleye %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -130,8 +87,8 @@ good_surveys %>%
 #is each sampling method correct for the filter?
 adult_walleye %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -139,7 +96,7 @@ adult_walleye %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_walleye %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -151,7 +108,7 @@ adult_walleye %>%
 
 adult_walleye %>% 
   distinct(total_effort_ident,
-           date) %>% 
+           date_total_effort_ident) %>% 
   glimpse()
 
 adult_walleye %>% 
@@ -170,19 +127,15 @@ adult_walleye_cpue %>%
   glimpse()
 
 adult_walleye %>% 
-  filter(total_effort_ident == "27") %>% 
+  filter(total_effort_ident == "1550") %>% 
   group_by(total_effort_nothing_caught, sub_effort_nothing_caught) %>% 
   count()
-#all na cpes have a sub effort nothing caught of true but a total effort nothing caught as false
+#this gives a record of a total effort of catching something but a sub effort did not
 
 adult_walleye_cpue %>% 
-  filter(total_effort_ident == "4") %>% 
+  filter(total_effort_ident == "1550") %>% 
   glimpse()
-
-adult_walleye %>% 
-  filter(total_effort_ident == "4") %>% 
-  group_by(species_1) %>% 
-  count()
+#this shows we were able to generate a good cpe even tho the effort ident had a sub that caught nothing
 
 #surveys that have nothing caught?
 adult_walleye_cpue %>% 
@@ -203,13 +156,13 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type,
          -area_group,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -state)
 
 good_surveys <- sd_data %>% 
-  right_join(filter_table_effort, by = c("state",
-                                         "sampling_method")) %>% 
+  right_join(filter_table_effort, by = c("sampling_method")) %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -218,8 +171,8 @@ good_surveys <- sd_data %>%
           month_max) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-        month(date) <= month_max) %>% 
+         month(date_total_effort_ident) >= month_min,
+        month(date_total_effort_ident) <= month_max) %>% 
   collect() 
 
 adult_black_crappie <- sd_data %>% 
@@ -250,8 +203,8 @@ adult_black_crappie_cpue <- adult_black_crappie %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -259,8 +212,8 @@ good_surveys %>%
 #is each sampling method correct for the filter?
 adult_black_crappie %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -268,7 +221,7 @@ adult_black_crappie %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_black_crappie %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -280,7 +233,7 @@ adult_black_crappie %>%
 
 adult_black_crappie %>% 
   distinct(total_effort_ident,
-           date) %>% 
+           date_total_effort_ident) %>% 
   glimpse()
 
 adult_black_crappie %>% 
@@ -317,13 +270,13 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type,
          -area_group,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -state)
 
 good_surveys <- sd_data %>% 
-  right_join(filter_table_effort, by = c("state",
-                                         "sampling_method")) %>% 
+  right_join(filter_table_effort, by = c("sampling_method")) %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -332,8 +285,8 @@ good_surveys <- sd_data %>%
           month_max) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-        month(date) <= month_max) %>% 
+         month(date_total_effort_ident) >= month_min,
+        month(date_total_effort_ident) <= month_max) %>% 
   collect() 
 
 adult_bluegill <- sd_data %>% 
@@ -364,8 +317,8 @@ adult_bluegill_cpue <- adult_bluegill %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -373,8 +326,8 @@ good_surveys %>%
 #is each sampling method correct for the filter?
 adult_bluegill %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -382,7 +335,7 @@ adult_bluegill %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_bluegill %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -390,11 +343,10 @@ adult_bluegill %>%
           month_min,
           month_max) %>% 
   glimpse()
-#this includes subsurvey level
 
 adult_bluegill %>% 
   distinct(total_effort_ident,
-           date) %>% 
+           date_total_effort_ident) %>% 
   glimpse()
 
 adult_bluegill %>% 
@@ -432,13 +384,13 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type,
          -area_group,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -state)
 
 good_surveys <- sd_data %>% 
-  right_join(filter_table_effort, by = c("state",
-                                         "sampling_method")) %>% 
+  right_join(filter_table_effort, by = c("sampling_method")) %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -447,8 +399,8 @@ good_surveys <- sd_data %>%
           month_max) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-        month(date) <= month_max) %>% 
+         month(date_total_effort_ident) >= month_min,
+        month(date_total_effort_ident) <= month_max) %>% 
   collect() 
 
 adult_largemouth_bass <- sd_data %>% 
@@ -479,8 +431,8 @@ adult_largemouth_bass_cpue <- adult_largemouth_bass %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -488,8 +440,8 @@ good_surveys %>%
 #is each sampling method correct for the filter?
 adult_largemouth_bass %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -497,7 +449,7 @@ adult_largemouth_bass %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_largemouth_bass %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -505,11 +457,10 @@ adult_largemouth_bass %>%
           month_min,
           month_max) %>% 
   glimpse()
-#this includes subsurvey level
 
 adult_largemouth_bass %>% 
   distinct(total_effort_ident,
-           date) %>% 
+           date_total_effort_ident) %>% 
   glimpse()
 
 adult_largemouth_bass %>% 
@@ -547,13 +498,13 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type,
          -area_group,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -state)
 
 good_surveys <- sd_data %>% 
-  right_join(filter_table_effort, by = c("state",
-                                         "sampling_method")) %>% 
+  right_join(filter_table_effort, by = c("sampling_method")) %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -562,8 +513,8 @@ good_surveys <- sd_data %>%
           month_max) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-        month(date) <= month_max) %>% 
+         month(date_total_effort_ident) >= month_min,
+        month(date_total_effort_ident) <= month_max) %>% 
   collect() 
 
 adult_smallmouth_bass <- sd_data %>% 
@@ -594,8 +545,8 @@ adult_smallmouth_bass_cpue <- adult_smallmouth_bass %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -603,8 +554,8 @@ good_surveys %>%
 #is each sampling method correct for the filter?
 adult_smallmouth_bass %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -612,7 +563,7 @@ adult_smallmouth_bass %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_smallmouth_bass %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -620,11 +571,10 @@ adult_smallmouth_bass %>%
           month_min,
           month_max) %>% 
   glimpse()
-#this includes subsurvey level
 
 adult_smallmouth_bass %>% 
   distinct(total_effort_ident,
-           date) %>% 
+           date_total_effort_ident) %>% 
   glimpse()
 
 adult_smallmouth_bass %>% 
@@ -662,13 +612,13 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type,
          -area_group,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -state)
 
 good_surveys <- sd_data %>% 
-  right_join(filter_table_effort, by = c("state",
-                                         "sampling_method")) %>% 
+  right_join(filter_table_effort, by = c("sampling_method")) %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -677,8 +627,8 @@ good_surveys <- sd_data %>%
           month_max) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-        month(date) <= month_max) %>% 
+         month(date_total_effort_ident) >= month_min,
+        month(date_total_effort_ident) <= month_max) %>% 
   collect() 
 
 adult_northern_pike <- sd_data %>% 
@@ -709,8 +659,8 @@ adult_northern_pike_cpue <- adult_northern_pike %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -718,8 +668,8 @@ good_surveys %>%
 #is each sampling method correct for the filter?
 adult_northern_pike %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -727,7 +677,7 @@ adult_northern_pike %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_northern_pike %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -739,7 +689,7 @@ adult_northern_pike %>%
 
 adult_northern_pike %>% 
   distinct(total_effort_ident,
-           date) %>% 
+           date_total_effort_ident) %>% 
   glimpse()
 
 adult_northern_pike %>% 
@@ -777,13 +727,13 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type,
          -area_group,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -state)
 
 good_surveys <- sd_data %>% 
-  right_join(filter_table_effort, by = c("state",
-                                         "sampling_method")) %>% 
+  right_join(filter_table_effort, by = c("sampling_method")) %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -792,8 +742,8 @@ good_surveys <- sd_data %>%
           month_max) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-        month(date) <= month_max) %>% 
+         month(date_total_effort_ident) >= month_min,
+        month(date_total_effort_ident) <= month_max) %>% 
   collect() 
 
 adult_yellow_perch <- sd_data %>% 
@@ -824,8 +774,8 @@ adult_yellow_perch_cpue <- adult_yellow_perch %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -833,8 +783,8 @@ good_surveys %>%
 #is each sampling method correct for the filter?
 adult_yellow_perch %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -842,7 +792,7 @@ adult_yellow_perch %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_yellow_perch %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -854,7 +804,7 @@ adult_yellow_perch %>%
 
 adult_yellow_perch %>% 
   distinct(total_effort_ident,
-           date) %>% 
+           date_total_effort_ident) %>% 
   glimpse()
 
 adult_yellow_perch %>% 
@@ -882,6 +832,7 @@ rm(adult_yellow_perch)
 ```
 
 #filtering cisco
+*returns no cisco catch because cisco are not an included speices* 
 ```{r}
 #filters for metric (adult abundance) and selects columns needed for survey filtering
 filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -891,13 +842,13 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type,
          -area_group,
          -water_temp_min,
-         -water_temp_max)
+         -water_temp_max,
+         -state)
 
 good_surveys <- sd_data %>% 
-  right_join(filter_table_effort, by = c("state",
-                                         "sampling_method")) %>% 
+  right_join(filter_table_effort, by = c("sampling_method")) %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -906,8 +857,8 @@ good_surveys <- sd_data %>%
           month_max) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
-         month(date) >= month_min,
-        month(date) <= month_max) %>% 
+         month(date_total_effort_ident) >= month_min,
+        month(date_total_effort_ident) <= month_max) %>% 
   collect() 
 
 adult_cisco <- sd_data %>% 
@@ -938,8 +889,8 @@ adult_cisco_cpue <- adult_cisco %>%
 #month range
 good_surveys %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -947,8 +898,8 @@ good_surveys %>%
 #is each sampling method correct for the filter?
 adult_cisco %>% 
   group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date)), 
-            max.month = max(month(date)),
+  summarise(min.month = min(month(date_total_effort_ident)), 
+            max.month = max(month(date_total_effort_ident)),
             min = min(total_effort_1),
             max = max(total_effort_1),
             n = n())
@@ -956,7 +907,7 @@ adult_cisco %>%
 #do I retain all of the good surveys? - rows here should match good surveys 
 adult_cisco %>% 
   distinct(total_effort_ident,
-           date,
+           date_total_effort_ident,
            sampling_method,
            total_effort_1,
           effort_min,
@@ -968,7 +919,7 @@ adult_cisco %>%
 
 adult_cisco %>% 
   distinct(total_effort_ident,
-           date) %>% 
+           date_total_effort_ident) %>% 
   glimpse()
 
 adult_cisco %>% 
@@ -1018,6 +969,79 @@ write_csv(sd_filtered_species, "SD_all_cpue_filtered.csv")
 
 #Data exploration
 ```{r}
+
+sd_data %>% 
+  distinct(total_effort_ident, sub_effort_ident, sampling_method, sampling_method_2) %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+sd_data %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
+  collect() %>% 
+  ggplot() +
+  geom_histogram(aes(total_effort_1)) + 
+  #geom_vline(xintercept = c(24, .5)) +
+  facet_wrap(~sampling_method, scales = "free")
+
+sd_data %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1, total_effort_1_units) %>% 
+  group_by(sampling_method, total_effort_1_units) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+sd_data %>% 
+  group_by(total_effort_1_units, sub_effort_1_units) %>% 
+  count() %>% 
+  collect()
+
+sd_data %>% 
+  group_by(survey_type) %>% 
+  count() %>% 
+  collect()
+
+sd_data %>% 
+  group_by(target_species) %>% 
+  count() %>% 
+  collect()
+
+sd_data %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  arrange(species_1) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+sd_data %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.)) 
+
+sd_data %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  collect()
+
+sd_data %>% 
+  group_by(date_total_effort_ident) %>% 
+  count() %>% 
+  collect()
+
+sd_data %>% 
+  filter(total_effort_nothing_caught == "FALSE" & sub_effort_nothing_caught == "TRUE") %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_nothing_caught, sub_effort_nothing_caught) %>% 
+  collect()
+
+
+sd_data %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  collect %>% 
+  arrange(species_1) %>% 
+  print(n = nrow(.))
 
 sd_data %>% 
   group_by(sampling_method) %>% 

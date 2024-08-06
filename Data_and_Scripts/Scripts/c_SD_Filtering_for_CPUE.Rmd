@@ -16,52 +16,9 @@ library(arrow)
 
 #data
 ```{r}
-sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "sd_file_arrow"))
-glimpse(sd_data)
-
 sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
   filter(state == "South_Dakota")
 glimpse(sd_data)
-
-sd_data %>% 
-  distinct(total_effort_ident, sub_effort_ident, sampling_method, sampling_method_2) %>% 
-  group_by(sampling_method, sampling_method_2) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
-  collect() %>% 
-  ggplot() +
-  geom_histogram(aes(total_effort_1)) + 
-  #geom_vline(xintercept = c(24, .5)) +
-  facet_wrap(~sampling_method, scales = "free")
-
-sd_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1, total_effort_1_units) %>% 
-  group_by(sampling_method, total_effort_1_units) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(survey_type) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(target_species) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  arrange(species_1) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
 ```
 
 #filtering walleye
@@ -1096,5 +1053,49 @@ sd_data %>%
   group_by(sub_effort_ident) %>% 
   count() %>% 
   collect()
+
+sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "sd_file_arrow"))
+glimpse(sd_data)
+
+
+sd_data %>% 
+  distinct(total_effort_ident, sub_effort_ident, sampling_method, sampling_method_2) %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+sd_data %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
+  collect() %>% 
+  ggplot() +
+  geom_histogram(aes(total_effort_1)) + 
+  #geom_vline(xintercept = c(24, .5)) +
+  facet_wrap(~sampling_method, scales = "free")
+
+sd_data %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1, total_effort_1_units) %>% 
+  group_by(sampling_method, total_effort_1_units) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+sd_data %>% 
+  group_by(survey_type) %>% 
+  count() %>% 
+  collect()
+
+sd_data %>% 
+  group_by(target_species) %>% 
+  count() %>% 
+  collect()
+
+sd_data %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  arrange(species_1) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
 ```
 

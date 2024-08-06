@@ -4061,9 +4061,39 @@ ia_data %>%
 #looking at updated cross walk
 ```{r}
 library(mwlaxeref)
+library(LAGOSNE)
+#what do we have in our database?
+fish_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) 
+  
+fish_data %>% 
+  distinct(state, county, lake_id, lake_name, nhdhr_id) %>% 
+  group_by(state) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+sd <- fish_data %>%
+  filter(state == "South_Dakota") %>% 
+  distinct(lake_id, lake_name, nhdhr_id, county) %>% 
+  collect()
+
 #overall crosswalk
-cross <- read_csv("MGLP_FISH_LAKES.csv")
+cross <- read_csv("MGLP_FISH_LAKES.csv") 
 glimpse(cross)
+
+cross %>% 
+  group_by(STATE) %>% 
+  count()
+
+cross %>% 
+  group_by(STATE, Verify) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+cross %>% 
+  filter(STATE == "SD") %>% 
+  group_by(is.na(LAGOSLAKEID), is.na(NHDHR_ID)) %>% 
+  count()
 
 #michigan
 mi <- cross %>% 
@@ -4101,5 +4131,65 @@ mi_to_nhdhr(check, from_colname ="lake.id")
 check.2 <- data.frame(nhdhr.id = "113471071")
 nhdhr_to_mi(check.2)
 #this shows that there are multiple local is for the nhdhrid but none match what msu gave us?
+
+
+
+#checking crosswalk with lagos data
+cross <- read_csv("MGLP_FISH_LAKES.csv") %>%  
+  #make sure there is only one lagos id for each basin (lakes with multipule are listed with a :)
+  #separate(LAGOSLAKEID, into = c("LAGOSLAKEID_clean", "extra_ids"), sep = ";", extra = "merge", fill = "right")
+  #just removing them for now but see code above to sepearte
+  filter(!(str_detect(LAGOSLAKEID, ";"))) %>% 
+  lagos_to_nhdhr(from_colname = "LAGOSLAKEID") 
+
+cross %>% 
+  group_by(STATE, is.na(nhdhr.id)) %>% 
+  count()
+
+cross %>% 
+  group_by(STATE, is.na(NHDHR_ID)) %>% 
+  count()
+
+match <- cross %>% 
+  filter(!is.na(LAGOSLAKEID)) %>% 
+  mutate(nhdhr_id_mwlaxref = paste0("nhdhr_", nhdhr.id),
+         NHDHR_ID_msu = case_when(grepl("^nhdhr_", NHDHR_ID) ~ NHDHR_ID,
+                              TRUE ~ paste0("nhdhr_", NHDHR_ID)),
+         NHDHR_ID_msu = case_when(NHDHR_ID_msu == "nhdhr_NA" ~ NA,
+                              TRUE ~ NHDHR_ID_msu),
+         nhdhr_match = case_when(nhdhr_id_mwlaxref == NHDHR_ID_msu ~ T,
+                              TRUE ~ F)) %>% 
+  select(STATE, 
+         STATE_ID,
+         LAKE_NAME,
+         COUNTY, 
+         LAT, 
+         LON, 
+         WATERBODY_,
+         LAGOSLAKEID, 
+         NHDHR_ID_msu,
+         nhdhr_id_mwlaxref, 
+         nhdhr_match) %>% 
+  filter(!(is.na(nhdhr_id_mwlaxref) | is.na(NHDHR_ID_msu)))
+
+match %>% 
+  filter(!(is.na(nhdhr_id_mwlaxref) | is.na(NHDHR_ID_msu))) %>% 
+  group_by(nhdhr_match) %>% 
+  count()
+
+write_csv(match, "crosswalk_nhdhrid_exploring.csv")
+```
+
+# Exploring Cam's Data error
+```{r}
+mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+  filter(state == "Minnesota")
+
+mn_data %>% 
+  distinct(total_effort_ident, sampling_method, area_group, total_effort_1, flag) %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect()
 ```
 

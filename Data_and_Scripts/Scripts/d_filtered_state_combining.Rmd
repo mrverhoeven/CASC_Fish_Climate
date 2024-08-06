@@ -21,6 +21,111 @@ library(viridis) #more color palettes
 library(gganimate)
 ```
 
+
+#8/6 cpue data aggregation with updated hive
+```{r}
+#reading in individual state cpe 
+mn <- read_csv("filtered_cpe_files/MN_all_cpue_filtered.csv") %>% 
+  mutate(lake_id = as.character(lake_id)) %>% 
+  select(state, 
+         lake_id,
+         lake_name, 
+         nhdhr_id, 
+         county, 
+         date_total_effort_ident, 
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue,
+         lat_unspec,
+         lon_unspec)
+mi <- read_csv("filtered_cpe_files/MI_all_cpue_filtered.csv") %>% 
+  select(state, 
+         lake_id,
+         lake_name, 
+         nhdhr_id, 
+         county, 
+         date_total_effort_ident, 
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue,
+         lat_unspec,
+         lon_unspec)
+il <- read_csv("filtered_cpe_files/IL_all_cpue_filtered.csv") %>% 
+  mutate(lake_id = as.character(lake_id)) %>% 
+  select(state, 
+         lake_id,
+         lake_name, 
+         nhdhr_id, 
+         county, 
+         date_total_effort_ident, 
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue,
+         lat_unspec,
+         lon_unspec)
+sd <- read_csv("filtered_cpe_files/SD_all_cpue_filtered.csv") %>% 
+  select(state, 
+         lake_id,
+         lake_name, 
+         nhdhr_id, 
+         county, 
+         date_total_effort_ident, 
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue,
+         lat_unspec,
+         lon_unspec)
+ia <- read_csv("filtered_cpe_files/IA_all_cpue_filtered.csv") %>% 
+  select(state, 
+         lake_id,
+         lake_name, 
+         nhdhr_id, 
+         county, 
+         date_total_effort_ident, 
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue,
+         lat_unspec,
+         lon_unspec)
+indy <- read_csv("filtered_cpe_files/IN_all_cpue_filtered.csv") %>% 
+  select(state, 
+         lake_id,
+         lake_name, 
+         nhdhr_id, 
+         county, 
+         date_total_effort_ident, 
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         species_1,
+         count,
+         cpue,
+         lat_unspec,
+         lon_unspec)
+
+#make sure i get ride of columns that are not survey level or helpful to Chris
+cross_state <- bind_rows(mn, mi, il, sd, ia, indy)
+glimpse(cross_state)
+
+write_csv(cross_state, "all_state_cpue_6Aug24.csv")
+```
+
+
 #hiving
 ```{r}
 #opening from pre-constucted file path

@@ -48,13 +48,15 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 #third, filter the surveys based on numeric values 
 good_surveys <- mn_data %>%
   #filter for correct survey_type
-  mutate(survey_type_filter = case_when(survey_type %in% c("HISTORICAL", 
+  mutate(survey_type_filter = case_when(survey_type %in% c("HISTORICAL",
                                                  "Large Lake Survey", 
                                                  "Population Assessment",
                                                  "Standard Survey",
                                                  "Initial Survey",
                                                  "Re-Survey") ~ "y", 
                               TRUE ~ "n")) %>% 
+  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+                                             TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -69,7 +71,7 @@ good_surveys <- mn_data %>%
            month_min,
            month_max,
            survey_type_filter,
-           flag) %>% 
+           flag)  %>%
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
@@ -176,7 +178,7 @@ adult_walleye %>%
   group_by(is.na(total_effort_nothing_caught)) %>% 
   count()
 
-adult_black_crappie %>% 
+adult_walleye %>% 
   distinct(lake_id,
            date_total_effort_ident,
            sampling_method,
@@ -190,7 +192,7 @@ adult_black_crappie %>%
            survey_type_filter) %>% 
   glimpse()
 
-adult_black_crappie %>% 
+adult_walleye %>% 
   group_by(lake_id,
            date_total_effort_ident,
            sampling_method,
@@ -266,6 +268,8 @@ good_surveys <- mn_data %>%
                                                  "Initial Survey",
                                                  "Re-Survey") ~ "y", 
                               TRUE ~ "n")) %>% 
+  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+                                             TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -425,6 +429,8 @@ good_surveys <- mn_data %>%
                                                  "Initial Survey",
                                                  "Re-Survey") ~ "y", 
                               TRUE ~ "n")) %>% 
+  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+                                             TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -595,6 +601,8 @@ good_surveys <- mn_data %>%
                                                  "Initial Survey",
                                                  "Re-Survey") ~ "y", 
                               TRUE ~ "n")) %>% 
+  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+                                             TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -765,6 +773,8 @@ good_surveys <- mn_data %>%
                                                  "Initial Survey",
                                                  "Re-Survey") ~ "y", 
                               TRUE ~ "n")) %>% 
+  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+                                             TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -942,6 +952,8 @@ good_surveys <- mn_data %>%
                                                              "Standard Survey",
                                                              "Targeted Survey")) ~ "y", 
                               TRUE ~ "n")) %>% 
+  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+                                             TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -1113,6 +1125,8 @@ good_surveys <- mn_data %>%
                                                  "Initial Survey",
                                                  "Re-Survey") ~ "y", 
                               TRUE ~ "n")) %>% 
+  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+                                             TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -1283,6 +1297,8 @@ good_surveys <- mn_data %>%
                                                  "Initial Survey",
                                                  "Re-Survey") ~ "y", 
                               TRUE ~ "n")) %>% 
+  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+                                             TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -1668,6 +1684,20 @@ write_csv(bottom_feeder_final, "MN_bottom_feeders_cpue.csv")
 
 # old code 
 ```{r}
+#checking code
+mn_filtered_species %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  filter(lake_name == "Fleming") %>% 
+  filter(species_1 == "walleye") %>% 
+  group_by(year) %>% 
+  count()
+
+mn_filtered_species %>% 
+  filter(sampling_method == "Standard gill net sets") %>% 
+  filter(species_1 == "walleye") %>% 
+  group_by(survey_type) %>% 
+  count()
+
 #from the data chunk 
 
 

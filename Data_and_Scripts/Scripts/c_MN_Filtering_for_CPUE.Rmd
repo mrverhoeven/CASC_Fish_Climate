@@ -7,22 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-12/29 filter cleaning:
-1. selecting columns to retain for filtering... is that necessary? 
-2. order of operation in creation of good surveys
-      -could call the distinct function first
-      -then I could join by filter table by specific columns and values (even numeric)
-      -collect
-      -could minimize the number of things I call to make a survey distinct (only include total effort ident)
-3. I have realized filtering by fish level parameters is not the best way to go
-      -instead, if a fish level parameter is of interest - include that variable in counting for cpue
-4. only use total effort ident in the grouping for cpue
-5. change the call of na species to nothing caught
-6. collect first before calling the distinct function
-  -that way we can retain all columns with .keep_all = T
-
-
-
 #Library
 ```{r}
 library(tidyverse)

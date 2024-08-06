@@ -958,8 +958,8 @@ sd_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "largemouth_bass"), 
                                  adult_smallmouth_bass_cpue %>% 
                                    mutate(species_1 = "smallmouth_bass"), 
-                                 adult_cisco_cpue %>% 
-                                   mutate(species_1 = "cisco"), 
+                                 #adult_cisco_cpue %>% 
+                                   #mutate(species_1 = "cisco"), 
                                  adult_northern_pike_cpue %>% 
                                    mutate(species_1 = "northern_pike"), 
                                  adult_yellow_perch_cpue %>% 

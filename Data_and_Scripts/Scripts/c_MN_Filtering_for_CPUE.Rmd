@@ -34,142 +34,6 @@ library(arrow)
 mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
   filter(state == "Minnesota")
 glimpse(mn_data)
-
-#creating columns for filtering by lake area
-
-#creating y/n column for if survey type is good for abundance
-mn_data %>% 
-  mutate(rep.type = case_when(survey_type %in% c("HISTORICAL", 
-                                           "Large Lake Survey", 
-                                           "Population Assessment",
-                                           "Standard Survey",
-                                           "Initial Survey",
-                                           "Re-Survey") ~ "y",
-                        TRUE ~ "n")) %>% 
-  distinct(total_effort_ident, survey_type, rep.type) %>% 
-  group_by(survey_type, rep.type) %>%
-  count() %>% 
-  collect()
-
-#max effort filter
-mn_data %>% 
-  filter(survey_type %in% c("HISTORICAL", 
-                            "Large Lake Survey",
-                            "Population Assessment",
-                            "Standard Survey",
-                            "Initial Survey",
-                            "Re-Survey")) %>% 
-  filter(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets",
-                                "Standard gill net sets",
-                                "Standard gill nets, set shallow in stratified assessment")) %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
-  collect() %>% 
-  ggplot() +
-  geom_histogram(aes(total_effort_1)) + 
-  facet_wrap(~sampling_method, scales = "free")
-
-mn_data %>% 
-  filter(survey_type %in% c("HISTORICAL", 
-                            "Large Lake Survey",
-                            "Population Assessment",
-                            "Standard Survey",
-                            "Initial Survey",
-                            "Re-Survey")) %>% 
-  filter(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets",
-                                "Standard gill net sets",
-                                "Standard gill nets, set shallow in stratified assessment")) %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1, survey_type) %>% 
-  collect() %>% 
-  ggplot() +
-  geom_histogram(aes(total_effort_1)) + 
-  facet_grid(survey_type~sampling_method, scales = "free")
-
-#cisco gears?
-mn_data %>% 
-  group_by(sampling_method, survey_type) %>% 
-  count() %>% 
-  arrange(sampling_method) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-mn_data %>% 
-  filter(sampling_method == "Standard Vertical Gillnet") %>% 
-  filter(!is.na(total_effort_1)) %>% 
-  summarise(min(total_effort_1), max(total_effort_1)) %>% 
-  collect()
-
-mn_data %>% 
-  filter(sampling_method == "Standard Vertical Gillnet") %>% 
-  filter(!is.na(total_effort_1)) %>% 
-  collect() %>% 
-  distinct(total_effort_ident, .keep_all = T) %>% 
-  summarise(less.1 = sum(total_effort_1 <= 1),
-            min.month = min(month(date)),
-            max.month = max(month(date)),
-            before.june = sum(month(date) < 6),
-            before2020 = sum(year(date) < 2020),
-            n = n()) %>% 
-  select(less.1, before2020, min.month, max.month, before.june, n) %>% 
-  print()
-
-mn_data %>% 
-  distinct(total_effort_ident, sampling_method, area_group, total_effort_1, flag) %>% 
-  filter(sampling_method == "Standard Vertical Gillnet") %>% 
-  group_by(flag) %>% 
-  count() %>% 
-  collect()
-
-mn_data %>% 
-  filter(sampling_method == "Standard Vertical Gillnet") %>% 
-  distinct(total_effort_ident, total_effort_1) %>% 
-  mutate(na = is.na(total_effort_1)) %>% 
-  group_by(na) %>% 
-  count() %>% 
-  collect()
-
-mn_data %>% 
-  str_detect("cisco", species_1) %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n= nrow(.))
-
-mn_data %>% 
-  filter(sampling_method == "Standard Vertical Gillnet") %>% 
-  filter(!is.na(total_effort_1)) %>% 
-  distinct(total_effort_ident, survey_type, sampling_method, total_effort_1, date) %>% 
-  collect() %>% 
-  group_by(survey_type) %>% 
-  count()
-
-check <- mn_data %>% 
-  filter(sampling_method == "Standard Vertical Gillnet") %>%
-  collect() %>% 
-  distinct(total_effort_ident, .keep_all = T)
-
-mn_data %>% 
-  distinct(total_effort_ident, total_effort_1) %>% 
-  summarise(max(total_effort_1)) %>% 
-  collect()
-
-mn_data %>% 
-  distinct(total_effort_ident, flag) %>% 
-  group_by(flag) %>% 
-  count() %>% 
-  collect()
-
-mn_data %>% 
-  group_by(sampling_method, sampling_method_2) %>% 
-  count() %>% 
-  collect()
-
-#multipule effort idents for one survey?
-multi_ident <- mn_data %>% 
-  filter(lake_id == "28003200" &
-           date_total_effort_ident == "1996-07-16" &
-           sampling_method == "Standard 3/4-in mesh, double frame trap net sets") %>% 
-  collect()
-#looks like one is nothing caught and the other has fish
 ```
 
 General structure for each filtering chunks:
@@ -1816,5 +1680,147 @@ bottom_feeder_final <- bottom_feeders_cpue %>%
          cpue_channel_catfish,
          cpue_common_carp)
 write_csv(bottom_feeder_final, "MN_bottom_feeders_cpue.csv")
+```
+
+# old code 
+```{r}
+#from the data chunk 
+
+
+#creating columns for filtering by lake area
+
+#creating y/n column for if survey type is good for abundance
+mn_data %>% 
+  mutate(rep.type = case_when(survey_type %in% c("HISTORICAL", 
+                                           "Large Lake Survey", 
+                                           "Population Assessment",
+                                           "Standard Survey",
+                                           "Initial Survey",
+                                           "Re-Survey") ~ "y",
+                        TRUE ~ "n")) %>% 
+  distinct(total_effort_ident, survey_type, rep.type) %>% 
+  group_by(survey_type, rep.type) %>%
+  count() %>% 
+  collect()
+
+#max effort filter
+mn_data %>% 
+  filter(survey_type %in% c("HISTORICAL", 
+                            "Large Lake Survey",
+                            "Population Assessment",
+                            "Standard Survey",
+                            "Initial Survey",
+                            "Re-Survey")) %>% 
+  filter(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets",
+                                "Standard gill net sets",
+                                "Standard gill nets, set shallow in stratified assessment")) %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
+  collect() %>% 
+  ggplot() +
+  geom_histogram(aes(total_effort_1)) + 
+  facet_wrap(~sampling_method, scales = "free")
+
+mn_data %>% 
+  filter(survey_type %in% c("HISTORICAL", 
+                            "Large Lake Survey",
+                            "Population Assessment",
+                            "Standard Survey",
+                            "Initial Survey",
+                            "Re-Survey")) %>% 
+  filter(sampling_method %in% c("Standard 3/4-in mesh, double frame trap net sets",
+                                "Standard gill net sets",
+                                "Standard gill nets, set shallow in stratified assessment")) %>% 
+  distinct(total_effort_ident, sampling_method, total_effort_1, survey_type) %>% 
+  collect() %>% 
+  ggplot() +
+  geom_histogram(aes(total_effort_1)) + 
+  facet_grid(survey_type~sampling_method, scales = "free")
+
+#cisco gears?
+mn_data %>% 
+  group_by(sampling_method, survey_type) %>% 
+  count() %>% 
+  arrange(sampling_method) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+mn_data %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>% 
+  filter(!is.na(total_effort_1)) %>% 
+  summarise(min(total_effort_1), max(total_effort_1)) %>% 
+  collect()
+
+mn_data %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>% 
+  filter(!is.na(total_effort_1)) %>% 
+  collect() %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  summarise(less.1 = sum(total_effort_1 <= 1),
+            min.month = min(month(date_total_effort_ident)),
+            max.month = max(month(date_total_effort_ident)),
+            before.june = sum(month(date_total_effort_ident) < 6),
+            before2020 = sum(year(date_total_effort_ident) < 2020),
+            n = n()) %>% 
+  select(less.1, before2020, min.month, max.month, before.june, n) %>% 
+  print()
+
+mn_data %>% 
+  distinct(total_effort_ident, sampling_method, area_group, total_effort_1, flag) %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect()
+
+mn_data %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>% 
+  distinct(total_effort_ident, total_effort_1) %>% 
+  mutate(na = is.na(total_effort_1)) %>% 
+  group_by(na) %>% 
+  count() %>% 
+  collect()
+
+mn_data %>% 
+  str_detect("cisco", species_1) %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n= nrow(.))
+
+mn_data %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>% 
+  filter(!is.na(total_effort_1)) %>% 
+  distinct(total_effort_ident, survey_type, sampling_method, total_effort_1, date) %>% 
+  collect() %>% 
+  group_by(survey_type) %>% 
+  count()
+
+check <- mn_data %>% 
+  filter(sampling_method == "Standard Vertical Gillnet") %>%
+  collect() %>% 
+  distinct(total_effort_ident, .keep_all = T)
+
+mn_data %>% 
+  distinct(total_effort_ident, total_effort_1) %>% 
+  summarise(max(total_effort_1)) %>% 
+  collect()
+
+mn_data %>% 
+  distinct(total_effort_ident, flag) %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect()
+
+mn_data %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  collect()
+
+#multipule effort idents for one survey?
+multi_ident <- mn_data %>% 
+  filter(lake_id == "28003200" &
+           date_total_effort_ident == "1996-07-16" &
+           sampling_method == "Standard 3/4-in mesh, double frame trap net sets") %>% 
+  collect()
+#looks like one is nothing caught and the other has fish
 ```
 

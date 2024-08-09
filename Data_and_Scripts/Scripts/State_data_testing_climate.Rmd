@@ -4180,16 +4180,207 @@ match %>%
 write_csv(match, "crosswalk_nhdhrid_exploring.csv")
 ```
 
-# Exploring Cam's Data error
+# Exploring errors 
 ```{r}
-mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
-  filter(state == "Minnesota")
+#cam's error
+mw_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state"))
 
-mn_data %>% 
+mw_data %>% 
+  filter(state == "Minnesota") %>% 
   distinct(total_effort_ident, sampling_method, area_group, total_effort_1, flag) %>% 
   filter(sampling_method == "Standard Vertical Gillnet") %>% 
   group_by(flag) %>% 
   count() %>% 
+  collect() %>% 
+  print()
+
+##na efforts
+mw_data %>% 
+  filter(is.na(total_effort_1)) %>% 
+  group_by(state, flag) %>% 
+  count() %>%  
   collect()
+
+na.effort <- mw_data %>% 
+  filter(is.na(total_effort_1)) %>% 
+  collect()
+
+na.effort %>% 
+  group_by(state, flag) %>% 
+  summarise(n_distinct(total_effort_ident))
+
+na.effort %>% 
+  filter(state == "Minnesota") %>% 
+  filter(is.na(flag)) %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  group_by(sampling_method, sampling_method_2, is.na(date_total_effort_ident)) %>% 
+  count() %>% 
+  arrange(sampling_method) %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  filter(is.na(total_effort_1)) %>% 
+  filter(state == "Minnesota") %>% 
+  group_by(original_file_names) %>% 
+  count() %>% 
+  collect()
+
+mw_data  %>% 
+  filter(state == "Minnesota") %>% 
+  group_by(original_file_names) %>% 
+  count() %>% 
+  collect()
+
+mn_specific_case <- mw_data %>% 
+  filter(state == "Minnesota") %>% 
+  filter(lake_id == "14004900") %>% 
+  collect() %>% 
+  filter(year == "2022")
+rm(mn_specific_case)
+
+#indy
+indy_na <- mw_data %>% 
+  filter(state == "Indiana") %>% 
+  filter(is.na(total_effort_1)) %>% 
+  collect() 
+
+indy_na %>% 
+  group_by(original_file_names) %>% 
+  count()
+
+indy_na %>% 
+  group_by(flag, gear_data_notes, notes_1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+indy_na %>% 
+  group_by(waterbody_type) %>% 
+  count()
+
+indy_na %>% 
+  group_by(age, flag) %>% 
+  count()
+#all but 7 fish without effort have an age - leading me to think we could not connect the aged fished to effort
+#5 of the other 7 have no sampling method 
+#the other 2... idfk 
+
+indy_na %>% 
+  filter(survey_id == "480" | survey_id == "489") %>% 
+  group_by(survey_id, age, flag) %>% 
+  count()
+#those other two fish look like they came from an aged survey just didn't get aged 
+rm(indy_na)
+
+#iowa
+ia_na <- mw_data %>% 
+  filter(state == "Iowa" & is.na(total_effort_1)) %>% 
+  collect()
+
+ia_na %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  group_by(flag) %>% 
+  count()
+#looks like most of these from Iowa are flagged from the state as not adequate 
+
+ia_na %>% 
+  filter(is.na(total_effort_1) & is.na(flag)) %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+ia_na %>% 
+  filter(is.na(total_effort_1) & is.na(flag)) %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+#total effort ident 7728 is a good example how there is sub effort 1 but no total effort 1
+
+ia_specific_case <- ia_na %>% 
+  filter(total_effort_ident == "6732")
+
+ia_na %>% 
+  group_by(is.na(total_effort_1), is.na(total_effort_2), is.na(total_effort_3), flag) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+ia_na %>% 
+  filter(is.na(total_effort_1) & is.na(total_effort_2) & is.na(total_effort_3) & is.na(flag)) %>% 
+  group_by(total_effort_ident) %>% 
+  count() 
+
+na_check <- ia_na %>% 
+  group_by(total_effort_ident) %>% 
+  filter(is.na(flag)) %>% 
+  summarise(na_total_effort = sum(is.na(total_effort_1)),
+            na_sub_effort = sum(is.na(sub_effort_1)),
+            total_effort_1_all_na = all(is.na(total_effort_1)),
+            total_effort_2_all_na = all(is.na(total_effort_2)),
+            sub_effort_1_all_na = all(is.na(sub_effort_1)),
+            sub_effort_2_all_na = all(is.na(sub_effort_2))) %>% 
+  print(n = nrow(.))
+#true values mean they are all na, a false values means at least one is not na
+
+na_check %>% 
+  mutate(na_total_effort1_but_effort_2 = case_when(total_effort_1_all_na == TRUE & 
+                                                     total_effort_2_all_na == FALSE ~ "TRUE",
+         TRUE ~ "FALSE")) %>% 
+  group_by(na_total_effort1_but_effort_2) %>% 
+  count()
+#most without a flag have total effort in total effort 2 but not total effort 1
+na_check %>% 
+   mutate(na_total_effort1_but_effort_2 = case_when(total_effort_1_all_na == TRUE & 
+                                                     total_effort_2_all_na == FALSE ~ "TRUE",
+         TRUE ~ "FALSE")) %>%
+  filter(na_total_effort1_but_effort_2 != "TRUE")
+
+na_check %>% 
+   mutate(na_total_effort1_but_effort_2 = case_when(total_effort_1_all_na == TRUE & 
+                                                     total_effort_2_all_na == FALSE ~ "TRUE",
+         TRUE ~ "FALSE")) %>%
+  filter(na_total_effort1_but_effort_2 != "FALSE")
+
+rm(ia_na, ia_specific_case, na_check)
+
+#Michigan 
+mi_na <- mw_data %>% 
+  filter(state == "Michigan") %>% 
+  filter(total_effort_ident %in% c("2169", "2170", "2171")) %>% 
+  collect()
+
+mi_na %>% 
+  group_by(survey_id) %>% 
+  count()
+#wacky survey 4042 - I remember this being a thing in aggregation but worth a double check
+rm(mi_na)
+
+#gear separation
+gears_by_state <- mw_data %>% 
+  distinct(state, sampling_method, sampling_method_2) %>% 
+  collect()
+
+gears_simple <- read_csv("gears_by_state.csv")
+gears_simple %>% 
+  group_by(state) %>% 
+  summarise(n_distinct(simple_gear, sampling_method, sampling_method_2))
+
+unique_methods <- gears_simple %>% 
+  mutate(sampling_method_state = paste0(sampling_method, "-", state)) %>% 
+  group_by(simple_gear) %>% 
+  summarise(unique_methods = list(unique(sampling_method_state))) %>% 
+  mutate(unique_methods = sapply(unique_methods, paste, collapse = ";"))
+write_csv(unique_methods, "unique_sampling_methods.csv")
+
+unique_methods %>% 
+  unnest() %>% 
+  group_by(simple_gear) %>% 
+  summarise(count = n_distinct(unique_methods)) %>% 
+  ggplot( aes(x = reorder(simple_gear, -count), y = count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Number of Unique Sampling Methods per Simple Gear",
+       x = "Simple Gear",
+       y = "Number of Unique Methods") +
+  theme_minimal()
 ```
 

@@ -388,6 +388,7 @@ ia_fishobs[ , length(unique(lake_name.1)) ,  .(survey_id, sampling_method.1)]
 ia_fishobs[ , paste(unique(sampling_method.2)) ,  .(survey_id, sampling_method.1)]
 
 # gotta fix sampling method before we can make new tot eff idents:
+# this file lives in the IA_metadata folder on drive
 gear_corrections <- fread(file = "IA_gear_notes.csv")
 #rename these and tidy up those columns  a bit:
 #gear data notes

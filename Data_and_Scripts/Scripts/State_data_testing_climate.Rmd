@@ -4384,3 +4384,63 @@ unique_methods %>%
   theme_minimal()
 ```
 
+# Lagos and state ids to nhdids?
+```{r}
+library(mwlaxeref)
+
+cpe_data <- read_csv("all_state_cpue_6Feb24.csv") %>% 
+  filter(state == "Minnesota") %>% 
+  distinct(lake_id, lake_name, nhdhr_id) %>% 
+  local_to_lagos(from_colname = "lake_id", states = "mn") %>% 
+  lagos_to_nhdhr(from_colname = "lagos.id")
+
+cpe_data %>% 
+  mutate(nhd_match = case_when(nhdhr_id == nhdhr.id ~ TRUE,
+                               TRUE ~ FALSE)) %>% 
+  group_by(nhd_match) %>% 
+  count()
+
+no_match <- cpe_data %>% 
+  mutate(nhd_match = case_when(nhdhr_id == nhdhr.id ~ TRUE,
+                               TRUE ~ FALSE)) %>% 
+  filter(nhd_match == F)
+#all non matches are due to NAs at some level 
+
+#msu crosswalk
+cross <- read_csv("MGLP_FISH_LAKES.csv") %>% 
+  filter(STATE == "MN") %>% 
+  lagos_to_nhdhr(from_colname = "LAGOSLAKEID") %>% 
+  local_to_lagos(from_colname = "STATE_ID", states = "mn") %>% 
+  rename(lagos.id.local = lagos.id) %>% 
+  nhdhr_to_lagos(from_colname = "NHDHR_ID") %>% 
+  rename(lagos.id.nhdhr = lagos.id) %>% 
+  mutate(lagos_local_match = case_when(LAGOSLAKEID == lagos.id.local ~ T,
+                                 T ~ F),
+         lagos_nhdhr_match = case_when(LAGOSLAKEID == lagos.id.nhdhr ~ T,
+                                 T ~ F),
+         nhdhr.match.msu.lagos = case_when(NHDHR_ID == nhdhr.id ~ T,
+                                           T ~ F)) %>% 
+  select(LAGOSLAKEID,
+         lagos.id.local,
+         lagos.id.nhdhr,
+         lagos_local_match,
+         lagos_nhdhr_match,
+         NHDHR_ID,
+         nhdhr.id,
+        nhdhr.match.msu.lagos,
+        STATE_ID,
+        LAKE_NAME
+         )
+
+cross %>% 
+  group_by(lagos_local_match, lagos_nhdhr_match, nhdhr.match.msu.lagos) %>%
+  count()
+
+#nhdhr ids match when I go from local id to lagos id and then to nhdhr 
+#nothing matches when I based my nhdhr off the lagos id given by the msu team
+  #1. lagos to nhdhr - no match
+  #2. local id to lagos - no match
+  #3. nhdhr to lagos - no match 
+#the best we get is 18 matches using the local state id to get lagos 
+```
+

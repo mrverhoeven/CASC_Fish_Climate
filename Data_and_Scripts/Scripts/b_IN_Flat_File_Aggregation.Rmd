@@ -200,8 +200,8 @@ unify effort units into a single column
 ```{r}
 in_glaciallakes_effort_6Oct2021_2 <- in_glaciallakes_effort_6Oct2021 %>%
   rename(sampling_method = sampling_method.1)%>%
-  mutate(effort_units = case_when(sampling_method == "Standard Trap Net" ~ "net nights",
-                                  sampling_method == "Experimental Gill Net" ~ "net nights",
+  mutate(effort_units = case_when(sampling_method == "Standard Trap Net" ~ "net_nights",
+                                  sampling_method == "Experimental Gill Net" ~ "net_nights",
                                   sampling_method == "Nighttime Electrofishing" ~ "hours")) %>%
   select(-effort_units.1, -effort_units.2, -effort_units.3)%>% #remove these columns now that the info exists in "effort_units"
   mutate(sampling_method = str_to_lower(sampling_method))%>% #make sampling method consistent for std and targeted
@@ -209,7 +209,7 @@ in_glaciallakes_effort_6Oct2021_2 <- in_glaciallakes_effort_6Oct2021 %>%
   rename(effort_units.1 = effort_units)%>%
   relocate(lake_name.1, county, year, sampling_method, total_effort_1, effort_units.1)%>%
   mutate(targeted_or_standard = "standard")%>%
-  mutate(sampling_method = if_else(sampling_method == "nighttime electrofishing", "dc nighttime electrofishing", sampling_method))
+  mutate(sampling_method = if_else(sampling_method == "nighttime electrofishing", "boat_electrofishing_dc_night", sampling_method))
 ```
 
 
@@ -266,11 +266,11 @@ prep IN GL fish data
 in_glaciallakes_fish_6Oct2021_2 <- in_glaciallakes_fish_6Oct2021 %>%
   rename(sampling_method = sampling_method.1)%>%
   rename(sampling_method_abbrev = sampling_method)%>% #this is an abbreviated name, make column with full name
-  mutate(sampling_method = case_when(sampling_method_abbrev == "TN"~ "standard trap net",
-                                  sampling_method_abbrev == "GN" ~ "experimental gill net",
-                                  sampling_method_abbrev == "EF" ~ "dc nighttime electrofishing",
-                                  sampling_method_abbrev == "X" ~ "unknown sampling method",
-                                  .default = "unknown sampling method"))%>%
+  mutate(sampling_method = case_when(sampling_method_abbrev == "TN"~ "trap_net",
+                                  sampling_method_abbrev == "GN" ~ "gill_net_experimental",
+                                  sampling_method_abbrev == "EF" ~ "boat_electrofishing_dc_night",
+                                  sampling_method_abbrev == "X" ~ "unknown_sampling_method",
+                                  .default = "unknown_sampling_method"))%>%
   mutate(county = str_to_lower(county))%>%
   mutate(sampling_method_abbrev = if_else(sampling_method == "unknown", NA, sampling_method_abbrev))%>% 
   relocate(lake_name.1, county, year, species.1, length.1, sampling_method, sampling_method_abbrev, targeted_or_standard)
@@ -361,15 +361,15 @@ tidy and finish the glacial lakes standard surveys
 ```{r}
   # tidy so columns match other parquet names
 in_glaciallakes_standard_tidy <- in_glacial_lakes_standard_merge%>%
-  mutate(waterbody_type = "Glacial Lake")%>%
+  mutate(waterbody_type = "glacial_lake")%>%
   mutate(flag = case_when(length.1 == 0 ~ "length of zero",
                           county.fish != county.effort ~ "multiple counties listed",
-                          sampling_method == "unknown sampling method" ~ "no sampling method provided",
+                          sampling_method == "unknown_sampling_method" ~ "no sampling method provided",
                           is.na(species.1) ~ "nothing caught",
                           .default = NA))%>%
-  mutate(sampling_method_2 = case_when(sampling_method == "experimental gill net" ~ "250 x 6 ft; five 50-ft panel sections of 0.5-in, 1-in, 1.5-in, 2-in and 2.5-in mesh sizes",
-                                       sampling_method =="dc nighttime electrofishing" ~ "Boat mounted DC nighttime electrofishing",
-                                       sampling_method == "standard trap net" ~ "1-in mesh 45-ft lead; two rectangular 6-ft x 10-ft wire frames and four 2.5-ft diameter circular wire frames spaced 4-ft apart at the cod-end of the trap nets",
+  mutate(sampling_method_2 = case_when(sampling_method == "gill_net_experimental" ~ "250 x 6 ft; five 50-ft panel sections of 0.5-in, 1-in, 1.5-in, 2-in and 2.5-in mesh sizes",
+                                       sampling_method =="boat_electrofishing_dc_night" ~ "Boat mounted DC nighttime electrofishing",
+                                       sampling_method == "trap_net" ~ "1-in mesh 45-ft lead; two rectangular 6-ft x 10-ft wire frames and four 2.5-ft diameter circular wire frames spaced 4-ft apart at the cod-end of the trap nets",
                                        .default = NA))%>%
   mutate(state = "IN")%>%
   mutate(county = if_else(is.na(county.effort), county.fish, county.effort))%>% #assign a single county
@@ -427,13 +427,15 @@ in_glaciallakes_targeted_effort_16Nov2023[ , .N, .(sampling_method.1)]
 
 in_glaciallakes_targeted_effort_16Nov2023_2 <- in_glaciallakes_targeted_effort_16Nov2023 %>%
   rename(sampling_method = sampling_method.1)%>%
-  mutate(effort_units = case_when(sampling_method == "Experimental gill net" ~ "net nights",
+  mutate(effort_units = case_when(sampling_method == "Experimental gill net" ~ "net_nights",
                                   sampling_method == "Nighttime electrofishing" ~ "hours"))%>%
   mutate(date.1 = mdy(date.1))%>%
   mutate(month = month(date.1))%>%
   mutate(year = year(date.1))%>% #make column for year to match non-targeted
   mutate(sampling_method = str_to_lower(sampling_method))%>%
-  mutate(sampling_method = if_else(sampling_method == "nighttime electrofishing", "dc nighttime electrofishing", sampling_method))%>%#make sampling method consistent for std and targeted
+  mutate(sampling_method = case_when(sampling_method == "nighttime electrofishing" ~ "boat_electrofishing_dc_night",
+                                    sampling_method == "experimental gill net" ~ "gill_net_experimental",
+                                    TRUE ~ sampling_method))%>%#make sampling method consistent for std and targeted
   rename(effort_units.1 = effort_units)%>%
   mutate(date.1 = as.character(if_else(lake_name.1 == "Golden" & year == "2017", "2017-05-03", paste(as.character(date.1)))))%>%# # has mismatched survey date and fish caught date
   mutate(date.1 = as.IDate(date.1))%>%
@@ -443,6 +445,7 @@ in_glaciallakes_targeted_fish_16Nov2023_2 <- in_glaciallakes_targeted_fish_16Nov
   mutate(date.1 = mdy(date.1))%>%
   mutate(year = year(date.1))%>%
   mutate(date.1 = as.IDate(date.1))
+
 ```
 
 
@@ -520,7 +523,8 @@ quick merge checks
 #check for dates not matching
 in_glaciallakes_targeted_inner_join_2 <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
   inner_join(in_glaciallakes_targeted_effort_16Nov2023_2, by = c("lake_id", "year"),
-             suffix = c("_catch", "_effort"))%>%
+             suffix = c("_catch", "_effort")) %>% 
+  select(lake_id, year, date.1_catch, date.1_effort) %>% 
   filter(date.1_catch != date.1_effort) #yep all the dates match now... this is good!
 
 in_glaciallakes_targeted_inner_join_3 <- in_glaciallakes_targeted_fish_16Nov2023_2 %>%
@@ -548,9 +552,9 @@ in_glaciallakes_targeted_full_join_tidy <- in_glaciallakes_targeted_full_join %>
                            county_catch != county_effort ~ "mismatched county names",
                            lake_name.1_catch != lake_name.1_effort ~ "mismatched lake names",
                           .default = NA))%>%
-  mutate(sampling_method_2 = case_when(sampling_method == "experimental gill net" ~ "250 x 6 ft; five 50-ft panel sections of 0.5-in, 1-in, 1.5-in, 2-in and 2.5-in mesh sizes",
-                                       sampling_method =="dc nighttime electrofishing" ~ "Boat mounted DC nighttime electrofishing",
-                                       sampling_method == "standard trap net" ~ "1-in mesh 45-ft lead; two rectangular 6-ft x 10-ft wire frames and four 2.5-ft diameter circular wire frames spaced 4-ft apart at the cod-end of the trap nets",
+  mutate(sampling_method_2 = case_when(sampling_method == "gill_net_experimental" ~ "250 x 6 ft; five 50-ft panel sections of 0.5-in, 1-in, 1.5-in, 2-in and 2.5-in mesh sizes",
+                                       sampling_method =="boat_electrofishing_dc_night" ~ "Boat mounted DC nighttime electrofishing",
+                                       sampling_method == "trap_net" ~ "1-in mesh 45-ft lead; two rectangular 6-ft x 10-ft wire frames and four 2.5-ft diameter circular wire frames spaced 4-ft apart at the cod-end of the trap nets",
                                        .default = NA))%>%
   mutate(lake_name_1 = if_else(lake_name.1_catch == lake_name.1_effort, lake_name.1_catch, lake_name.1_effort))%>%
   mutate(county = if_else(county_catch == county_effort, county_catch, county_effort))%>%
@@ -603,9 +607,11 @@ in_glaciallakes_targeted_full_join_tidy <- in_glaciallakes_targeted_full_join %>
 ```{r}
 in_glaciallakes <- bind_rows(in_glaciallakes_standard_tidy, in_glaciallakes_targeted_full_join_tidy)
 # good as of 2/8/2024
+
+glimpse(in_glaciallakes)
 ```
 
-
+############stopped here on 8/16############################
 
 #Reservoir
 ```{r}

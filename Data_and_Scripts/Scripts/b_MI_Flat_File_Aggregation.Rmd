@@ -664,6 +664,7 @@ mi_catch_eff_merge %>%
 
 #matching to schema
 mi_data <- mi_catch_eff_merge %>% 
+  ungroup() %>% 
   mutate(lake_name = lake_name.1,
          date_survey = as.Date(date.1),
          date_total_effort_ident = as.Date(date.1),

@@ -4554,3 +4554,32 @@ cross %>%
 #the best we get is 18 matches using the local state id to get lagos 
 ```
 
+#new hive
+```{r}
+mw_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_in_update"), partitioning = c("state")) 
+glimpse(mw_data)
+
+mw_data %>% 
+  distinct(state, sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  collect() %>% 
+  arrange(sampling_method_simple, sampling_method, state) %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  distinct(state, lake_id, lake_name, nhdhr_id, lat_unspec) %>% 
+  group_by(state, is.na(nhdhr_id), is.na(lat_unspec)) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
+  distinct(state, lake_id, lake_name, nhdhr_id) %>% 
+  group_by(state, is.na(nhdhr_id)) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
+  filter(state == "Michigan" & is.na(nhdhr_id) & is.na(lat_unspec)) %>% 
+  collect() %>% 
+  glimpse()
+```
+

@@ -123,7 +123,8 @@ for(i in 1:n) {
 ```
 
 
-#Data Review
+#Data review
+#this contains building blocks to the ag as well
 ```{r}
 #effort:
 mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
@@ -558,25 +559,31 @@ mi_catch_eff_merge %>%
   count() 
 
 #matching gear schema across states for the hive
+#here i use the gears xwalk found in the google drive crosswalk folder
+gear_xwalk <- read_csv("gears_by_state.csv") %>% 
+  filter(state == "Michigan") %>% 
+  rename(sampling_method_agency = gear_2) %>% 
+  select(sampling_method_agency, 
+         sampling_method_simple,
+         sampling_method_1,
+         sampling_method_2) %>% 
+  rename(sampling_method = sampling_method_1)
+
+mi_catch_eff_merge %>% 
+  group_by(sampling_method, sampling_method_abbrev) %>% 
+  count()
+#looks like I will use the sampling method as the crosswalk
+
 mi_catch_eff_merge <- mi_catch_eff_merge %>% 
   rename(sampling_method_agency = sampling_method) %>% 
-  mutate(sampling_method_simple = case_when(sampling_method_agency == "boomshocking" ~ "boat_electrofishing",
-                                 sampling_method_agency == "great_lakes_gill_net" ~ "gill_net",
-                                 sampling_method_agency == "inland_gill_net" ~ "gill_net",
-                                 sampling_method_agency == "large_mesh_fyke_net" ~ "frame_net",
-                                 sampling_method_agency == "seine" ~ "seine",
-                                 sampling_method_agency == "small_mesh_fyke_net" ~ "frame_net",
-                                 sampling_method_agency == "trap_net" ~ "frame_net",
-                                 TRUE ~ NA),
-         sampling_method = case_when(sampling_method_agency == "boomshocking" ~ "boat_electrofishing_boomshocking",
-                                 sampling_method_agency == "great_lakes_gill_net" ~ "gill_net_great_lakes",
-                                 sampling_method_agency == "inland_gill_net" ~ "gill_net_inland",
-                                 sampling_method_agency == "large_mesh_fyke_net" ~ "fyke_net_large_mesh",
-                                 sampling_method_agency == "seine" ~ "seine",
-                                 sampling_method_agency == "small_mesh_fyke_net" ~ "fyke_net_small_mesh",
-                                 sampling_method_agency == "trap_net" ~ "trap_net",
-                                 TRUE ~ NA)) %>% 
-  #adding leading tag to nhdhr_id
+  left_join(gear_xwalk)
+
+mi_catch_eff_merge %>% 
+group_by(sampling_method_agency, sampling_method_abbrev, sampling_method_simple, sampling_method, sampling_method_2) %>% 
+count()
+
+#adding leading tag to nhdhr_id
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
   mutate(nhdhr.id = case_when(!is.na(nhdhr.id) ~ paste0("nhdhr_", nhdhr.id),
                               TRUE ~ NA))
 
@@ -676,7 +683,6 @@ mi_data <- mi_catch_eff_merge %>%
          survey_type_2 = as.character(NA),
          survey_type_3 = as.character(NA),
          survey_type_4 = as.character(NA),
-         sampling_method_2 = sampling_method_agency,
          gear_data_notes = as.character(NA),
          target_species = target_species_effort,
          target_species_2 = as.character(NA),
@@ -880,6 +886,10 @@ mi_data %>%
 #how is the state name? 
 mi_data %>% 
   group_by(state) %>% 
+  count()
+
+mi_data %>% 
+  group_by(sampling_method_simple, sampling_method, sampling_method_2) %>% 
   count()
 ```
 

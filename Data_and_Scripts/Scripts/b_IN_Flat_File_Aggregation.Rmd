@@ -1591,13 +1591,13 @@ Based on the exploratory code above, there are a few things to point out:
     -For ease, I made each sampling event its own total effort ident. There is one electrofishing survey that we could conciser making sub effort idents that populate total effort idents 
     
 2. There are some records with NA effort
-    -five glacial lake records that have unknown sampling methods that cannont be linked to an effort
+    -five glacial lake records that have unknown sampling methods that cannot be linked to an effort
     -some aged fish records that do not match with effort records 
        -this is caused by a few different things: no effort reported, no effort reported for the given sampling method
-       -this leads to most survey level info disappering - since there is a survey_id perhaps I can pull from that?
+       -this leads to most survey level info disappearing - since there is a survey_id perhaps I can pull from that?
        
 3. effort flag
-    -it is currenlty based on fish obs level effort (surveys with more fish have more weight) need to fix but was struggling to figure out
+    -it is currently based on fish obs level effort (surveys with more fish have more weight) need to fix but was struggling to figure out
     -one high effort survey was an aged fish survey with 26 net nights of effort (Otter Pit)
 
 4. There were some differences in lakes names and counties between each aggregation file and the master agency id file

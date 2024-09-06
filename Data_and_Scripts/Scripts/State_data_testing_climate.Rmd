@@ -4391,6 +4391,13 @@ mw_data %>%
   collect() %>% 
   group_by(state) %>%
   slice_sample(n = 1)
+
+mw_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) 
+
+sampling_method_list <- mw_data %>% 
+  distinct(state, sampling_method, sampling_method_2) %>% 
+  collect() 
+write_csv(sampling_method_list, "stnd_gears_xwalk_9Sept24.csv")
 ```
 
 # Lagos and state ids to nhdids?
@@ -4556,7 +4563,7 @@ cross %>%
 
 #new hive
 ```{r}
-mw_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_in_update"), partitioning = c("state")) 
+mw_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
 glimpse(mw_data)
 
 mw_data %>% 
@@ -4565,7 +4572,10 @@ mw_data %>%
   arrange(sampling_method_simple, sampling_method, state) %>% 
   print(n = nrow(.))
 
+#note here that it was doing the NA thing where it thinks each one is a unique value
 mw_data %>% 
+  distinct(state, lake_id, lake_name, nhdhr_id, lat_unspec) %>% 
+  collect() %>% 
   distinct(state, lake_id, lake_name, nhdhr_id, lat_unspec) %>% 
   group_by(state, is.na(nhdhr_id), is.na(lat_unspec)) %>% 
   count() %>% 
@@ -4573,6 +4583,7 @@ mw_data %>%
 
 mw_data %>% 
   distinct(state, lake_id, lake_name, nhdhr_id) %>% 
+  collect() %>% 
   group_by(state, is.na(nhdhr_id)) %>% 
   count() %>% 
   collect()

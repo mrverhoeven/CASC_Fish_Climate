@@ -139,6 +139,7 @@ for(i in 1:n) {
 ```
 
 #Data Review
+#this code was used as exploration in several iterations of the ag process - is not important for the aggregation and does not fully run
 ```{r}
 # review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
 # consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (possibly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
@@ -1345,6 +1346,40 @@ il_data.prep <- il_data.prep %>%
          lon_unspec = case_when(lon_unspec > -82 & lake_name.1 == "Charleston Side Channel Lake" ~ -88.14638,
                                 TRUE ~ lon_unspec)) 
 
+#renaming sampling hierarchy
+#this comes from a file in the cross walk good drive 
+gear_xwalk <- read_csv("gears_by_state.csv") %>% 
+  filter(state == "Illinois") %>% 
+  rename(sampling_method_agg = gear_1,
+         gear_data_notes.1 = gear_2) %>% 
+  select(sampling_method_agg,
+         gear_data_notes.1,
+         sampling_method_simple,
+         sampling_method_1,
+         sampling_method_2)
+
+il_data.prep %>% 
+  group_by(sampling_method_agg, gear_data_notes.1) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#looks like I want to use sampling method agg and gear data notes columns as a join for the gears crosswalk
+
+
+il_data.prep <- il_data.prep %>% 
+  mutate(sampling_method_agg = gsub("Gear Used:", "", sampling_method_agg)) %>% 
+  mutate(gear_data_notes.1 = gsub("Gear Used:", "", gear_data_notes.1)) %>% 
+  left_join(gear_xwalk) %>%
+  rename(sampling_method = sampling_method_1)
+
+il_data.prep %>% 
+  group_by(sampling_method_agg, gear_data_notes.1, sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  arrange(sampling_method_simple) %>% 
+  print(n = nrow(.))
+
+rm(gear_xwalk)
+
+#final tidy
 il_data <- il_data.prep %>% 
   #lower case with no spaces for species name
   mutate(species.1 = str_to_lower(species.1),
@@ -1363,22 +1398,6 @@ il_data <- il_data.prep %>%
   #adding in length units
   #no units were specified within data but general assumption is mm
   mutate(length_unit.1 = "mm") %>% 
-  #renaming sampling hierarchy
-  mutate(sampling_method_simple = case_when(sampling_method.1 %in% c("Electro Fishing", "Electrofishing") ~ "boat_electrofishing",
-                                            (is.na(sampling_method.1) & sampling_method_agg == "Boat electrofishing DC (Day)") ~ "boat_electrofishing",
-                                            str_detect(sampling_method_agg, "Gill net") ~ "gill_net",
-                                            str_detect(sampling_method_agg, "Trap net") ~ "frame_net",
-                                            str_detect(sampling_method_agg, "seine") ~ "seine",
-                                            TRUE ~ NA)) %>% 
-  #creating sampling method with same level of detail within state
-  mutate(sampling_method = gsub("Gear Used:", "", sampling_method_agg),
-         sampling_method = case_when(str_detect(sampling_method, "Trap net") ~ "trap_net",
-                                     str_detect(sampling_method, "Gill net") ~ "gill_net",
-                                     str_detect(sampling_method, "seine") ~ "seine_minnow",
-                                     TRUE ~ sampling_method)) %>% 
-  mutate(sampling_method_2 = gsub("Gear Used:", "", gear_data_notes.1),
-         sampling_method_2 = case_when(is.na(sampling_method_2) ~ sampling_method,
-                                       TRUE ~ sampling_method_2)) %>% 
   #renaming effort hierarchy
   #this renames the survey level effort as total_effort_1 with the effort grouping noted by survey_effort_1_id
   #sub-survey level effort is named sub_effort_1 with sub-survey ids as sub_effort_1_id
@@ -1744,6 +1763,12 @@ dates <- il_data %>%
   group_by(lake_name, sampling_method, total_effort_ident, sub_effort_ident, date_survey, date_total_effort_ident, date_sub_effort_ident, date_sample) %>% 
   count()
 rm(dates)
+
+il_data %>% 
+  group_by(sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  arrange(sampling_method_simple) %>% 
+  print(n = nrow(.))
 ``` 
 
 

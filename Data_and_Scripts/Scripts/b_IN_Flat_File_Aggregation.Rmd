@@ -568,7 +568,7 @@ in_reservoir_fish_community_effort_16Aug2022_gear <- in_reservoir_fish_community
   pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3), names_to = "sampling_method", values_to = "total_effort" ) %>%  # make data longer, so that effort is in a single column
   #matching sampling method to those in the fish file - these will be cleaned up in a later step
   mutate(sampling_method = case_when(sampling_method == "total_effort_1" ~ "boat_electrofishing_dc_night",
-                                     sampling_method == "total_effort_2" ~ "gill_net_experimental",
+                                     sampling_method == "total_effort_2" ~ "gill_net_experimental_res",
                                      sampling_method == "total_effort_3" ~ "trap_net"))%>% # write out sampling method
   mutate(effort_units = case_when(sampling_method == "boat_electrofishing_dc_night" ~ "hours",
                                   sampling_method == "gill_net_experimental" ~ "net_nights",
@@ -601,8 +601,8 @@ in_reservoir_fish_community_fishdata_16Aug2022 %>%
 
 #prepping fish data for merge - fixing erroneous sampling methods and survey ids
 in_reservoir_fish_community_fishdata_16Aug2022_prep <- in_reservoir_fish_community_fishdata_16Aug2022 %>%
-  mutate(sampling_method = case_when(sampling_method.1 == "Gill net STB exp" ~ "gill_net_experimental",
-                                     sampling_method.1 == "Gill net std exp" ~ "gill_net_experimental",
+  mutate(sampling_method = case_when(sampling_method.1 == "Gill net STB exp" ~ "gill_net_experimental_res",
+                                     sampling_method.1 == "Gill net std exp" ~ "gill_net_experimental_res",
                                      sampling_method.1 == "Night EF" ~ "boat_electrofishing_dc_night",
                                      sampling_method.1 == "Trap net std" ~ "trap_net",
                                      TRUE ~ NA))  %>% 
@@ -726,7 +726,7 @@ in.targeted <- inner_join(in_reservoir_targeted_effort_1Sep2022_gear,
                           suffix = c("_effort", "_catch")) %>%
   mutate(original_file_names = paste(original_file_name.1_effort, original_file_name.1_catch, sep = ", "))%>%
   mutate(sampling_method = case_when(sampling_method == "Night EF" ~ "boat_electrofishing_dc_night",
-                                     sampling_method == "Gill net std exp" ~ "gill_net_experimental",
+                                     sampling_method == "Gill net std exp" ~ "gill_net_experimental_res",
                                      sampling_method == "Trap net std" ~ "trap_net",
                                      sampling_method == "MITN" ~ "trap_net_michigan",
                                      sampling_method == "Large-mesh GN" ~ "gill_net_large_mesh",
@@ -775,7 +775,7 @@ rm(in_targeted_species)
 ```{r}
 in_reservoir_data_noage <- bind_rows(in.community, in_res_targeted) %>% 
   mutate(date_1 = as.IDate(date_1))%>%
-  mutate(waterbody_type = "Reservoir")%>%
+  mutate(waterbody_type = "reservoir")%>%
   mutate(month = month(date_1)) %>% 
   select(state,
          survey_id,
@@ -828,7 +828,7 @@ rm(in.community, in.targeted, in_res_targeted)
 in_res_aged_effort_fish <- in_reservoir_age_effort_16Aug2022%>%
   pivot_longer(cols = c(total_effort_1, total_effort_2, total_effort_3, total_effort_4, total_effort_5), names_to = "sampling_method", values_to = "total_effort") %>% 
   mutate(sampling_method = case_when(sampling_method == "total_effort_1" ~ "boat_electrofishing_dc_night",
-                                     sampling_method == "total_effort_2" ~ "gill_net_experimental",
+                                     sampling_method == "total_effort_2" ~ "gill_net_experimental_res",
                                      sampling_method == "total_effort_3" ~ "trap_net",
                                      sampling_method == "total_effort_4" ~ "trap_net_michigan",
                                      sampling_method == "total_effort_5" ~ "gill_net_large_mesh"))%>% # write out sampling method
@@ -892,7 +892,7 @@ in_reservoir_age_fish_16Aug2022_merge  <- in_reservoir_age_fish_16Aug2022 %>%
   mutate(length.1 = as.double(length.1),
          weight.1 = as.double(weight.1)) %>%
  mutate(sampling_method = case_when(sampling_method == "Night EF" ~ "boat_electrofishing_dc_night",
-                                     sampling_method == "Gill net" ~ "gill_net_experimental",
+                                     sampling_method == "Gill net" ~ "gill_net_experimental_res",
                                      sampling_method == "Trap net std" ~ "trap_net",
                                      sampling_method == "MITN" ~ "trap_net_michigan",
                                      sampling_method == "Large-mesh Gill Net" ~ "gill_net_large_mesh",
@@ -1294,8 +1294,23 @@ rm(coord_check)
 ```{r}
 glimpse(in_data_prep)
 
+#gear xwalk
+gear_xwalk <- read_csv("gears_by_state.csv") %>% 
+  filter(state == "Indiana") %>% 
+  rename(sampling_method_agency = gear_1) %>% 
+  select(sampling_method_agency,
+         sampling_method_simple,
+         sampling_method_1,
+         sampling_method_2)
+
+in_data_prep <- in_data_prep %>% 
+  rename(sampling_method_agency = sampling_method) %>% 
+  left_join(gear_xwalk, by = "sampling_method_agency", relationship = "many-to-one")
+#the gill nets from res and glacial lakes have slightly different dimensions (sampling method 2)
+
 
 in_data <- in_data_prep %>%
+  rename(sampling_method = sampling_method_1) %>% 
   #creates total effort identification 
   group_by(lake_id, year, survey_type, sampling_method, waterbody_type)%>%
   mutate(survey_effort = sum(total_effort_1),
@@ -1311,23 +1326,6 @@ in_data <- in_data_prep %>%
                            TRUE ~ month),
          year = case_when(!is.na(date) ~ year(date),
                           TRUE ~ year)) %>% 
-  #making simple gear type 
-  mutate(sampling_method_simple = case_when(sampling_method == "boat_electrofishing_dc_night" ~ "boat_electrofishing",
-                                            sampling_method == "gill_net_experimental" ~ "gill_net",
-                                            sampling_method == "gill_net_large_mesh" ~ "gill_net",
-                                            sampling_method == "standard_net_in" ~ "frame_net",
-                                            sampling_method == "trap_net" ~ "frame_net",
-                                            sampling_method == "trap_net_michigan" ~ "frame_net",
-                                            sampling_method == "unknown_sampling_method" ~ "unknown",
-                                            TRUE ~ NA),
-         sampling_method_2 = case_when(sampling_method == "boat_electrofishing_dc_night" ~ "Boat mounted DC nighttime electrofishing",
-                                            sampling_method == "gill_net_experimental" ~ "250 x 6 ft; five 50-ft panel sections of 0.5-in, 1-in, 1.5-in, 2-in and 2.5-in mesh sizes",
-                                            sampling_method == "gill_net_large_mesh" ~ "250-ft x 6-ft, with 2.25-in bar mesh",
-                                            sampling_method == "standard_net_in" ~ "unknown specs",
-                                            sampling_method == "trap_net" ~ "1-in mesh 45-ft lead; two rectangular 6-ft x 10-ft wire frames and four 2.5-ft diameter circular wire frames spaced 4-ft apart at the cod-end of the trap nets",
-                                            sampling_method == "trap_net_michigan" ~ "Michigan trap net",
-                                            sampling_method == "unknown_sampling_method" ~ "unknown specs",
-                                            TRUE ~ NA)) %>% 
   #units were applied to whole columns, lets make sure we only have units where there are values
   mutate(length_unit_1 = case_when(!is.na(length_1) ~ length_unit_1,
                                    TRUE ~ NA),
@@ -1583,6 +1581,10 @@ in_data %>%
 in_data %>% 
   filter(flag == "high effort") %>% 
   group_by(lake_name, survey_id, total_effort_1, sampling_method, survey_type, waterbody_type) %>% 
+  count()
+
+in_data %>% 
+  group_by(sampling_method_simple, sampling_method, sampling_method_2) %>% 
   count()
 ```
 

@@ -4572,12 +4572,20 @@ mw_data %>%
   arrange(sampling_method_simple, sampling_method, state) %>% 
   print(n = nrow(.))
 
-#note here that it was doing the NA thing where it thinks each one is a unique value
+#note here that it was doing the NA thing where it thinks each one is a unique value. have to pull in lake data first 
 mw_data %>% 
-  distinct(state, lake_id, lake_name, nhdhr_id, lat_unspec) %>% 
+  mutate(latitude_lake_centroid = case_when(
+    is.na(latitude_lake_centroid) ~ "null",  # Replace NA with "null"
+    TRUE ~ as.character(latitude_lake_centroid)  # Ensure all values are strings
+  )) %>% 
+  distinct(state, lake_id, lake_name, nhdhr_id, latitude_lake_centroid) %>% 
   collect() %>% 
-  distinct(state, lake_id, lake_name, nhdhr_id, lat_unspec) %>% 
-  group_by(state, is.na(nhdhr_id), is.na(lat_unspec)) %>% 
+  mutate(latitude_lake_centroid = case_when(
+    latitude_lake_centroid == "null" ~ NA_real_,  # Convert "null" back to NA (as numeric)
+    TRUE ~ as.numeric(latitude_lake_centroid)  # Convert back to numeric after filtering
+  )) %>% 
+  distinct(state, lake_id, lake_name, nhdhr_id, latitude_lake_centroid) %>% 
+  group_by(state, is.na(nhdhr_id), is.na(latitude_lake_centroid)) %>% 
   count() %>% 
   collect()
 

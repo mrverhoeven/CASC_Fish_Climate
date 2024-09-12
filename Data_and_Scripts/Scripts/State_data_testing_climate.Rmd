@@ -4600,5 +4600,16 @@ mw_data %>%
   filter(state == "Michigan" & is.na(nhdhr_id) & is.na(lat_unspec)) %>% 
   collect() %>% 
   glimpse()
+
+mw_data %>% 
+  distinct(total_effort_ident, sampling_method_simple, sampling_method, state) %>% 
+  group_by(sampling_method_simple, sampling_method, state) %>% 
+  count() %>% 
+  collect() %>% 
+  ggplot(aes(x = sampling_method, y = n, fill = state)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~sampling_method_simple, scales = "free") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 

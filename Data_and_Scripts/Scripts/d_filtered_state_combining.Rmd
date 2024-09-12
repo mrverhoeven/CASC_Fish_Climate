@@ -33,6 +33,8 @@ mn <- read_csv("filtered_cpe_files/MN_all_cpue_filtered.csv") %>%
          nhdhr_id, 
          county, 
          date_total_effort_ident, 
+         month,
+         year,
          sampling_method,
          total_effort_1,
          total_effort_1_units,
@@ -48,6 +50,8 @@ mi <- read_csv("filtered_cpe_files/MI_all_cpue_filtered.csv") %>%
          nhdhr_id, 
          county, 
          date_total_effort_ident, 
+         month,
+         year,
          sampling_method,
          total_effort_1,
          total_effort_1_units,
@@ -64,6 +68,8 @@ il <- read_csv("filtered_cpe_files/IL_all_cpue_filtered.csv") %>%
          nhdhr_id, 
          county, 
          date_total_effort_ident, 
+         month,
+         year,
          sampling_method,
          total_effort_1,
          total_effort_1_units,
@@ -79,6 +85,8 @@ sd <- read_csv("filtered_cpe_files/SD_all_cpue_filtered.csv") %>%
          nhdhr_id, 
          county, 
          date_total_effort_ident, 
+         month,
+         year,
          sampling_method,
          total_effort_1,
          total_effort_1_units,
@@ -94,6 +102,8 @@ ia <- read_csv("filtered_cpe_files/IA_all_cpue_filtered.csv") %>%
          nhdhr_id, 
          county, 
          date_total_effort_ident, 
+         month,
+         year,
          sampling_method,
          total_effort_1,
          total_effort_1_units,
@@ -109,6 +119,8 @@ indy <- read_csv("filtered_cpe_files/IN_all_cpue_filtered.csv") %>%
          nhdhr_id, 
          county, 
          date_total_effort_ident, 
+         month,
+         year,
          sampling_method,
          total_effort_1,
          total_effort_1_units,
@@ -118,11 +130,11 @@ indy <- read_csv("filtered_cpe_files/IN_all_cpue_filtered.csv") %>%
          lat_unspec,
          lon_unspec)
 
-#make sure i get ride of columns that are not survey level or helpful to Chris
+
 cross_state <- bind_rows(mn, mi, il, sd, ia, indy)
 glimpse(cross_state)
 
-write_csv(cross_state, "all_state_cpue_6Aug24.csv")
+write_csv(cross_state, "all_state_cpue_13Aug24.csv")
 ```
 
 

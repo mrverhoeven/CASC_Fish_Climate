@@ -184,7 +184,8 @@ for(i in 1:n) {
 
 ```
 
-#Data Review
+#Data Ag
+This section has some data review and implementation of basic commands to get the data in fish per row format
 ```{r}
 
 #clean out some file import stuff-
@@ -432,6 +433,7 @@ sd_merged_ce[ , total_effort_nothing_caught := all(sub_nothing_caught)  , .(tota
 # units from file
 sd_effort_lakesurveysdata_2Nov2023[ , summary(total_effort_1) , sampling_method.1 ] %>% print(n = nrow(.))
 
+#this file is found in the SD folder on the drive - currently must be downloaded
 gear_units <- fread("Data_and_Scripts/Data/input/SD_gear_unitizer.csv")
 
 sd_merged_ce[gear_units, on = .(sampling_method.1 = sampling_method) , total_effort_1_units :=  sampling_method_2 ]
@@ -468,9 +470,78 @@ sd_merged_ce[ ,`:=` (lat_2= NULL, lon_2 = NULL)]
 sd_merged_ce[ , .N , is.na(lat_unspec) ]
 
 #adding crosswalk from MSU team
-crosswalk_msu <- read_csv("Data_and_Scripts/Data/input/MGLP_crosswalk_update.csv") %>% 
-  filter(STATE == "SD")
+crosswalk_msu <- read_csv("MGLP_FISH_LAKES_12Aug24.csv") %>% 
+  filter(STATE == "SD") %>% 
+  rename(lake_id = STATE_ID,
+         nhdhr_id = NHDHR_ID,
+         lake_name_msu = LAKE_NAME,
+         county_msu = COUNTY) %>% 
+  select(lake_id,
+         nhdhr_id,
+         lake_name_msu,
+         county_msu,
+         LAT,
+         LON)
+
+sd_merged_ce <- sd_merged_ce %>% 
+  left_join(crosswalk_msu, by = "lake_id", relationship = "many-to-one")
+
+sd_merged_ce %>% 
+  distinct(lake_id, .keep_all = T) %>%
+  group_by(is.na(lat_unspec), is.na(LAT)) %>% 
+  count()
+#looks like I would gain 9 lat/lons by taking msu provided coords as a supplement
+
+sd_merged_ce <- sd_merged_ce %>% 
+  mutate(lat_unspec = case_when(is.na(lat_unspec) ~ LAT,
+                                TRUE ~ lat_unspec),
+         lon_unspec = case_when(is.na(lon_unspec) ~ LON,
+                                TRUE ~ lon_unspec))
+
+sd_merged_ce %>% 
+  distinct(lake_id, .keep_all = T) %>%
+  group_by(is.na(lat_unspec), is.na(LAT)) %>% 
+  count()
+#9 more lat/lons
+
+sd_merged_ce %>% 
+  distinct(lake_id, .keep_all = T) %>% 
+  group_by(lake_name.1, lake_name_msu, county, county_msu) %>% 
+  count() %>% 
+  filter(lake_name.1 != lake_name_msu | county != county_msu) %>% 
+  print(n = nrow(.))
+#great agreement in naming across the board
+
 rm(crosswalk_msu)
+
+#now do a similar thing with USGS 
+lat_lon_usgs <- read_csv("lake_metadata.csv") %>% 
+  filter(state == "SD") %>%
+  select(site_id, 
+         centroid_lat,
+         centroid_lon) %>% 
+  rename(nhdhr_id = site_id)
+
+sd_merged_ce <- sd_merged_ce %>% 
+  left_join(lat_lon_usgs, by = "nhdhr_id") %>% 
+  mutate(latitude_lake_centroid = case_when(is.na(lat_unspec) ~ centroid_lat,
+                                           TRUE ~ lat_unspec),
+         longitude_lake_centroid = case_when(is.na(lon_unspec) ~ centroid_lon,
+                                             TRUE ~ lon_unspec))
+
+sd_merged_ce %>% 
+  distinct(lake_id, .keep_all = T) %>% 
+  group_by(is.na(latitude_lake_centroid), is.na(lat_unspec)) %>% 
+  count()
+#we didn't really gain anything from USGS coordinates - how do the coords match up?
+
+coord_match_check<- sd_merged_ce %>% 
+  distinct(lake_id, .keep_all = T) %>% 
+  select(lake_id, lake_name.1, lat_unspec, centroid_lat, lon_unspec, centroid_lon) %>% 
+  mutate(lat_diff = abs(lat_unspec - centroid_lat),
+         lon_diff = abs(lon_unspec - centroid_lon))
+rm(coord_match_check)
+#all lakes that have nhdids are checking out nicely 
 
 sd_merged_ce <- sd_merged_ce %>%
   #cleaning up some null columns up
@@ -491,8 +562,11 @@ sd_merged_ce <- sd_merged_ce %>%
                                     TRUE ~ NA),
          weight_unit.1 = case_when(!is.na(weight.1) ~ "g",
                                     TRUE ~ NA),
-         total_effort_1_units = case_when(total_effort_1_units == "net-night" ~ "net_night",
+         total_effort_1_units = case_when(total_effort_1_units == "net-night" ~ "net_nights",
+                                          total_effort_1_units == "haul" ~ "hauls",
                                           TRUE ~ total_effort_1_units))
+
+
 #dates
 sd_merged_ce <- sd_merged_ce %>% 
   arrange(date.1) %>% 
@@ -506,6 +580,27 @@ sd_merged_ce <- sd_merged_ce %>%
   group_by(lake_id, year(date.1)) %>% 
   mutate(date_survey = first(date.1)) %>% 
   ungroup()
+
+#gear clean up
+sd_merged_ce %>% 
+  distinct(sampling_method.1) %>% 
+  arrange(sampling_method.1) %>% 
+  print(n = nrow(.))
+
+#this file lives in the crosswalk folder in the drive
+#here we read in a gear cross walk, the file contains each unique gear and assigns it new labels that are consistent across states
+gear_xwalk <- read_csv("gears_by_state.csv") %>% 
+  filter(state == "South_Dakota") %>% 
+  rename(sampling_method.1 = gear_1) %>% 
+  select(sampling_method.1, sampling_method_simple, sampling_method_1, sampling_method_2)
+
+sd_merged_ce <- sd_merged_ce %>% 
+  left_join(gear_xwalk)
+
+sd_merged_ce %>% 
+  distinct(sampling_method.1, sampling_method_simple, sampling_method_1, sampling_method_2) %>% 
+  arrange(sampling_method.1) %>% 
+  print(n = nrow(.))
 ```
 
 ## Match Columns to parquet schema
@@ -525,7 +620,6 @@ sd_merged_ce[ , original_file_name := paste(original_file_name_1indivfish, origi
 sd_merged_ce_trial <- sd_merged_ce %>% 
   mutate(state = "South Dakota",
          lake_name = lake_name_1,
-         nhdhr_id = as.character(NA),
          year = year(date_1),
          month = month(date_1),
          survey_id = as.character(NA),
@@ -533,8 +627,7 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          survey_type_2 = as.character(NA),
          survey_type_3 = as.character(NA),
          survey_type_4 = as.character(NA),
-         sampling_method = sampling_method_1,
-         sampling_method_2 = as.character(NA),
+         sampling_method = sampling_method_1_2,
          gear_data_notes = as.character(NA),
          target_species = as.character(NA),
          target_species_2 = as.character(NA),
@@ -564,17 +657,30 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          batch_weight = as.character(NA),
          batch_weight_unit = as.character(NA),
          age_class = as.character(NA),
-         flag = as.character(NA),
          original_file_names = original_file_name,
          ind_fish_ident = as.character(NA),
          area_group = as.character(NA),
          waterbody_type = as.character(NA),
+         flag = as.character(NA), 
          obs_id = as.character(row_number())) %>% 
-  select(state,
-         county,
+  #creating flag column
+  group_by(sampling_method_1) %>% 
+  mutate(mean_effort = mean(total_effort_1, na.rm = TRUE),
+         sd_effort = sd(total_effort_1, na.rm = TRUE),
+         z_score = (total_effort_1 - mean_effort) / sd_effort,
+         flag = case_when(
+           total_effort_1 == 0 ~ paste("effort reported as 0, typical sets are for 1440 min but cannot be certain", ifelse(is.na(flag), "", flag)),
+           total_effort_1 < 0 ~ paste("invalid effort (negative)", ifelse(is.na(flag), "", flag)),
+           z_score > 10 ~ paste("high effort", ifelse(is.na(flag), "", flag)),
+           TRUE ~ flag)) %>%
+  ungroup() %>% 
+  select(state, 
+         county, 
          lake_name,
          lake_id,
          nhdhr_id,
+         latitude_lake_centroid,
+         longitude_lake_centroid,
          date_survey,
          date_total_effort_ident,
          date_sub_effort_ident,
@@ -586,13 +692,14 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          survey_type_2,
          survey_type_3,
          survey_type_4,
+         sampling_method_simple,
          sampling_method,
          sampling_method_2,
          gear_data_notes,
          target_species,
          target_species_2,
          total_effort_ident,
-         total_effort_1,
+         total_effort_1, 
          total_effort_2,
          total_effort_3,
          total_effort_1_units,
@@ -639,7 +746,8 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          waterbody_type,
          location_notes_1,
          notes_1,
-         obs_id)
+         obs_id
+         )
 #things to do
 #1. make sure the dates are the appropriate level
 #3. ensure I am keeping the correct sampling method (see code below)
@@ -649,36 +757,43 @@ dates <- sd_merged_ce_trial %>%
   distinct(total_effort_ident, sub_effort_ident, site_id, .keep_all = T) %>% 
   select(total_effort_ident, sub_effort_ident, site_id, date_survey, date_total_effort_ident, date_sub_effort_ident)
 rm(dates)
-#total effort 3992 is a good example of how the dates are stuctured 
+#total effort 3992 is a good example of how the dates are structured 
 #survey date is the first sampling within a lake-year
 #total effort ident date is the first date from the sub effort date
 #sub effort ident date is the date the was reported - when the net was lifted
 
 
-#more gear corrections
-sd_gears <- fread( file = "Data_and_scripts/Data/input/ia_sd_gear_newnames2.csv") #read in 
+#gear corrections - this is old code as of 9/6/24
 
-sd_gears <- sd_gears[state == "South Dakota"]
 
-sd_merged_ce_trial[ , .N , sampling_method_2 ]
-sd_merged_ce_trial[ , sampling_method_2 := as.character(sampling_method_2) , ]
+#sd_gears <- fread( file = "Data_and_scripts/Data/input/ia_sd_gear_newnames2.csv") #read in 
 
-sd_merged_ce_trial[sd_gears, on = .(sampling_method = old_gear), sampling_method_2 := new_gear]
+#sd_gears <- sd_gears[state == "South Dakota"]
+
+#sd_merged_ce_trial[ , .N , sampling_method_2 ]
+#sd_merged_ce_trial[ , sampling_method_2 := as.character(sampling_method_2) , ]
+
+#sd_merged_ce_trial[sd_gears, on = .(sampling_method = old_gear), sampling_method_2 := new_gear]
 
 gear <- sd_merged_ce_trial %>% 
   distinct(total_effort_ident, sub_effort_ident, .keep_all = T) %>% 
-  group_by(sampling_method, sampling_method_2) %>% 
+  group_by(sampling_method_simple, sampling_method, sampling_method_2) %>% 
   count()
 rm(gear)
 
 sd_merged_ce_trial %>% 
-  filter(is.na(date_survey)) %>% 
+  group_by(is.na(date_survey), is.na(date_total_effort_ident)) %>% 
   count()
 
 sd_merged_ce_trial %>% 
   group_by(total_effort_1_units, sub_effort_1_units) %>% 
   count() %>% 
   collect()
+
+sd_merged_ce_trial %>% 
+  filter(!is.na(flag)) %>% 
+  group_by(total_effort_ident, sampling_method, total_effort_1, total_effort_1_units, flag) %>% 
+  count()
 ```
 
 

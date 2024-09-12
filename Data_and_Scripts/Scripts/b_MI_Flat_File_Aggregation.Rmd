@@ -6,16 +6,12 @@ output: html_document
 ---
 # Preamble
 
-## To-do List
-1. Ages were excluded from this file
-2. We limited species in this because the files had different species extents
-4. Dates in string format changed to match schema
-5. Seems that the current output might be low on # of lakes in there. 
-6. In my dates exploration, I found a survey start and end dates, all surveys expect for 4 happen over a 7 day time frame
+#a few notes
+- Ages were excluded from this file
+- We limited species in this because the files had different species extents
+- In my dates exploration, I found a survey start and end dates, all surveys expect for 4 happen over a 7 day time frame
     -there is one gill netting case spans from May to Oct.
     -given the end date does not seem relevant to retain, I only keep survey start dates
-
-
 
 
 
@@ -127,7 +123,8 @@ for(i in 1:n) {
 ```
 
 
-#Data Review
+#Data review
+#this contains building blocks to the ag as well
 ```{r}
 #effort:
 mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
@@ -297,6 +294,7 @@ mi_statustrends_catchlengthclass_03July2023_uncount[ , unique(paste(survey_id, s
 mi_statustrends_effort_16Mar2021[survey_id == 4042]
 
 mi_statustrends_catchlengthclass_03July2023_uncount[ survey_id == 4042, .N , .(species.1, sampling_method_abbrev) ]
+
 
 #are there any surveys without any catch? Yes, 120 of them. (can we assume catch = zero there? Likely yes )
 sum(!
@@ -539,9 +537,10 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
   #effort files for survey type, lat/long, and target species contained more data than the merged catch files
   select(state, county, lake_id, lake_name.1, date.1, year, survey_type.1_effort, survey_id, lat_unspec_effort, lon_unspec_effort, sampling_method, sampling_method_abbrev, target_species_effort, species.1, species.abbrev, length.1, length_unit.1, total_effort_1_effort, effort_units.1, effort_ident, nothing_caught, original_file_name.1_catch,original_file_name.1_catchlengths,original_file_name.1_effort)                        
 
-mi_catch_eff_merge[state == "Michigan", state := "mi"]
+#mi_catch_eff_merge[state == "Michigan", state := "mi"]
 
-local_to_nhdhr(mi_catch_eff_merge[!is.na(lake_id)], from_colname = "lake_id", states = "mi"  ) %>% count(nhdhr.id)
+local_to_nhdhr(mi_catch_eff_merge[!is.na(lake_id)], from_colname = "lake_id", states = "mi"  ) %>%
+  count(nhdhr.id)
 
 mi_catch_eff_merge[!is.na(lake_id)  ,   nhdhr.id := local_to_nhdhr(mi_catch_eff_merge[!is.na(lake_id)], from_colname = "lake_id" , states = "mi" )$nhdhr.id ,  ]
 
@@ -559,8 +558,120 @@ mi_catch_eff_merge %>%
   group_by(survey_id, effort_ident, sampling_method, date.1) %>% 
   count() 
 
+#matching gear schema across states for the hive
+#here i use the gears xwalk found in the google drive crosswalk folder
+gear_xwalk <- read_csv("gears_by_state.csv") %>% 
+  filter(state == "Michigan") %>% 
+  rename(sampling_method_agency = gear_2) %>% 
+  select(sampling_method_agency, 
+         sampling_method_simple,
+         sampling_method_1,
+         sampling_method_2) %>% 
+  rename(sampling_method = sampling_method_1)
+
+mi_catch_eff_merge %>% 
+  group_by(sampling_method, sampling_method_abbrev) %>% 
+  count()
+#looks like I will use the sampling method as the crosswalk
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  rename(sampling_method_agency = sampling_method) %>% 
+  left_join(gear_xwalk)
+
+mi_catch_eff_merge %>% 
+group_by(sampling_method_agency, sampling_method_abbrev, sampling_method_simple, sampling_method, sampling_method_2) %>% 
+count()
+
+#adding leading tag to nhdhr_id
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  mutate(nhdhr.id = case_when(!is.na(nhdhr.id) ~ paste0("nhdhr_", nhdhr.id),
+                              TRUE ~ NA))
+
+#cleaning up effort units
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  mutate(effort_units.1 = case_when(effort_units.1 == "minute" ~ "minutes",
+                                    TRUE ~ effort_units.1))
+
+#adding flags where they are needed
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  mutate(flag = case_when(survey_id == "4042" ~ "no effort data",
+                          TRUE ~ NA)) %>% 
+  group_by(sampling_method) %>% 
+  mutate(mean_effort = mean(total_effort_1_effort, na.rm = TRUE),
+         sd_effort = sd(total_effort_1_effort, na.rm = TRUE),
+         z_score = (total_effort_1_effort - mean_effort) / sd_effort,
+    flag = case_when(total_effort_1_effort <= 0 ~ "invalid effort (zero or negative)",
+                     z_score > 10 ~ "high effort",
+                     TRUE ~ flag)) 
+
+#adding lat and lon centroids
+
+#lat and lon info coming from usgs data repo (https://www.sciencebase.gov/catalog/item/6206d3c2d34ec05caca53071) lake metadata file
+lat_lon_usgs <- read_csv("lake_metadata.csv") %>% 
+  filter(state == "MI") %>% 
+  select(site_id,
+         centroid_lon,
+         centroid_lat) %>% 
+  mutate(nhdhr.id = sub("^nhdhr_", "", site_id))
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  #adds lats/lons to data using nhdid
+  left_join(lat_lon_usgs, "nhdhr.id") %>%
+  #not all lakes have nhdids and/or there is no usgs lat/lon for them
+  #here we take the usgs centroid where it exists and fill the lakes that do not have that data with survey level info from the agency 
+  mutate(latitude_lake_centroid = lat_unspec_effort,
+         longitude_lake_centroid = lon_unspec_effort,
+         latitude_lake_centroid = case_when(is.na(latitude_lake_centroid) ~ centroid_lon,
+                                            TRUE ~ latitude_lake_centroid),
+         longitude_lake_centroid = case_when(is.na(longitude_lake_centroid) ~ centroid_lon,
+                                             TRUE ~ longitude_lake_centroid))
+rm(lat_lon_usgs)
+#there is one survey_id (4042) that has fish but no effort, lake level info is retained by the effort file. Thus, we are not able to generate a lat/lon for that survey (three total effort idents in one lake)
+
+
+msu_crosswalk <- read_csv("MGLP_FISH_LAKES_12Aug24.csv") %>% 
+  filter(STATE == "MI") %>% 
+  select(STATE_ID,
+         NHDHR_ID) %>% 
+  rename(lake_id = STATE_ID,
+         nhdhr_id_msu = NHDHR_ID)
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  left_join(msu_crosswalk, by = "lake_id")
+
+mi_catch_eff_merge %>%
+  distinct(lake_id, .keep_all = T) %>%
+  select(lake_id, lake_name.1, nhdhr.id, nhdhr_id_msu) %>% 
+  group_by(is.na(nhdhr.id), is.na(nhdhr_id_msu)) %>% 
+  count()
+
+mi_catch_eff_merge %>%
+  distinct(lake_id, .keep_all = T) %>%
+  select(lake_id, lake_name.1, nhdhr.id, nhdhr_id_msu) %>% 
+  filter(!is.na(nhdhr.id)) %>% 
+  filter(!is.na(nhdhr_id_msu)) %>% 
+  mutate(nhdhr.match = case_when(nhdhr.id == nhdhr_id_msu ~ T,
+                                 T ~ F)) %>% 
+  filter(nhdhr.match == F)
+#we pick up 2 more nhdhr_ids with the msu cross walk, but why does the msu crosswalk not have all of our lakes?
+#Gut lake has a one number digit difference between mwlax package and msu crosswalk
+
+#here we take nhdhr ids 1.) generated by the USGS crosswalk 2.) extras gathered by the msu team
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  mutate(nhdhr.id = case_when(is.na(nhdhr.id) ~ nhdhr_id_msu,
+                              TRUE ~ nhdhr.id))
+
+mi_catch_eff_merge %>%
+  distinct(lake_id, .keep_all = T) %>%
+  select(lake_id, lake_name.1, nhdhr.id, nhdhr_id_msu) %>% 
+  group_by(is.na(nhdhr.id), is.na(nhdhr_id_msu)) %>% 
+  count()
+#we can now see that the 2 lakes from the msu crosswalk are added to the false false world
+
+
 #matching to schema
 mi_data <- mi_catch_eff_merge %>% 
+  ungroup() %>% 
   mutate(lake_name = lake_name.1,
          date_survey = as.Date(date.1),
          date_total_effort_ident = as.Date(date.1),
@@ -572,8 +683,6 @@ mi_data <- mi_catch_eff_merge %>%
          survey_type_2 = as.character(NA),
          survey_type_3 = as.character(NA),
          survey_type_4 = as.character(NA),
-         sampling_method_2 = sampling_method,
-         sampling_method = sampling_method_abbrev,
          gear_data_notes = as.character(NA),
          target_species = target_species_effort,
          target_species_2 = as.character(NA),
@@ -613,7 +722,6 @@ mi_data <- mi_catch_eff_merge %>%
          batch_weight_unit = as.character(NA),
          sex = as.character(NA),
          age_class = as.character(NA),
-         flag = as.character(NA),
          ind_fish_ident = as.character(NA),
          lakesize = as.numeric(NA),
          lakesize_units = as.character(NA),
@@ -635,6 +743,8 @@ mi_data <- mi_catch_eff_merge %>%
          lake_name,
          lake_id,
          nhdhr.id,
+         latitude_lake_centroid,
+         longitude_lake_centroid,
          date_survey,
          date_total_effort_ident,
          date_sub_effort_ident,
@@ -646,6 +756,7 @@ mi_data <- mi_catch_eff_merge %>%
          survey_type_2,
          survey_type_3,
          survey_type_4,
+         sampling_method_simple,
          sampling_method,
          sampling_method_2,
          gear_data_notes,
@@ -708,7 +819,6 @@ glimpse(mi_data)
 ```                        
                         
  
-
 # Review & QC datasets
 ```{r}
 mi_data %>% 
@@ -736,10 +846,10 @@ mi_data %>%
 #how many Walleye in surveys where we had effort data?
 mi_data %>% 
   group_by(sampling_method) %>% 
-  summarise(walleye = sum(species_1 == "walleye"))
+  summarise(walleye = sum(species_1 == "walleye", na.rm = T))
 
 mi_data %>% 
-  group_by(species_1) %>% 
+  group_by(species_1, total_effort_nothing_caught) %>% 
   count()
                         
                         
@@ -773,6 +883,14 @@ mi_data %>%
             catchlengthNA = sum(!(grepl("mi_snt_catch_inchgrp_clean_0722", original_file_names))),
             effortNA = sum(!(grepl("mi_snt_effort_data_mar2021", original_file_names))))
 
+#how is the state name? 
+mi_data %>% 
+  group_by(state) %>% 
+  count()
+
+mi_data %>% 
+  group_by(sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  count()
 ```
 
 

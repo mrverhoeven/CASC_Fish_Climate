@@ -999,9 +999,6 @@ ia_fishobs <- ia_fishobs %>%
   left_join(gear_xwalk, by = c("sampling_method_agency", "consolidated_gear"), relationship = "many-to-one")
 rm(gear_corrections, gear_xwalk)
 
-###########Denver Left off right here on 9/11 at 3:30pm#####################
-#before I left I updated the list of columns to what they should be
-#still need to make centroid columsns and upload spaical data
 msu_crosswalk <- read_csv("MGLP_FISH_LAKES_12Aug24.csv") %>% 
   filter(STATE == "IA") %>% 
   select(NHDHR_ID,
@@ -1020,10 +1017,11 @@ msu_crosswalk <- read_csv("MGLP_FISH_LAKES_12Aug24.csv") %>%
 
 ia_fishobs <- ia_fishobs %>% 
   mutate(lat_unspec_join = round(lat_unspec, 2)) %>% 
-  left_join(msu_crosswalk, by = c("lake_name_1", "lat_unspec_join"), relationship = "many-to-one")
+  left_join(msu_crosswalk, by = c("lake_name_1", "lat_unspec_join"), relationship = "many-to-one") %>% 
+  rename(nhdhr_id = NHDHR_ID)
 
 check <- ia_fishobs %>% 
-  distinct(lake_name_1, STATE_ID, NHDHR_ID, lat_unspec, lon_unspec, LAT, LON) %>% 
+  distinct(lake_name_1, STATE_ID, nhdhr_id, lat_unspec, lon_unspec, LAT, LON) %>% 
   mutate(diff_lat = abs(lat_unspec - LAT),
          diff_lon = abs(lon_unspec - LON))
 #they this works pretty darn well! - lucky the names align between msu and iowa
@@ -1037,16 +1035,16 @@ usgs <- read_csv("lake_metadata.csv") %>%
          lake_name,
          centroid_lon,
          centroid_lat) %>% 
-  rename(NHDHR_ID = site_id)
+  rename(nhdhr_id = site_id)
 
-ia_fishobs_trial <- ia_fishobs %>% 
-  left_join(usgs, by = c("NHDHR_ID"))
+ia_fishobs <- ia_fishobs %>% 
+  left_join(usgs, by = c("nhdhr_id"))
 
-check <- ia_fishobs_trial %>% 
-  distinct(lake_name_1, STATE_ID, NHDHR_ID, lat_unspec, lon_unspec, LAT, LON, .keep_all = T) %>% 
+check <- ia_fishobs %>% 
+  distinct(lake_name_1, STATE_ID, nhdhr_id, lat_unspec, lon_unspec, LAT, LON, .keep_all = T) %>% 
   select(lake_name,
          lake_name_1,
-         NHDHR_ID,
+         nhdhr_id,
          STATE_ID,
          lat_unspec,
          LAT,
@@ -1056,13 +1054,29 @@ check <- ia_fishobs_trial %>%
          centroid_lon) %>% 
   mutate(diff_lat = abs(lat_unspec - centroid_lat),
          diff_lon = abs(lon_unspec - centroid_lon))
+rm(check)
+
+ia_fishobs %>% 
+  distinct(lake_name_1, .keep_all = T) %>% 
+  group_by(is.na(lat_unspec), is.na(LAT), is.na(centroid_lat)) %>% 
+  count()
+#agency lat and lon has the best coverage of lats/lons so we will stick with that
+
+#cleaning up units when the value does not exists
+ia_fishobs <- ia_fishobs %>% 
+  mutate(total_effort_1_units = case_when(is.na(total_effort_1) ~ NA,
+                                          TRUE ~ total_effort_1_units),
+         total_effort_2_units = case_when(is.na(total_effort_2) ~ NA,
+                                          TRUE ~ total_effort_2_units),
+         length_unit_1_clean = case_when(is.na(length_1) ~ NA,
+                                         TRUE ~ length_unit_1_clean),
+         weight_unit_1_clean = case_when(is.na(weight_1) ~ NA,
+                                         TRUE ~ weight_unit_1_clean))
 
 #Denver's attempt to clean up columns
 ia_fishobs_trial <- ia_fishobs %>% 
   mutate(lake_name = lake_name_1,
-         lake_id = as.character(NA),
-         nhdhr_id = as.character(NA),
-         month = month(date_1),
+         lake_id = STATE_ID,
          survey_type = survey_type_1,
          survey_type_2 = as.character(NA),
          survey_type_3 = as.character(NA),
@@ -1090,14 +1104,19 @@ ia_fishobs_trial <- ia_fishobs %>%
          area_group = as.character(NA),
          waterbody_type = lake_type,
          location_notes_1 = as.character(NA),
-         obs_id = as.character(row_number())
+         obs_id = as.character(row_number()),
+         latitude_lake_centroid = lat_unspec,
+         longitude_lake_centroid = lon_unspec,
+         sampling_method = sampling_method_1
          ) %>% 
   #fixing dates
   mutate(date_survey = survey_start_date,
          date_sub_effort_ident = date_1,
          date_sample = as.Date(NA)) %>% 
   group_by(total_effort_ident) %>% 
-  mutate(date_total_effort_ident = first(date_1)) %>% 
+  mutate(date_total_effort_ident = first(date_1),
+         month = month(date_total_effort_ident),
+         year = year(date_total_effort_ident)) %>% 
   select(state, 
          county, 
          lake_name,
@@ -1178,34 +1197,46 @@ ia_fishobs_trial <- as.data.table(ia_fishobs_trial)
 
 #attempt to recover lake IDs?
 #get old IA file:
-ia_dat_old <-  fread("D:\\Shared drives\\Hansen Lab\\RESEARCH PROJECTS\\Fish Survey Data\\IA_Data\\ia_raw_disaggregated_data\\Archived\\ia_fishlengths_24Oct2023.csv")
+#ia_dat_old <-  fread("D:\\Shared drives\\Hansen Lab\\RESEARCH PROJECTS\\Fish Survey Data\\IA_Data\\ia_raw_disaggregated_data\\Archived\\ia_fishlengths_24Oct2023.csv")
 
-ialakecodekey <- ia_dat_old[ , .("Lat" = mean(Station_Lat), "Lon" = mean(Station_Long)) , .(County, LakeName, LakeID)]
+#ialakecodekey <- ia_dat_old[ , .("Lat" = mean(Station_Lat), "Lon" = mean(Station_Long)) , .(County, LakeName, LakeID)]
 
-ialakecodekey[ , LakeName := word(LakeName, 1, sep = fixed(" (")) ,]
+#ialakecodekey[ , LakeName := word(LakeName, 1, sep = fixed(" (")) ,]
 
-ia_fishobs_trial[ , lake_id := as.character(lake_id) ,]
+#ia_fishobs_trial[ , lake_id := as.character(lake_id) ,]
 
-ia_fishobs_trial[ialakecodekey, on = .(county=County, lake_name=LakeName), lake_id := LakeID ]
+#ia_fishobs_trial[ialakecodekey, on = .(county=County, lake_name=LakeName), lake_id := LakeID ]
 
-ia_fishobs_trial[ , length(unique(lake_name)) , is.na(lake_id)]
+#ia_fishobs_trial[ , length(unique(lake_name)) , is.na(lake_id)]
 
 #now mwlaxeref
-ia_fishobs_trial[ , nhdhr_id := mwlaxeref::ia_to_nhdhr(ia_fishobs_trial, from_colname = "lake_id", )$nhdhr.id , ]
+#ia_fishobs_trial[ , nhdhr_id := mwlaxeref::ia_to_nhdhr(ia_fishobs_trial, from_colname = "lake_id", )$nhdhr.id , ]
 
-ia_fishobs_trial[ , length(unique(paste(lake_name))) , .("Has_state_lake_ID" = !is.na(lake_id), "HasNHD_ID" = !is.na(nhdhr_id)) ]
+#ia_fishobs_trial[ , length(unique(paste(lake_name))) , .("Has_state_lake_ID" = !is.na(lake_id), "HasNHD_ID" = !is.na(nhdhr_id)) ]
 
-#check sturcture of dates
+#check structure of dates
 dates <- ia_fishobs_trial %>% 
   distinct(total_effort_ident, sub_effort_ident, .keep_all = T) %>% 
   select(survey_id, total_effort_ident, sub_effort_ident, date_survey, date_total_effort_ident, date_sub_effort_ident, sampling_method_2)
 #total effort ident 13 is a good example to show how the dates work from survey level (first sampling within a lake within a year) - total effort ident (date used to create that total effort ident) - sub effort ident (day for each sub sampling within a total effort ident)
+rm(dates)
 
 #whats the deal with the survey involving total effort ident 13?
 check <- ia_fishobs_trial %>% 
   filter(survey_id == "CB6851EB-3CE8-4333-9554-41A13F2430A9") %>% 
   distinct(total_effort_ident, sub_effort_ident, .keep_all = T)
-#this shows that sampling method is the same for all and appears that they should all be the same gear/effort_id but the more refined gear used to make the is different thus one of the sub efforts get a different total effort ident
+#this shows that sampling method is the same for all and appears that they should all be the same gear/effort_id but the more refined gear used to make the id is different thus one of the sub efforts get a different total effort ident
+
+#checking gears 
+ia_fishobs_trial %>% 
+  group_by(sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+ia_fishobs_trial %>% 
+  distinct(lake_name, .keep_all = T) %>% 
+  group_by(is.na(nhdhr_id), is.na(latitude_lake_centroid)) %>% 
+  count()
 
 #fish obs unpacked and tidied, clean up ws
 rm(ia_fishobs_30Nov2023, b, cde, ia_age_length_21Aug2021, ia_BLG_age_length_21Aug2021,ia_CCF_age_length_21Aug2021, ia_diet_21Aug2021, ia_lake_characteristics_21Aug2021, names, unusedbits, samplestationlocationmap_drawrectangletofilterlocations, ia_renamer, addcols, dropcols, filei, files_list, first_word, i, maxn, n, dates, check)

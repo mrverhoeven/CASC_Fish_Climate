@@ -1408,8 +1408,181 @@ rm(dates)
 ```
 
 
+##############updating for the hive#####################
+#this reads in directly from the hive for a quick fix
+#this code needs to be used above in future iterations
+```{r}
+mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+  filter(state == "Minnesota") %>% 
+  collect()
+
+msu_xwalk <- read_csv("MGLP_FISH_LAKES_12Aug24.csv") %>% 
+  filter(STATE == "MN") %>% 
+  select(STATE_ID,
+         LAT,
+         LON) %>% 
+  rename(lake_id = STATE_ID)
+
+mn_data <- mn_data %>% 
+  left_join(msu_xwalk, by = "lake_id") %>% 
+  mutate(latitude_lake_centroid = case_when(is.na(lat_unspec) ~ LAT,
+                                            TRUE ~ lat_unspec),
+         longitude_lake_centroid = case_when(is.na(lon_unspec) ~ LON,
+                                             TRUE ~ lon_unspec))
 
 
+mn_data %>% 
+  distinct(lake_id, .keep_all = T) %>% 
+  group_by(is.na(lat_unspec), is.na(latitude_lake_centroid)) %>% 
+  count()
+
+mn_data %>% 
+  distinct(nhdhr_id, .keep_all = T) %>% 
+  group_by(is.na(lat_unspec), is.na(latitude_lake_centroid)) %>% 
+  count()
+
+
+usgs <- read_csv("lake_metadata.csv") %>% 
+  filter(state == "MN") %>% 
+  rename(nhdhr_id = site_id) %>% 
+  select(nhdhr_id,
+         centroid_lon,
+         centroid_lat)
+
+
+mn_data <- mn_data %>% 
+  mutate(nhdhr_id = case_when(!is.na(nhdhr_id) ~ paste0("nhdhr_", nhdhr_id),
+                              TRUE ~ NA)) %>% 
+  left_join(usgs, by = "nhdhr_id") %>% 
+  mutate(latitude_lake_centroid = case_when(is.na(latitude_lake_centroid) ~ centroid_lon,
+                                            TRUE ~ latitude_lake_centroid),
+         longitude_lake_centroid = case_when(is.na(longitude_lake_centroid) ~ centroid_lat,
+                                             TRUE ~ longitude_lake_centroid))
+mn_data %>% 
+  distinct(lake_id, .keep_all = T) %>% 
+  group_by(is.na(latitude_lake_centroid), is.na(centroid_lat)) %>% 
+  count()
+
+mn_data %>% 
+  distinct(nhdhr_id, .keep_all = T) %>% 
+  group_by(is.na(latitude_lake_centroid), is.na(centroid_lat)) %>% 
+  count()
+
+
+#lakes with no lat/lon
+lakes_no_lat_lake_id <- mn_data %>% 
+  distinct(lake_id, .keep_all = T) %>% 
+  filter(is.na(latitude_lake_centroid)) 
+rm(lakes_no_lat_lake_id)
+
+lakes_no_lat_nhd <- mn_data %>% 
+  distinct(nhdhr_id, .keep_all = T) %>% 
+  filter(is.na(latitude_lake_centroid)) 
+rm(lakes_no_lat_nhd)
+
+#gear xwalk
+gear_xwalk <- read_csv("gears_by_state.csv") %>% 
+  filter(state == "Minnesota") %>% 
+  rename(sampling_method_agency = gear_1,
+         sampling_method_2_agency = gear_2) %>% 
+  select(sampling_method_agency,
+         sampling_method_2_agency,
+         sampling_method_simple,
+         sampling_method_1,
+         sampling_method_2)
+
+mn_data <- mn_data %>% 
+  rename(sampling_method_agency = sampling_method,
+         sampling_method_2_agency = sampling_method_2) %>% 
+  left_join(gear_xwalk, by = c("sampling_method_agency", "sampling_method_2_agency"))
+
+gear_check <- mn_data %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  group_by(sampling_method_agency, sampling_method_2_agency, sampling_method_simple, sampling_method_1, sampling_method_2) %>% 
+  count() %>% 
+  print(n = nrow(.))
+rm(gear_check)
+
+
+mn_data <- mn_data %>% 
+  rename(sampling_method = sampling_method_1) %>% 
+select(state, 
+         county, 
+         lake_name,
+         lake_id,
+         nhdhr_id,
+         latitude_lake_centroid,
+         longitude_lake_centroid,
+         date_survey,
+         date_total_effort_ident,
+         date_sub_effort_ident,
+         date_sample,
+         year,
+         month,
+         survey_id,
+         survey_type,
+         survey_type_2,
+         survey_type_3,
+         survey_type_4,
+         sampling_method_simple,
+         sampling_method,
+         sampling_method_2,
+         gear_data_notes,
+         target_species,
+         target_species_2,
+         total_effort_ident,
+         total_effort_1, 
+         total_effort_2,
+         total_effort_3,
+         total_effort_1_units,
+         total_effort_2_units,
+         total_effort_3_units,
+         total_effort_nothing_caught,
+         water_temp,
+         water_temp_units,
+         water_clarity,
+         water_clarity_units,
+         lat_start,
+         lon_start,
+         lat_end,
+         lon_end,
+         site_id,
+         sub_effort_ident,
+         sub_effort_1,
+         sub_effort_1_units,
+         sub_effort_2,
+         sub_effort_2_units,
+         sub_effort_nothing_caught,
+         species_1,
+         length_1,
+         length_unit_1,
+         length_bin,
+         length_bin_unit,
+         age,
+         aging_structure_1,
+         aging_structure_2,
+         weight_1,
+         weight_unit_1,
+         batch_weight,
+         batch_weight_unit,
+         sex,
+         age_class,
+         flag,
+         original_file_names,
+         ind_fish_ident,
+         lakesize,
+         lakesize_units,
+         area_group,
+         lat_unspec,
+         lon_unspec,
+         waterbody_type,
+         location_notes_1,
+         notes_1,
+         obs_id)
+glimpse(mn_data)
+
+write_dataset(dataset = mn_data, path = "mn_file_arrow")
+```
 
 
 

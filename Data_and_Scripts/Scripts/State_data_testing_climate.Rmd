@@ -4597,6 +4597,12 @@ mw_data %>%
   collect()
 
 mw_data %>% 
+  distinct(nhdhr_id, lake_id, latitude_lake_centroid, longitude_lake_centroid) %>% 
+  group_by(is.na(nhdhr_id), is.na(latitude_lake_centroid)) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
   filter(state == "Michigan" & is.na(nhdhr_id) & is.na(lat_unspec)) %>% 
   collect() %>% 
   glimpse()
@@ -4611,5 +4617,97 @@ mw_data %>%
   facet_wrap(~sampling_method_simple, scales = "free") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+mw_data %>% 
+  filter(state == "Wisconsin") %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(desc(n)) %>% 
+  print(n = nrow(20))
+
+mw_data %>% 
+  filter(state == "Wisconsin") %>% 
+  glimpse()
+
+#do we have more than 100 species caught in a survey?
+mw_data %>% 
+  filter(state == "Wisconsin" | state == "Iowa") %>% 
+  filter(!is.na(species_1)) %>% 
+  group_by(state, total_effort_ident) %>% 
+  summarise(n_species_survey = n_distinct(species_1)) %>% 
+  group_by(state) %>% 
+  summarise(max(n_species_survey)) %>% 
+  collect()
+
+#doesn't look like n>100 in a survey - what about all time in a lake?
+mw_data %>% 
+  filter(!is.na(species_1)) %>% 
+  filter(!is.na(nhdhr_id)) %>%
+  group_by(state, nhdhr_id) %>% 
+  summarise(n_species_lake = n_distinct(species_1)) %>% 
+  group_by(state) %>% 
+  summarise(max(n_species_lake)) %>% 
+  collect()
+
+mw_data %>% 
+  filter(!is.na(species_1)) %>% 
+  filter(!is.na(nhdhr_id)) %>%
+  group_by(state, nhdhr_id) %>% 
+  summarise(n_species = n_distinct(species_1)) %>% 
+  collect() %>%
+  group_by(state) %>% 
+  summarise(max(n_species))
+
+#looks like this comes into play when nhdhr_ids are na
+mw_data %>% 
+  filter(!is.na(species_1)) %>%
+  filter(!is.na(nhdhr_id)) %>%
+  group_by(state, nhdhr_id) %>% 
+  summarise(n_species = n_distinct(species_1)) %>% 
+  collect() %>%
+  group_by(state) %>% 
+  summarise(max(n_species))
+
+mw_data %>% 
+  filter(state == "Wisconsin" | state == "Iowa") %>% 
+  filter(!is.na(nhdhr_id)) %>% 
+  filter(!is.na(species_1)) %>% 
+  group_by(state, nhdhr_id) %>% 
+  summarise(n_species_lake = n_distinct(species_1)) %>% 
+  group_by(state) %>% 
+  summarise(max(n_species_lake)) %>% 
+  collect()
+
+#pulling out the lakes that have the highest # of species caught in them of all states
+mw_data %>% 
+  filter(!is.na(nhdhr_id)) %>% 
+  filter(!is.na(species_1)) %>% 
+  group_by(state, nhdhr_id, lake_name, lake_id) %>% 
+  summarise(n_species_lake = n_distinct(species_1)) %>% 
+  collect() %>% 
+  group_by(state) %>% 
+  slice_max(n_species_lake, n = 1, with_ties = FALSE)
+
+#looking at species within pepin
+mw_data %>% 
+  filter(!is.na(species_1)) %>% 
+  filter(lake_id == "25000100") %>% 
+  group_by(species_1) %>% 
+  summarise(n = n()) %>%
+  collect() %>% 
+  arrange(species_1) %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  filter(state == "Michigan") %>% 
+  filter(!is.na(nhdhr_id)) %>% 
+  distinct(year, nhdhr_id) %>% 
+  group_by(nhdhr_id) %>% 
+  summarise(n_years = n_distinct(year)) %>% 
+  collect() %>% 
+  filter(n_years > 1) %>% 
+  print( n = nrow(.))
+#most lakes in MI only have 1 years of data - some have 2
 ```
 

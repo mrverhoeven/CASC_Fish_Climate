@@ -15,7 +15,7 @@ library(arrow)
 
 #Data
 ```{r}
-mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Minnesota")
 glimpse(mn_data)
 ```
@@ -208,7 +208,7 @@ adult_walleye %>%
   filter(n > 1) %>% 
   glimpse()
 #this survey has multiple effort idents?
-#more exploration leads to this survey having a record of nothing caught but also fish records with assoicated effort.
+#more exploration leads to this survey having a record of nothing caught but also fish records with associated effort.
 
 #the difference between good surveys and cpue surveys are:
 #88 nothing caught is true - removed due to unlikely they caught nothing

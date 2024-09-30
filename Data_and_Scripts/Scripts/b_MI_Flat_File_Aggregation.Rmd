@@ -893,9 +893,7 @@ mi_data %>%
   count()
 ```
 
-
 # Import/Export files
-
 ```{r}
 
 
@@ -915,6 +913,4 @@ mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
 
 glimpse(mi_data)
 ```
-
-
 

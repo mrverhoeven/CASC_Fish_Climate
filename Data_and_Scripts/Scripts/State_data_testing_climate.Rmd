@@ -4709,5 +4709,37 @@ mw_data %>%
   filter(n_years > 1) %>% 
   print( n = nrow(.))
 #most lakes in MI only have 1 years of data - some have 2
+
+mw_data %>% 
+  filter(lake_id == "6000200") %>% 
+  distinct(survey_type, year) %>% 
+  collect() %>% 
+  arrange(desc(year)) %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  filter(lake_id == "6000200") %>% 
+  filter(year == 2021) %>% 
+  group_by(total_effort_ident, survey_type, sampling_method_simple, sampling_method, sampling_method_2, flag) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
+  filter(lake_id == "6000200") %>% 
+  filter(year == 2021) %>% 
+  group_by(total_effort_ident, area_group, sampling_method, total_effort_1, month(date_total_effort_ident), flag) %>% 
+  count() %>% 
+  collect()
+#gill net gets ruled out by month (total effort ident date is may)
+#trap nets get ruled out by a flag (except there are only 2 with a flag - does distinct take the first?)
+#other traps nets are not standard and do not show up
+
+mw_data %>% 
+  filter(lake_id == "6000200") %>% 
+  filter(year == 2021) %>% 
+  distinct(total_effort_ident, sampling_method, flag) %>% 
+  collect()
+
+glimpse(mw_data)
 ```
 

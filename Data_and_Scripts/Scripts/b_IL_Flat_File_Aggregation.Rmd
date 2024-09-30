@@ -139,7 +139,7 @@ for(i in 1:n) {
 ```
 
 #Data Review
-#this code was used as exploration in several iterations of the ag process 
+#this code was used as exploration in several iterations of the ag process (not needed in ag)
 ```{r}
 # review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
 # consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (possibly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
@@ -1486,19 +1486,9 @@ length_weight_flag_2 %>%
 
 #length_weight_flag_2 contains all of the flags that were accumulated throughout the ag process
 #we can left join these flags to the data 
-il_data.prep.trail <- il_data.prep %>% 
+il_data.prep <- il_data.prep %>% 
   select(-flag) %>% 
-  left_join(length_weight_flag_2, relationship = "many-to-one") %>% 
-  select(survey_effort_id,
-         survey_effort,
-         species.1,
-         weight.1,
-         length.1,
-         mean_length,
-         mean_weight,
-         z_score_length,
-         z_score_weight,
-         flag)
+  left_join(length_weight_flag_2, relationship = "many-to-one") 
 
 
 ############################final tidy################################
@@ -1880,6 +1870,9 @@ il_data %>%
   count() %>% 
   arrange(sampling_method_simple) %>% 
   print(n = nrow(.))
+
+il_data %>% 
+  count(is.na(species_1))
 ``` 
 
 

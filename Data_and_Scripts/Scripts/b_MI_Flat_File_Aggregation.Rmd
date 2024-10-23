@@ -1,7 +1,7 @@
 ---
 title: "MI_Flat_File_Aggregation"
 author: "Mike Verhoeven"
-date: "`r Sys.Date()`"
+date: "2Oct2024"
 output: html_document
 ---
 # Preamble
@@ -37,7 +37,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -48,7 +48,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -156,7 +156,7 @@ mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, length(unique(spe
 mi_statustrends_lenage_20May2021[survey_id == 2446, length(unique(species.1)) ]
 #view species lists:
 mi_statustrends_catch_16Mar2021[survey_id == 2446,sum(total_count.1) , species.1]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446,sum(total_count.1) , species.1]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, sum(total_count.1) , species.1]
 mi_statustrends_lenage_20May2021[survey_id == 2446, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
 #view species lists:
 mi_statustrends_catch_16Mar2021[survey_id == 4079,sum(total_count.1) , species.1]
@@ -166,6 +166,13 @@ mi_statustrends_lenage_20May2021[survey_id == 4079, .N , species.1 ] # these num
 
 
 # not exactly clear WHY the numbers still don't jive between the inch grp file and the catch file, BUT the catch file seems to have problems with the n per species X gear where there are zeros in an inchgroup (see survey 2446)
+# 
+# There's currently a length = 1 and total.count = 0 that shows up in the inchclass file and those zeros seems to be counted in the catch summary file
+
+
+
+
+
 
 
 #survey_ids matched across all surveys?

@@ -1,7 +1,7 @@
 ---
 title: "MI_Flat_File_Aggregation"
 author: "Mike Verhoeven"
-date: "`r Sys.Date()`"
+date: "2Oct2024"
 output: html_document
 ---
 # Preamble
@@ -10,7 +10,7 @@ output: html_document
 - Ages were excluded from this file
 - We limited species in this because the files had different species extents
 - In my dates exploration, I found a survey start and end dates, all surveys expect for 4 happen over a 7 day time frame
-    -there is one gill netting case spans from May to Oct.
+    -there is one gill netting case spanning May to Oct.
     -given the end date does not seem relevant to retain, I only keep survey start dates
 
 
@@ -37,7 +37,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -48,7 +48,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -124,7 +124,7 @@ for(i in 1:n) {
 
 
 #Data review
-#this contains building blocks to the ag as well
+#this chunk explores the sturcture of the data and does some foundational data ag
 ```{r}
 #effort:
 mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
@@ -150,13 +150,13 @@ mi_statustrends_catch_16Mar2021[survey_id == 2446, sum(total_count.1)]
 mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, sum(total_count.1)]
 nrow(mi_statustrends_lenage_20May2021[survey_id == 2446, ])
 
-#no. not even close. I suspect this is bc of a species seletion that happened in the catch data:
+#no. not even close. I suspect this is bc of a species selection that happened in the catch data:
 mi_statustrends_catch_16Mar2021[survey_id == 2446, length(unique(species.1))]
 mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, length(unique(species.1))]
 mi_statustrends_lenage_20May2021[survey_id == 2446, length(unique(species.1)) ]
 #view species lists:
 mi_statustrends_catch_16Mar2021[survey_id == 2446,sum(total_count.1) , species.1]
-mi_statustrends_catchlengthclass_03July2023[survey_id == 2446,sum(total_count.1) , species.1]
+mi_statustrends_catchlengthclass_03July2023[survey_id == 2446, sum(total_count.1) , species.1]
 mi_statustrends_lenage_20May2021[survey_id == 2446, .N , species.1 ] # these numbers will not be the same. This is because these aged fish are a subset.
 #view species lists:
 mi_statustrends_catch_16Mar2021[survey_id == 4079,sum(total_count.1) , species.1]
@@ -166,6 +166,13 @@ mi_statustrends_lenage_20May2021[survey_id == 4079, .N , species.1 ] # these num
 
 
 # not exactly clear WHY the numbers still don't jive between the inch grp file and the catch file, BUT the catch file seems to have problems with the n per species X gear where there are zeros in an inchgroup (see survey 2446)
+# 
+# There's currently a length = 1 and total.count = 0 that shows up in the inchclass file and those zeros seems to be counted in the catch summary file
+
+
+
+
+
 
 
 #survey_ids matched across all surveys?
@@ -190,15 +197,15 @@ merge(
 #retaining more dates?
 survey_dates <- mi_statustrends_catch_16Mar2021 %>% 
   select(survey_id, date.1, sample_time_notes.1) %>% 
-  mutate(start = as.Date(date.1),
+  mutate(start = ymd(mdy(date.1)),
          end = str_replace(sample_time_notes.1, "SAMPLE_END_DATE:", ""),
          end = as.Date(end, format = "%m/%d/%Y"),
          duration = end - start) %>% 
   distinct(survey_id, .keep_all = T)
 survey_dates %>% 
-  summarise(min.dur = min(duration), 
-            max.dur = max(duration),
-            over.week = sum(duration > 7))
+  summarise(min.dur = min(duration, na.rm = T), 
+            max.dur = max(duration, na.rm = T),
+            over.week = sum(duration > 7, na.rm = T))
 #only 4 surveys that lasted longer than a week - two longest are survey id 4854 and 9316
 mi_statustrends_catch_16Mar2021 %>% 
   filter(survey_id %in% c("4854", "9316")) %>% 
@@ -208,6 +215,7 @@ mi_statustrends_catch_16Mar2021 %>%
 
 
 # Effort Merge
+#the bulk of the ag happens in this chunk
 ```{r}
 #Start with a merge of catch and catch-length?
 
@@ -361,8 +369,6 @@ data_coverage[ ,.N , .("effortNA" = is.na(effort_nrows), "catchNA" = is.na(catch
 mi_catch_eff_merge <- merge(mi_catch_merge, mi_statustrends_effort_16Mar2021, by = keycols, all = T, suffixes = c("_mergedcatch", "_effort"))
 
 
-
-
 ### dataset cleanup and tidying                       
 
 #check the product:
@@ -433,8 +439,8 @@ mi_catch_eff_merge[ , `:=` (state_catch = NULL, state_catchlengths = NULL)  , ]
 
 #total effort
 mi_catch_eff_merge[total_effort_1_effort != total_effort_1_mergedcatch, .N,  ]
-plot(total_effort_1_effort ~ total_effort_1_mergedcatch, data = mi_catch_eff_merge  )
-abline(1,0)
+#plot(total_effort_1_effort ~ total_effort_1_mergedcatch, data = mi_catch_eff_merge  )
+#abline(1,0)
 
 #effort vals
 mi_catch_eff_merge[ total_effort_1_effort != total_effort_1_mergedcatch , .N , .(total_effort_1_mergedcatch, total_effort_1_effort)]
@@ -530,10 +536,13 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
                                    TRUE ~ length_unit.1)) %>% 
   #effort unit 
   mutate(effort_units.1 = case_when(effort_units.1 == "HAULS" ~ "hauls",
-                                    effort_units.1 == "MINUT" ~ "minute",
+                                    effort_units.1 == "MINUT" ~ "minutes",
                                     effort_units.1 == "LIFTS" ~ "lifts")) %>%
   rename(. , original_file_name.1_effort = original_file_name.1) %>% 
-  #selects for columns to be used during analysis - limits memory usage and allows creates more clarity
+  #Twin lake (survey id 4042) does not have effort info so looks lake info, from the MSU team we know that the lake id is 48-28. This will allow us to connect to NHDHRID and other lake info
+  mutate(lake_id = case_when(survey_id == "4042" ~ "48-28",
+                             TRUE ~ lake_id)) %>% 
+  #selects for columns to be used during analysis - limits memory usage and creates more clarity
   #effort files for survey type, lat/long, and target species contained more data than the merged catch files
   select(state, county, lake_id, lake_name.1, date.1, year, survey_type.1_effort, survey_id, lat_unspec_effort, lon_unspec_effort, sampling_method, sampling_method_abbrev, target_species_effort, species.1, species.abbrev, length.1, length_unit.1, total_effort_1_effort, effort_units.1, effort_ident, nothing_caught, original_file_name.1_catch,original_file_name.1_catchlengths,original_file_name.1_effort)                        
 
@@ -587,22 +596,22 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
   mutate(nhdhr.id = case_when(!is.na(nhdhr.id) ~ paste0("nhdhr_", nhdhr.id),
                               TRUE ~ NA))
 
-#cleaning up effort units
-mi_catch_eff_merge <- mi_catch_eff_merge %>% 
-  mutate(effort_units.1 = case_when(effort_units.1 == "minute" ~ "minutes",
-                                    TRUE ~ effort_units.1))
-
 #adding flags where they are needed
-mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+effort_flag_xwalk <- mi_catch_eff_merge %>% 
+  distinct(survey_id, sampling_method_agency, total_effort_1_effort) %>% 
   mutate(flag = case_when(survey_id == "4042" ~ "no effort data",
                           TRUE ~ NA)) %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_agency) %>% 
   mutate(mean_effort = mean(total_effort_1_effort, na.rm = TRUE),
          sd_effort = sd(total_effort_1_effort, na.rm = TRUE),
          z_score = (total_effort_1_effort - mean_effort) / sd_effort,
     flag = case_when(total_effort_1_effort <= 0 ~ "invalid effort (zero or negative)",
                      z_score > 10 ~ "high effort",
                      TRUE ~ flag)) 
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  left_join(effort_flag_xwalk, by = c("survey_id",
+                                      "sampling_method_agency",
+                                      "total_effort_1_effort"))
 
 #adding lat and lon centroids
 
@@ -668,6 +677,51 @@ mi_catch_eff_merge %>%
   count()
 #we can now see that the 2 lakes from the msu crosswalk are added to the false false world
 
+#filling missing lake info from other places in the data
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  group_by(lake_id) %>% 
+  mutate(county = case_when(is.na(county) ~ coalesce(county, first(na.omit(county))),
+                            TRUE ~ county),
+         lat_unspec_effort = case_when(is.na(lat_unspec_effort) ~ coalesce(lat_unspec_effort, first(na.omit(lat_unspec_effort))),
+                                       TRUE ~ lat_unspec_effort),
+         lon_unspec_effort = case_when(is.na(lon_unspec_effort) ~ coalesce(lon_unspec_effort, first(na.omit(lon_unspec_effort))),
+                                       TRUE ~ lon_unspec_effort),
+         latitude_lake_centroid = case_when(is.na(latitude_lake_centroid) ~ coalesce(latitude_lake_centroid, first(na.omit(latitude_lake_centroid))),
+                                            TRUE ~ latitude_lake_centroid),
+         longitude_lake_centroid = case_when(is.na(longitude_lake_centroid) ~ coalesce(longitude_lake_centroid, first(na.omit(longitude_lake_centroid))),
+                                             TRUE ~ longitude_lake_centroid)
+           )
+
+#adding flags for unlikely lengths/weights
+length_weight_flags_1 <- mi_catch_eff_merge %>% 
+  filter(!is.na(species.1)) %>% 
+  group_by(species.1) %>% 
+  mutate(mean_length = mean(length.1, na.rm = TRUE),
+         sd_length = sd(length.1, na.rm = TRUE),
+         z_score_length = (length.1 - mean_length) / sd_length,
+         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste("unlikely length", ";", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = case_when(length.1 == 0 ~ paste("length reported as 0", ";", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")) %>% 
+  select(survey_id,
+         effort_ident,
+         species.1,
+         length.1,
+         mean_length,
+         z_score_length,
+         flag) %>% 
+  filter(!is.na(flag)) %>% 
+  distinct()
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  select(-flag) %>% 
+  left_join(length_weight_flags_1, by = c("survey_id", 
+                                          "effort_ident", 
+                                          "species.1", 
+                                          "length.1"), relationship = "many-to-one")
+rm(length_weight_flags_1)
+
 
 #matching to schema
 mi_data <- mi_catch_eff_merge %>% 
@@ -677,6 +731,7 @@ mi_data <- mi_catch_eff_merge %>%
          date_total_effort_ident = as.Date(date.1),
          date_sub_effort_ident = as.Date(NA),
          date_sample = as.Date(NA),
+         year = year(date.1),
          month = month(date.1),
          survey_id = as.character(survey_id),
          survey_type = survey_type.1_effort,
@@ -891,11 +946,17 @@ mi_data %>%
 mi_data %>% 
   group_by(sampling_method_simple, sampling_method, sampling_method_2) %>% 
   count()
+
+mi_data %>% 
+  filter(survey_id == "4042") %>% 
+  glimpse()
+
+mi_data %>% 
+  group_by(flag) %>% 
+  count()
 ```
 
-
 # Import/Export files
-
 ```{r}
 
 
@@ -915,6 +976,4 @@ mi_data <- open_dataset("Data_and_Scripts/Data/output/mi_file_arrow")
 
 glimpse(mi_data)
 ```
-
-
 

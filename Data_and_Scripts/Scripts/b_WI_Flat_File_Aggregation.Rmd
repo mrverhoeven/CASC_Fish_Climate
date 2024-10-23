@@ -27,13 +27,14 @@ DONE  10. Flag crazy dates
 DONE  11. Add a nothing_caught tag
 DONE  12. Add NHDids
 DONE  13. cleannames() to colnames
-      23. Throw out rivers and streams (see d_fish_data_maps)
 DONE  14. Update the total effort ident grouping to be at the surveyXgearXdate level
 DONE  17. Ensure nothing_caught is assigned at the total_effort_ident level
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
-DONE  16. Why are no cisco showing up in WI?
+Patched  16. Why are no cisco showing up in WI?
             Currently we do have about 30 ish surveys in there  
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
+            See b_WI_cisco.Rmd file
+      23. Throw out rivers and streams (see d_fish_data_maps)
       18. Drop extra columns.
       19. Make sure all cols match the column names and descriptions thing
       21. Convert length units to mm (2/1 - decided not to convert based on discussion of sig. digits)
@@ -111,7 +112,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -124,7 +125,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line

@@ -69,10 +69,6 @@ flag - this column contains a character string with issues describing each row, 
 
 
 
-
-
-
-
 ##Libraries
 ```{r}
 library(arrow)
@@ -90,8 +86,6 @@ options(scipen = 999)
 
 
 ##Data
-This could readily be changed into a function that takes a filepath and returns files into environment.
-* note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
 files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
@@ -190,8 +184,7 @@ for(i in 1:n) {
 ```
 
 
-#Obs Data (new)
-##Data Review
+#Obs Data
 ```{r}
 
 # We've got a new fish file from Iowa! It looks (kinda) like the old one, but they have added a crap-ton of info 
@@ -954,6 +947,7 @@ ia_fishobs <- ia_fishobs[!(lake_type %in% c("Trout Stream", "River"))]
 ia_fishobs <- ia_fishobs %>% 
   mutate(weight_unit_1_clean = tolower(str_replace(weight_unit_1, ".*Pounds", "Pounds")),
          length_unit_1_clean =  tolower(str_replace(length_unit_1, ".*Inches", "Inches")))
+
 ia_fishobs %>% 
   group_by(weight_unit_1,
            length_unit_1,

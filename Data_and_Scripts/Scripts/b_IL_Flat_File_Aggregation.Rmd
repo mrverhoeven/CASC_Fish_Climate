@@ -39,8 +39,6 @@ options(scipen = 999)
 
 
 ##Data
-This could readily be changed into a function that takes a filepath and returns files into environment.
-* note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
 files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
@@ -139,7 +137,7 @@ for(i in 1:n) {
 ```
 
 #Data Review
-#this code was used as exploration in several iterations of the ag process - is not important for the aggregation and does not fully run
+#this code was used as exploration in several iterations of the ag process (not needed in ag)
 ```{r}
 # review each dataset that we have, strategizing about how you'll use them to develop a obs-level file
 # consider things like species scope (do I need to restrict all input data to just the 8ish game species?), file organization (is this file already in a obs-level format or is it a count of each species/size that I should uncount()?), linking keys (is there a fish obs ID in the age data that I can use to link to the fish observations data?), and what things (possibly whole datasets) are unneeded for our work, here. I have left the Michigan work in here to give you an idea of what I did:
@@ -215,13 +213,14 @@ glimpse(il_lake_info_17Jan22)
 
 #do survey ids match?
 #do survey IDs match effort?
-il_aged_fish_surveys_28Dec2022 %>% 
-  group_by(lake_name.1, survey_id) %>% 
-  summarise(n = n())
-il_effort_17Jan22 %>% 
-  group_by(lake_name.1, survey_id) %>% 
-  summarise() %>% 
-  print(n = 20)
+# il_aged_fish_surveys_28Dec2022 %>% 
+#   group_by(lake_name.1, survey_id) %>% 
+#   summarise(n = n())
+
+# il_effort_17Jan22 %>% 
+#   group_by(lake_name.1, survey_id) %>% 
+#   summarise() %>% 
+#   print(n = 20)
 
 
 
@@ -472,6 +471,8 @@ check <- il_aged_fish_surveys_12Dec2023 %>%
   distinct(lake_name.1, year, sampling_method.1, .keep_all = T) %>% 
   group_by(reproductive_condition_notes) %>% 
   count()
+
+rm(check, effort.catch, effort.effort, final_combined_surveys, final_mismatched_surveys, lake40.catch, lake40.effort, mismatched, mismatched.catch, mismatched.effort, sur.503.catch, sur.503.effort, multieffort.effort)
 ```
 
 #Catch effort join to fish 
@@ -955,6 +956,10 @@ il_data.prep %>%
   group_by(sampling_method_agg) %>% 
   count()
 
+il_data.prep %>% 
+  group_by(flag) %>% 
+  count()
+
 #does the total effort id work?
 il_data.prep %>% 
   group_by(survey_effort_id, original_file_name.1_agedfish, original_file_name.1_indvifish, original_file_name.1_effort) %>% 
@@ -1273,7 +1278,7 @@ il_data.prep %>%
 
 #Data tidying                        
 ```{r}                       
-#####################final tidy#########################################
+###################cleaning up before final tidy#############################
 #nhdids
 crosswalks <- mwlaxeref::lake_id_xref %>%  
   group_by(state) %>% 
@@ -1281,6 +1286,7 @@ crosswalks <- mwlaxeref::lake_id_xref %>%
 #no crosswalks exist for il in USGS 
 rm(crosswalks)
 
+#msu team developed crosswalks - we can go from IL state id to nhdhr id
 msu_crosswalk <- read_csv("MGLP_FISH_LAKES_12Aug24.csv") %>% 
   filter(STATE == "IL") %>% 
   select(NHDHR_ID,
@@ -1311,6 +1317,7 @@ il_data.prep <- il_data.prep %>%
                           TRUE ~ lake_type)) %>% 
   ungroup()
 
+#now lets take the lat/lon from USGS data via nhdhr_id
 lat_lon_usgs <- read_csv("lake_metadata.csv") %>% 
   filter(state == "IL") %>%
   select(site_id, 
@@ -1346,7 +1353,7 @@ il_data.prep <- il_data.prep %>%
          lon_unspec = case_when(lon_unspec > -82 & lake_name.1 == "Charleston Side Channel Lake" ~ -88.14638,
                                 TRUE ~ lon_unspec)) 
 
-#renaming sampling hierarchy
+#sampling method hierarchy
 #this comes from a file in the cross walk good drive 
 gear_xwalk <- read_csv("gears_by_state.csv") %>% 
   filter(state == "Illinois") %>% 
@@ -1379,7 +1386,125 @@ il_data.prep %>%
 
 rm(gear_xwalk)
 
-#final tidy
+#now I want to create some auto-flags
+#I need to do this at the survey level. I will create a survey level flag and then add it back to those surveys
+
+flag_xwalk <- il_data.prep %>% 
+  distinct(survey_effort_id, .keep_all = TRUE) %>% 
+  group_by(sampling_method_simple) %>% 
+  mutate(mean_effort = mean(survey_effort, na.rm = TRUE),
+         sd_effort = sd(survey_effort, na.rm = TRUE),
+         z_score = (survey_effort - mean_effort) / sd_effort,
+         flag = case_when(survey_effort < 0 ~ paste("invalid effort (negative)", coalesce(flag, "")),
+                          z_score > 10 ~ paste("high effort", ";", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")
+         ),
+         flag = na_if(flag, "")) %>% 
+  select(survey_effort_id,
+         sampling_method_simple,
+         flag,
+         survey_effort,
+         mean_effort,
+         sd_effort,
+         z_score)
+
+
+#cross walk the flags back to the il_data.prep - make sure we don't loose flags that were already created
+il_data.prep <- il_data.prep %>% 
+  select(-flag) %>% 
+  left_join(flag_xwalk)
+
+il_data.prep %>% 
+  group_by(flag) %>% 
+  count()
+
+#weight and length auto flags
+#we have some pretty big outliers, espcially in the weight column
+#I will first create a that includes these really large values
+#I will then do a second round of flagging when I exclude those values
+length_weight_flag_1 <- il_data.prep %>% 
+  #filter out surveys that have no catch
+  filter(!is.na(species.1)) %>% 
+  #group by species to create z score for weight and length
+  #flag created for fish more or less than 10 sd 
+  #add this flag to the flag column with coalesce
+  group_by(species.1) %>% 
+  mutate(mean_length = mean(length.1, na.rm = TRUE),
+         mean_weight = mean(weight.1, na.rm = TRUE),
+         sd_length = sd(length.1, na.rm = TRUE),
+         sd_weight = sd(weight.1, na.rm = TRUE),
+         z_score_length = (length.1 - mean_length) / sd_length,
+         z_score_weight = (weight.1 - mean_weight) / sd_weight,
+         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", "; ", coalesce(flag, "")),
+                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = case_when(length.1 == 0 | weight.1 == 0 ~ paste("length or weight reported as 0", "; ", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")) %>% 
+  ungroup()
+
+
+length_weight_flag_2 <- length_weight_flag_1 %>% 
+  filter((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
+           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10))) %>% 
+  group_by(species.1) %>% 
+  mutate(mean_length = mean(length.1, na.rm = TRUE),
+         mean_weight = mean(weight.1, na.rm = TRUE),
+         sd_length = sd(length.1, na.rm = TRUE),
+         sd_weight = sd(weight.1, na.rm = TRUE),
+         z_score_length = (length.1 - mean_length) / sd_length,
+         z_score_weight = (weight.1 - mean_weight) / sd_weight,
+         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", "; ", coalesce(flag, "")),
+                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")) %>% 
+  ungroup()
+
+#add back in flag1 rows that got removed
+combined_flags <- length_weight_flag_1 %>% 
+   filter(!((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
+           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10)))) %>% 
+  bind_rows(length_weight_flag_2) %>% 
+  select(survey_effort_id,
+         sub_effort_ident,
+         length.1,
+         weight.1,
+         flag) %>% 
+  distinct()
+
+
+length_weight_flag_1 %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  select(flag)
+
+length_weight_flag_2 %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  select(flag)
+
+combined_flags %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  select(flag)
+#you can see here that there are 20 length/weight based flags created in the first, 5 in the second, and 20 in the combined 
+#flags are generating the way we would expect, lets add them back to the df
+rm(length_weight_flag_1, length_weight_flag_2)
+
+#length_weight_flag_2 contains all of the flags that were accumulated throughout the ag process
+#we can left join these flags to the data 
+il_data.prep <- il_data.prep %>% 
+  select(-flag) %>% 
+  left_join(combined_flags, relationship = "many-to-one") 
+
+rm(combined_flags)
+
+il_data.prep %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  select(flag)
+
+il_data.prep %>% 
+  group_by(is.na(flag)) %>% 
+  count()
+
+############################final tidy################################
 il_data <- il_data.prep %>% 
   #lower case with no spaces for species name
   mutate(species.1 = str_to_lower(species.1),
@@ -1387,8 +1512,6 @@ il_data <- il_data.prep %>%
   #shorten unit to just g
   mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
                                    TRUE ~ NA)) %>%
-  mutate(flag = case_when(weight.1 > 2560000000000 ~ "unlikely weight",
-                          TRUE ~ flag)) %>% 
   #effort units
   mutate(total_effort_1_units = "minutes",
          sub_effort_1_units = "minutes") %>% 
@@ -1450,15 +1573,6 @@ il_data <- il_data.prep %>%
                                             TRUE ~ lat_unspec),
          longitude_lake_centroid = case_when(is.na(lon_unspec) ~ centroid_lon,
                                              TRUE ~ lon_unspec)) %>% 
-  #flagging sus efforts 
-  group_by(sampling_method) %>% 
-  mutate(mean_effort = mean(total_effort_1, na.rm = TRUE),
-         sd_effort = sd(total_effort_1, na.rm = TRUE),
-         z_score = (total_effort_1 - mean_effort) / sd_effort,
-         flag = case_when(total_effort_1 == 0 ~ paste("effort reported as 0, typical sets are for 1440 min but cannot be certain", flag),
-                          total_effort_1 < 0 ~ paste("invaild effort (negative)", flag),
-                     z_score > 10 ~ paste("high effort", flag),
-                     TRUE ~ flag)) %>% 
   ungroup() %>% 
   #columns that still need to be added
   mutate(year = year(date_sample),
@@ -1769,6 +1883,9 @@ il_data %>%
   count() %>% 
   arrange(sampling_method_simple) %>% 
   print(n = nrow(.))
+
+il_data %>% 
+  count(is.na(species_1))
 ``` 
 
 

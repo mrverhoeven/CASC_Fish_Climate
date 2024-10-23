@@ -6,57 +6,6 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
-# Preamble
-
-##Instructions
-This code is written in chunks that each accomplish a task moving towards the goal of a file for each state that encompasses all fish observations made/shared with us. The structure of that observation-level data should be one row per individual fish. By joining these data to the effort info, we will be able to filter and aggregate the data in flexible ways, always bringing along info on how much effort it took to catch each the fish obs (or set of fish).
-
-The data explainer sticks .n suffixes on columns where multiple fields from one of the datastes has multiple cols that match that field (i.e., date.1, date.2, date.3). The naming conventions for cols uses "_" and no spaces.
-
-After loading packages, the data from each state will be loaded into the WS and renamed according to the mapping of old colnames to new colnames in the data explainer. Next, the files should be explored a bit, and the script should identify files that will not be used, but instead get removed from the workspace. After this initial exploration fo what's there, the files should be restructured and munged into the obs-level format described above. When this is done, subsequent blocks should conduct some baseline additional QC should be done to verify the product of the munging is as-expected. Finally, the script should tidy up an remaining column or field formatting (e.g., species uses common names, no spaces, but "_"), and drop an unneeded columns. 
-
-
-A basic guide to columns we expect to see in a observation level data are as follows:
-
-LOCATION INFORMATION:
-state - 
-county - county associate with the wb in the state data
-lake_name - common lang name of the lake
-lake_id - usually a local id specific to the state contributing the data
-nhdhr.id - This column is usually added towards the end of the script based on state lake_ids using the mwlaxeref (Paul Frater) package from here: https://drive.google.com/drive/u/1/folders/1HURmPTtufVzI0aqn7D8MpKdL5B8atCL5
-
-SURVEY INFORMATION:
-date_clean - usually multiple dates are submitted with each fish (e.g., collection date, survey end date). Use the date of the survey as the primary date for each fish observation, generating a date_clean column
-survey_type - this is often specified in the data, and sometimes helps to filter out which data are useful for any given purpose (e.g., research survey, fishkill check)
-survey_id - in some states this is a provided variable used as a key to each "survey." Ususally a "survey" is multiple gears on a single lake on a single date (often surveys might run multiple consecutive dates, but only one date is reported )
-sampling_method - This is a gear field, and often includes wide ranging gears and sometimes very specific gears
-total_effort.1 - This should be a numeric field with only the qty of effort
-effort_units.1 - paired with total_effort.1, defines units for numeric
-nothing_caught - specifies that nothing was caught in this effort (species will also be NA)
-target_species - what was the species being targeted in the survey?
-effort_ident - This is a field we add, it is a unique key for each effort unit that we have data for(usually a gear within a survey). For example, a data user could get cpue by counting all fish within a group_by(effort_id) or it's equivalent group_by(lake_id, date, survey_type,sampling_method) 
-
-TAXA INFORMATION: 
-species.1 - species common name
-species_abbrev - State level code sometimes used in data share
-length.1 - length of fish observed, numeric
-length_unit.1 - units for length.1, also specify resolution if needed (e.g, cm, whole cm)
-weight.1 - weight of fish obs, numeric
-weight_unit.1 - units of weight.1, also specify resolution if needed (e.g, lb, whole lb)
-sample_id.1 - unique id for each fish observation sometimes provided and sometimes useful for connecting to aged fish
-age - age in years, numeric
-aging_structure - what was used to determine age?
-young_of_year - was the fish a YOY (i.e. hatched <365d before surveyed)
-sex - sex of fish (male, female, unknown, NA)
-
-SOURCE FILE INFORMATION: These columns come in with each dataset from the data explainer and we leave them in the product so that we could hunt down issues we find a bit more easily. 
-
-original_file_name.1_effort - name of effort file that was used to generate data in this row
-original_file_name.1_indivfish - name of individual fish file that was used to generate data in this row
-original_file_name.1_[...]
-
-FLAGS AND ISSUES:
-flag - this column contains a character string with issues describing each row, each issue separated with a comma. Use mutate(flag = paste(flag, "new issue description", sep = ",")) to add to this column without overwriting other issues already specified.
 
 # Update 7/22/24 (Denver)
 I ran into an issue in the parquet file where total effort ident "1" had no survey level info. I did some exploration and found it was due to poor survey id crosswalks between the individual fish object and the effort object. The survey id linkage was 1.) null in fish obs or 2.) survey id in fish was not found in the effort object. The surveys causing issue were removed. They must be removed because they were creating an erroneous total effort ident grouping for the surveys that just didn't have any info
@@ -198,43 +147,12 @@ rm(cde,names, unusedbits, cols, filei, files_list, i, maxn, n)
 sd_catch_indivfish_2Nov2023 <- rbindlist(list(sd_catch1_indivfish_2Nov2023,sd_catch2_indivfish_2Nov2023))
   rm(sd_catch1_indivfish_2Nov2023, sd_catch2_indivfish_2Nov2023)
   names(sd_catch_indivfish_2Nov2023)
-  
-  
-#HOlly's exploration for filter workshop
 
-sd_catch_indivfish_2Nov2023 %>%
-  group_by(garbage_bin_notes.1)%>%
-  summarise(total = n())%>%
-  filter(total > 1)%>%
-  print(n=nrow(.)) #appears that this "object ID" is an individual ID for each fish
-
-sd_catch_indivfish_2Nov2023 %>%
-  group_by(notes.1)%>%
-  summarise(total = n())%>%
-  print(n=nrow(.)) #serial number not unique to the fish, no helpful notes
-
-sd_catch_indivfish_2Nov2023 %>%
-  group_by(mark_recap_data_notes.1)%>%
-  summarise(total = n())%>%
-  print(n=nrow(.)) #mark recap data notes just lists the type of tag used
-
-sd_catch_indivfish_2Nov2023 %>%
-  group_by(mark_recap_data_notes.2)%>%
-  summarise(total = n())%>%
-  print(n=nrow(.)) #mark recap data notes 2 is just the number on the tag
-
-sd_catch_indivfish_2Nov2023 %>%
-  group_by(mark_recap_data_notes.3)%>%
-  summarise(total = n())%>%
-  print(n=nrow(.)) #mark recap notes 3 is tag color, all are null or NA, one is orange
-  
-###
 
 sd_catch_indivfish_2Nov2023[ , .N , .(survey_id, species.1) ]
 sd_catch_indivfish_2Nov2023[ , .N , .(species.1) ] %>% print( n = nrow(.))
 
 sd_catch_indivfish_2Nov2023[species.1 %in% c("<Null>", "None", "Uncoded"), species.1 := "Unknown" ]
-
 
 
 #then there's the batch count data:
@@ -255,10 +173,8 @@ sd_catch3_batchcounts_2Nov2023[sd_catch3_batchcounts_2Nov2023[, .N , .(survey_id
   sd_catch3_batchcounts_2Nov2023 <-  sd_catch3_batchcounts_2Nov2023[ total_count.1 > 0 ,  ]
   
 
-  
-#okay, so there are two (or more) different vals for batch counts, let's check to make sure that the effort data are one gear per lake kinda thing on the survey_id field
+  #okay, so there are two (or more) different vals for batch counts, let's check to make sure that the effort data are one gear per lake kinda thing on the survey_id field
 
-  
   
 #check effort data--is there more than one record per survey_id?
 sd_effort_lakesurveysdata_2Nov2023[ , .N , .(survey_id) ][N>1]
@@ -285,7 +201,7 @@ sd_catch_indivfish_2Nov2023[ ,  species.1 := tolower(species.1)]
 sd_length_age_2Nov2023[ , species.1 := gsub(" ","_", tolower(species.1)) ,]
   sd_length_age_2Nov2023[ , .N , species.1][order(species.1)]
 
-#check lenth age species
+#check length age species
 sd_length_age_2Nov2023[ , .N , .(species.1) ] %>% print( n = nrow(.))
 sd_length_age_2Nov2023[species.1 %in% c("<null>", "none", "uncoded"), species.1 := "unknown" ]
   sd_length_age_2Nov2023[ is.na(species.1), species.1 := "unknown"]
@@ -330,17 +246,6 @@ rm(sd_length_age_2Nov2023)
 #check out and pare down the effort data:
 sd_effort_lakesurveysdata_2Nov2023[ , .N , .(sampling_method.1, sampling_method_abbrev) ][order(sampling_method_abbrev)] #no need to keep the samping method abbrev
 
-# 
-# ## HOlly exploration for filtering workshop
-# Notes_SD_Effort <- sd_effort_lakesurveysdata_2Nov2023 %>%
-#   group_by(garbage_bin_notes.3)%>%
-#   summarise(Number_of_instances = n())%>%
-#   mutate(garbage_bin_notes.3 = str_replace_all(garbage_bin_notes.3, "\\\\", "/"))%>%
-#   separate_wider_delim(garbage_bin_notes.3, delim = "/", names =c("pt1", "pt2", "pt3", "pt4", "pt5", "pt6", "pt7", "pt8", "pt9", "pt10", "pt11", "pt12", "p13"), too_few = "align_end") #may contain survey purpose info or filtering info
-# 
-# #write_csv(Notes_SD_Effort, "SD_effort_file_path.csv")
-# ####
-# sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ , .(survey_id, date.1, lake_id, lake_name.1, location_notes.1, county,  site_id.1, site_id.2, sampling_method, total_effort_1, effort_units.1, original_file_name.1) , ]
 
 sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ , .(survey_id, date.1, lake_id, lake_name.1, location_notes.1, county,  site_id.1, site_id.2, sampling_method.1, total_effort_1, effort_units.1, original_file_name.1) , ]
 
@@ -369,7 +274,7 @@ sd_effort_lakesurveysdata_2Nov2023[ is.na(lake_id)] #one missing lake ID
   sd_merged_ce[is.na(lake_id), .N, .(survey_id, lake_id, lake_name.1) ]
   # sd_merged_ce <- sd_merged_ce[ !is.na(date.1) ]
   
-  #denver 7/22/24 - the above line identifies an issue, current parquet has missing survey info from 3934 obs (everything listed here besides Elmore Pond)
+  #denver 7/22/24 - the above line identifies an issue - current parquet has missing survey info from 3934 obs (everything listed here besides Elmore Pond)
   #All of the records are listed under the same total effort ident
 sd_merged_ce %>% 
   group_by(is.na(date.1)) %>% 
@@ -379,27 +284,12 @@ sd_merged_ce %>%
   group_by(survey_id) %>% 
   count()
 #removing records with NA dates removes 1.)null survey ids 2.)fish that had survey ids not present in lake survey data
-#3934 obs from these survey ids is the excate amount of obs within total effort 1 of the parquet
- #this grouping was erroneously created - grouped together due to the lack of data, i will remove them and proceed 
+#3934 obs from these survey ids is the exact amount of obs within total effort 1 of the parquet
+ #this total effort ident was erroneously in previous iterations made due to the lack of data, i will remove them and proceed 
 
 sd_merged_ce <- sd_merged_ce %>% 
   filter(!is.na(date.1))
-  
-#Holly's exploration for filter workshop
-SD_Gears <- sd_merged_ce %>%
-  group_by(sampling_method.1, species.1)%>%
-  summarise(Total_Obs = n())
 
-SD_Gears_2 <- sd_merged_ce %>%
-  group_by(sampling_method.1)%>%
-  summarise(Total_Obs = n())
-
-
-#write_csv(SD_Gears, "SD_gears_species.csv")
-#write_csv(SD_Gears_2, "SD_gears.csv")
-####
-rm(SD_Gears, SD_Gears_2)
-  
   
 #need a total effort ident in here:  
 #can see multiple sampling events for one gear over a short span of dates
@@ -510,7 +400,7 @@ sd_merged_ce %>%
   count() %>% 
   filter(lake_name.1 != lake_name_msu | county != county_msu) %>% 
   print(n = nrow(.))
-#great agreement in naming across the board
+#great agreement in naming across the board - only difference is an '
 
 rm(crosswalk_msu)
 
@@ -542,6 +432,7 @@ coord_match_check<- sd_merged_ce %>%
          lon_diff = abs(lon_unspec - centroid_lon))
 rm(coord_match_check)
 #all lakes that have nhdids are checking out nicely 
+rm(lat_lon_usgs)
 
 sd_merged_ce <- sd_merged_ce %>%
   #cleaning up some null columns up
@@ -600,6 +491,129 @@ sd_merged_ce <- sd_merged_ce %>%
 sd_merged_ce %>% 
   distinct(sampling_method.1, sampling_method_simple, sampling_method_1, sampling_method_2) %>% 
   arrange(sampling_method.1) %>% 
+  print(n = nrow(.))
+
+rm(gear_xwalk)
+
+#creating an auto flagging system
+flag_xwalk <- sd_merged_ce %>% 
+  distinct(total_effort_ident, .keep_all = TRUE) %>% 
+  group_by(sampling_method_simple) %>% 
+  mutate(mean_effort = mean(total_effort_1, na.rm = TRUE),
+         sd_effort = sd(total_effort_1, na.rm = TRUE),
+         z_score = (total_effort_1 - mean_effort) / sd_effort,
+         flag = NA, #creates a flag column so I can case_when the flag generation 
+         flag = case_when(total_effort_1 < 0 ~ paste("invalid effort (negative)", coalesce(flag, "")),
+                          total_effort_1 == 0 ~ paste("effort reported as 0", ";", coalesce(flag, "")),
+                          z_score > 10 ~ paste("high effort", ";", coalesce(flag, "")),
+                          is.na(z_score) ~ coalesce(flag, ""),
+                          TRUE ~ coalesce(flag, "")
+         ),
+         flag = na_if(flag, "")) %>% 
+  select(total_effort_ident,
+         sampling_method_simple,
+         flag,
+         total_effort_1,
+         mean_effort,
+         sd_effort,
+         z_score) %>% 
+  filter(!is.na(flag))
+
+flag_xwalk_2 <- sd_merged_ce %>% 
+  distinct(total_effort_ident, .keep_all = TRUE) %>%
+  filter(!(total_effort_ident %in% flag_xwalk$total_effort_ident)) %>% 
+  group_by(sampling_method_simple) %>% 
+  mutate(mean_effort = mean(total_effort_1, na.rm = TRUE),
+         sd_effort = sd(total_effort_1, na.rm = TRUE),
+         z_score = (total_effort_1 - mean_effort) / sd_effort,
+         flag = NA,
+         flag = case_when(total_effort_1 < 0 ~ paste("invalid effort (negative)", coalesce(flag, "")),
+                          total_effort_1 == 0 ~ paste("effort reported as 0", ";", coalesce(flag, "")),
+                          z_score > 10 ~ paste("high effort", ";", coalesce(flag, "")),
+                          is.na(z_score) ~ coalesce(flag, ""),
+                          TRUE ~ coalesce(flag, "")
+         ),
+         flag = na_if(flag, "")) %>% 
+  select(total_effort_ident,
+         sampling_method_simple,
+         flag,
+         total_effort_1,
+         mean_effort,
+         sd_effort,
+         z_score) %>% 
+  filter(!is.na(flag))
+
+flag_xwalk_effort <- rbind(flag_xwalk, flag_xwalk_2) %>% 
+  ungroup() %>% 
+  select(total_effort_ident, 
+         flag)
+rm(flag_xwalk, flag_xwalk_2)
+
+sd_merged_ce <- sd_merged_ce %>% 
+  left_join(flag_xwalk_effort,
+            relationship = "many-to-one")
+
+sd_merged_ce %>% 
+  filter(!is.na(flag)) %>% 
+  group_by(total_effort_ident, flag) %>% 
+  count()
+
+sd_merged_ce %>% 
+  filter(total_effort_ident %in% flag_xwalk_effort$total_effort_ident)
+#flag gets applied to 12350 fish records
+rm(flag_xwalk_effort)
+
+#flag for fish
+length_weight_flag_1 <- sd_merged_ce %>% 
+  filter(!is.na(species.1)) %>% 
+  group_by(species.1) %>% 
+  mutate(mean_length = mean(length.1, na.rm = TRUE),
+         weight.1 = as.numeric(weight.1),
+         mean_weight = mean(weight.1, na.rm = TRUE),
+         sd_length = sd(length.1, na.rm = TRUE),
+         sd_weight = sd(weight.1, na.rm = TRUE),
+         z_score_length = (length.1 - mean_length) / sd_length,
+         z_score_weight = (weight.1 - mean_weight) / sd_weight,
+         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste("unlikely length", ";", coalesce(flag, "")),
+                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste("unlikely weight", ";", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = case_when(length.1 == 0 | weight.1 == 0 ~ paste("length or weight reported as 0", ";", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")) %>% 
+  select(total_effort_ident,
+         total_effort_1,
+         species.1,
+         weight.1,
+         length.1,
+         mean_length,
+         mean_weight,
+         z_score_length,
+         z_score_weight,
+         flag) %>% 
+  filter(!is.na(flag)) %>% 
+  distinct()
+
+sd_merged_ce <- sd_merged_ce %>% 
+  select(-flag) %>% 
+  mutate(weight.1 = as.numeric(weight.1)) %>% 
+  left_join(length_weight_flag_1,
+            relationship = "many-to-one")
+
+flag_check <- sd_merged_ce %>% 
+  filter(!is.na(flag)) %>% 
+  group_by(total_effort_ident, sampling_method_1, species.1, total_effort_1, length.1, weight.1, flag) %>% 
+  count()
+rm(flag_check)
+
+sd_merged_ce %>% 
+  group_by(flag) %>% 
+  count()
+
+sd_merged_ce %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  group_by(species.1, length.1, length_unit.1, weight.1, weight_unit.1, flag) %>% 
+  count() %>% 
+  arrange(flag) %>% 
   print(n = nrow(.))
 ```
 
@@ -661,18 +675,7 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          ind_fish_ident = as.character(NA),
          area_group = as.character(NA),
          waterbody_type = as.character(NA),
-         flag = as.character(NA), 
          obs_id = as.character(row_number())) %>% 
-  #creating flag column
-  group_by(sampling_method_1) %>% 
-  mutate(mean_effort = mean(total_effort_1, na.rm = TRUE),
-         sd_effort = sd(total_effort_1, na.rm = TRUE),
-         z_score = (total_effort_1 - mean_effort) / sd_effort,
-         flag = case_when(
-           total_effort_1 == 0 ~ paste("effort reported as 0, typical sets are for 1440 min but cannot be certain", ifelse(is.na(flag), "", flag)),
-           total_effort_1 < 0 ~ paste("invalid effort (negative)", ifelse(is.na(flag), "", flag)),
-           z_score > 10 ~ paste("high effort", ifelse(is.na(flag), "", flag)),
-           TRUE ~ flag)) %>%
   ungroup() %>% 
   select(state, 
          county, 
@@ -791,9 +794,16 @@ sd_merged_ce_trial %>%
   collect()
 
 sd_merged_ce_trial %>% 
-  filter(!is.na(flag)) %>% 
+  filter(str_detect(flag, "effort")) %>% 
   group_by(total_effort_ident, sampling_method, total_effort_1, total_effort_1_units, flag) %>% 
-  count()
+  count() %>% 
+  print(n = nrow(.))
+
+sd_merged_ce_trial %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  group_by(total_effort_ident, species_1, length_1, length_unit_1, weight_1, weight_unit_1, flag) %>% 
+  count() %>% 
+  print(n = nrow(.))
 ```
 
 
@@ -951,4 +961,62 @@ sd_data %>%
 
 
 
+# Old code
+```{r}
+#found in ag chunk during review
+
+#Holly's exploration for filter workshop
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(garbage_bin_notes.1)%>%
+  summarise(total = n())%>%
+  filter(total > 1)%>%
+  print(n=nrow(.)) #appears that this "object ID" is an individual ID for each fish
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(notes.1)%>%
+  summarise(total = n())%>%
+  print(n=nrow(.)) #serial number not unique to the fish, no helpful notes
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(mark_recap_data_notes.1)%>%
+  summarise(total = n())%>%
+  print(n=nrow(.)) #mark recap data notes just lists the type of tag used
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(mark_recap_data_notes.2)%>%
+  summarise(total = n())%>%
+  print(n=nrow(.)) #mark recap data notes 2 is just the number on the tag
+
+sd_catch_indivfish_2Nov2023 %>%
+  group_by(mark_recap_data_notes.3)%>%
+  summarise(total = n())%>%
+  print(n=nrow(.)) #mark recap notes 3 is tag color, all are null or NA, one is orange
+
+
+# ## HOlly exploration for filtering workshop
+# Notes_SD_Effort <- sd_effort_lakesurveysdata_2Nov2023 %>%
+#   group_by(garbage_bin_notes.3)%>%
+#   summarise(Number_of_instances = n())%>%
+#   mutate(garbage_bin_notes.3 = str_replace_all(garbage_bin_notes.3, "\\\\", "/"))%>%
+#   separate_wider_delim(garbage_bin_notes.3, delim = "/", names =c("pt1", "pt2", "pt3", "pt4", "pt5", "pt6", "pt7", "pt8", "pt9", "pt10", "pt11", "pt12", "p13"), too_few = "align_end") #may contain survey purpose info or filtering info
+# 
+# #write_csv(Notes_SD_Effort, "SD_effort_file_path.csv")
+# ####
+# sd_effort_lakesurveysdata_2Nov2023 <- sd_effort_lakesurveysdata_2Nov2023[ , .(survey_id, date.1, lake_id, lake_name.1, location_notes.1, county,  site_id.1, site_id.2, sampling_method, total_effort_1, effort_units.1, original_file_name.1) , ]
+
+#Holly's exploration for filter workshop
+SD_Gears <- sd_merged_ce %>%
+  group_by(sampling_method.1, species.1)%>%
+  summarise(Total_Obs = n())
+
+SD_Gears_2 <- sd_merged_ce %>%
+  group_by(sampling_method.1)%>%
+  summarise(Total_Obs = n())
+
+
+#write_csv(SD_Gears, "SD_gears_species.csv")
+#write_csv(SD_Gears_2, "SD_gears.csv")
+####
+rm(SD_Gears, SD_Gears_2)
+```
 

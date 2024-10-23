@@ -39,8 +39,6 @@ options(scipen = 999)
 
 
 ##Data
-This could readily be changed into a function that takes a filepath and returns files into environment.
-* note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
 files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
@@ -1425,7 +1423,11 @@ il_data.prep %>%
 #I will first create a that includes these really large values
 #I will then do a second round of flagging when I exclude those values
 length_weight_flag_1 <- il_data.prep %>% 
+  #filter out surveys that have no catch
   filter(!is.na(species.1)) %>% 
+  #group by species to create z score for weight and length
+  #flag created for fish more or less than 10 sd 
+  #add this flag to the flag column with coalesce
   group_by(species.1) %>% 
   mutate(mean_length = mean(length.1, na.rm = TRUE),
          mean_weight = mean(weight.1, na.rm = TRUE),
@@ -1433,26 +1435,14 @@ length_weight_flag_1 <- il_data.prep %>%
          sd_weight = sd(weight.1, na.rm = TRUE),
          z_score_length = (length.1 - mean_length) / sd_length,
          z_score_weight = (weight.1 - mean_weight) / sd_weight,
-         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste("unlikely length", ";", coalesce(flag, "")),
-                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste("unlikely weight", ";", coalesce(flag, "")),
+         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", "; ", coalesce(flag, "")),
+                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
                           TRUE ~ coalesce(flag, "")),
-         flag = case_when(length.1 == 0 | weight.1 == 0 ~ paste("length or weight reported as 0", ";", coalesce(flag, "")),
+         flag = case_when(length.1 == 0 | weight.1 == 0 ~ paste("length or weight reported as 0", "; ", coalesce(flag, "")),
                           TRUE ~ coalesce(flag, "")),
          flag = na_if(flag, "")) %>% 
-  select(survey_effort_id,
-         survey_effort,
-         species.1,
-         weight.1,
-         length.1,
-         mean_length,
-         mean_weight,
-         z_score_length,
-         z_score_weight,
-         flag)
+  ungroup()
 
-length_weight_flag_1 %>% 
-  group_by(flag) %>% 
-  count()
 
 length_weight_flag_2 <- length_weight_flag_1 %>% 
   filter((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
@@ -1464,32 +1454,55 @@ length_weight_flag_2 <- length_weight_flag_1 %>%
          sd_weight = sd(weight.1, na.rm = TRUE),
          z_score_length = (length.1 - mean_length) / sd_length,
          z_score_weight = (weight.1 - mean_weight) / sd_weight,
-         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste("unlikely length", ";", coalesce(flag, "")),
-                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste("unlikely weight", ";", coalesce(flag, "")),
+         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", "; ", coalesce(flag, "")),
+                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
                           TRUE ~ coalesce(flag, "")),
          flag = na_if(flag, "")) %>% 
-  distinct(survey_effort_id,
-         survey_effort,
-         species.1,
-         weight.1,
+  ungroup()
+
+#add back in flag1 rows that got removed
+combined_flags <- length_weight_flag_1 %>% 
+   filter(!((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
+           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10)))) %>% 
+  bind_rows(length_weight_flag_2) %>% 
+  select(survey_effort_id,
+         sub_effort_ident,
          length.1,
-         mean_length,
-         mean_weight,
-         z_score_length,
-         z_score_weight,
+         weight.1,
          flag) %>% 
-  filter(!is.na(flag))
+  distinct()
+
+
+length_weight_flag_1 %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  select(flag)
 
 length_weight_flag_2 %>% 
-  group_by(flag) %>% 
-  count()
+  filter(str_detect(flag, "unlikely")) %>% 
+  select(flag)
+
+combined_flags %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  select(flag)
+#you can see here that there are 20 length/weight based flags created in the first, 5 in the second, and 20 in the combined 
+#flags are generating the way we would expect, lets add them back to the df
+rm(length_weight_flag_1, length_weight_flag_2)
 
 #length_weight_flag_2 contains all of the flags that were accumulated throughout the ag process
 #we can left join these flags to the data 
 il_data.prep <- il_data.prep %>% 
   select(-flag) %>% 
-  left_join(length_weight_flag_2, relationship = "many-to-one") 
+  left_join(combined_flags, relationship = "many-to-one") 
 
+rm(combined_flags)
+
+il_data.prep %>% 
+  filter(str_detect(flag, "unlikely")) %>% 
+  select(flag)
+
+il_data.prep %>% 
+  group_by(is.na(flag)) %>% 
+  count()
 
 ############################final tidy################################
 il_data <- il_data.prep %>% 

@@ -4741,5 +4741,141 @@ mw_data %>%
   collect()
 
 glimpse(mw_data)
+
+mw_data %>% 
+  group_by(state) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
+  filter(state == "Illinois") %>% 
+  group_by(is.na(species_1)) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
+  filter(state %in% c("Illinois", "Michigan")) %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
+  filter(state == "Michigan") %>% 
+  filter(!is.na(date_total_effort_ident)) %>% 
+  group_by(is.na(length_bin), year) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(desc(year)) %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  group_by(state, is.na(age)) %>% 
+  count() %>% 
+  collect()
+
+#do i retain both flags creations within IL?
+mw_data %>%
+  filter(state == "Illinois") %>% 
+  filter(!is.na(species_1)) %>% 
+  group_by(species_1, flag) %>% 
+  summarise(max = max(length_1, na.rm = T)) %>% 
+  arrange(desc(max)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#lake of the woods check 
+mw_data %>% 
+  filter(state == "Minnesota" & lake_id == "39000200") %>% 
+  group_by(year) %>% 
+  count() %>% 
+  arrange(desc(year)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#what is going on with some missing LOW years?
+mw_data %>% 
+  filter(state == "Minnesota" & lake_id == "39000200") %>%
+  filter(year %in% c("1996", "1997", "2013")) %>% 
+  collect() %>% 
+  group_by(total_effort_ident, flag, year, sampling_method_simple) %>%
+  count() 
+
+#gill netting data in 2013 gets thrown out because 58 records have gear issues (total effort ident 25580)
+mw_data %>% 
+  filter(state == "Minnesota" & lake_id == "39000200") %>%
+  filter(year %in% c("1996", "1997", "2013")) %>%
+  collect() %>% 
+  group_by(total_effort_ident) %>% 
+  filter(all(is.na(flag))) %>% 
+  group_by(total_effort_ident, flag, year, sampling_method_simple) %>%
+  count()
+
+mw_data %>% 
+  filter(state == "Minnesota" & lake_id == "39000200") %>%
+  filter(year %in% c("1996", "1997", "2013")) %>%
+  collect() %>% 
+  group_by(total_effort_ident) %>% 
+  filter(all(is.na(flag))) %>% 
+  ungroup() %>% 
+  group_by(total_effort_ident, month(date_total_effort_ident), year, sampling_method_simple) %>% 
+  count() %>% 
+  collect()
+#na dates for total effort ident
+
+mw_data %>% 
+  filter(state == "Minnesota") %>% 
+  filter(total_effort_ident == "44271") %>% 
+  collect() %>% 
+  distinct(total_effort_ident,
+         date_total_effort_ident,
+         month,
+         year) %>% 
+  print(n = nrow(.))
+#one date with a may month but the rest of September?
+#how is month and year generated?
+
+mw_data %>% 
+  filter(state == "Minnesota") %>% 
+  filter(total_effort_ident == "44281") %>% 
+  collect() %>% 
+  distinct(total_effort_ident,
+         date_total_effort_ident,
+         survey_type,
+         month,
+         year) %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  filter(survey_type == "HISTORICAL") %>% 
+  distinct(total_effort_ident, date_total_effort_ident) %>% 
+  collect() %>% 
+  distinct(total_effort_ident, date_total_effort_ident) %>% 
+   group_by(is.na(date_total_effort_ident)) %>% 
+   count()
+#it appears that all historical surveys have na total effort idents?
+
+mw_data %>% 
+  filter(lake_id == "6000200") %>% 
+  filter(year == 2021) %>% 
+  filter(sampling_method_simple == "gill_net") %>% 
+  collect() %>% 
+  group_by(flag, month(date_total_effort_ident), total_effort_1, area_group) %>% 
+  count() 
+
+mw_data %>% 
+  filter(state == "Indiana" & year == 2018 & sampling_method == "trap_net_michigan" & lake_name == "Brookville") %>% 
+  group_by(total_effort_ident,total_effort_1) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
+  filter(state == "Indiana") %>% 
+  select(total_effort_ident, total_effort_1) %>% 
+  collect() %>% 
+  group_by(total_effort_ident, total_effort_1) %>% 
+  count() %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  filter(n >1)
 ```
 

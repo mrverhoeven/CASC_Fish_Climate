@@ -38,3 +38,7 @@ desktop.ini
 .rds
 .Rdata
 .parquet
+
+archive
+Data
+*.zip

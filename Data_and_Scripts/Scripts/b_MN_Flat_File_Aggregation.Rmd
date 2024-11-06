@@ -14,6 +14,8 @@ CHECK: Historical WAE survey duplication
 1. where gear notes marked with dippers, bring back dipper # into end of gear desc.
 2. Consider grabbing the mesh var?
 3. Daylight EFing (gear data notes 2 - keep it around for filtering)
+
+4. Line 229 might offer a key to the large lakes missing data issue. Had a "total.count" val for those, 
   
 
 
@@ -306,20 +308,20 @@ Update 15 Sep 2023: We recieved a new data rip from MN DNR in three pieces: effo
   mn_cpue_21aug2023[ is.na(date_clean), ]
 
   mn_cpue_21aug2023[ , hist(yday(date_clean)) ,]
-  mn_cpue_21aug2023[ , hist(year(date_clean)) ,]
+  mn_cpue_21aug2023[ , .N ,.(lake_name,lake_id,year(date_clean))][ , hist(year) ,]
   
   #compared to the effort file, it's obvious there is overlap in these and that the CPUE stuff has more old data
-  mn_effort_18aug2023[ , hist(year(date_clean)) ,]
+  mn_effort_18aug2023[ ,.N ,.(lake_name,lake_id,year(date_clean))][ , hist(year) ,]
   
   
   #check overlap betweek effort and CPUE:
   mn_cpue_21aug2023[            , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ]
   mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ]
 
-   mn_cpue_21aug2023[            , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ][
+   mn_cpue_21aug2023[            , .("cpueN" = .N) , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ][
      mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ], 
-     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type) , 
-   ]
+     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type) , effortN := "N" 
+   ][ , .N , .("missingCPUE" = is.na(cpueN), "missing_effort" = is.na(effortN))] #
    
 
    
@@ -456,8 +458,8 @@ sum(mn_indiv_fish_23nov2023[ , unique(lake_id) , ] %in% mn_effort_18aug2023[ , u
 
 intersect(names(mn_effort_18aug2023), names(mn_indiv_fish_23nov2023))
 
-
-#we know that dates are a problem, can we schmooze that join? MEMORY HOG PINCH POINT
+#MEMORY HOG PINCH POINT
+#we know that dates are a problem, can we schmooze that join? 
 #we leave many column names out of this merge key to avoid disconnecting things where one dataset has empty info
 flatfish <- merge(mn_effort_18aug2023,mn_indiv_fish_23nov2023, by = c("lake_id", "date_clean" , "sampling_method_abbrev", "survey_type"), suffixes = c("_effort", "_indivfish"), all = T)
 
@@ -559,7 +561,7 @@ flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_cl
 
 
 #this flatfish file is big AF and will slow down Mike's Hansen Lab Computer (32gb RAM)
-# flatfish <- readRDS("mn_flat_effort_indivfish_merge.rds")
+# flatfish <- readRDS("Data_and_Scripts/Data/output/mn_flat_effort_indivfish_merge.rds")
 
 
 

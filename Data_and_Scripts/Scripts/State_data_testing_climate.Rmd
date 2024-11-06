@@ -4877,5 +4877,21 @@ mw_data %>%
   group_by(total_effort_ident) %>% 
   count() %>% 
   filter(n >1)
+
+mw_data %>% 
+  filter(state == "Iowa") %>% 
+  collect() %>% 
+  distinct(total_effort_ident, total_effort_1, .keep_all = T) %>% 
+  group_by(is.na(total_effort_1), is.na(flag)) %>% 
+  count()
+
+mw_data %>% 
+  filter(state == "Iowa") %>% 
+  collect() %>% 
+  distinct(total_effort_ident, total_effort_1, .keep_all = T) %>% 
+  filter(is.na(total_effort_1) & is.na(flag)) %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  print(n = nrow(.))
 ```
 

@@ -23,25 +23,57 @@ DONE  7. Winnebago data included all species, want to constrain to be same as th
 DONE  8. add an effort_ident to each trawl haul from Winnebago-- note the weirdness of this (one lake, many cpues in a single day)
 DONE  8a. add effort_ident to each surveyXgear?
 DONE  9. Connect ages back to the fish observations (Diagnostics ideas -- check some unpaired age data and see if you can find the obs that should match it)
-DONE  10. Flag crazy dates
 DONE  11. Add a nothing_caught tag
-DONE  12. Add NHDids
 DONE  13. cleannames() to colnames
 DONE  14. Update the total effort ident grouping to be at the surveyXgearXdate level
 DONE  17. Ensure nothing_caught is assigned at the total_effort_ident level
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
-Patched  16. Why are no cisco showing up in WI?
+done? 16. Why are no cisco showing up in WI?
             Currently we do have about 30 ish surveys in there  
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
             See b_WI_cisco.Rmd file
+      41. WI - missing NHDids on Cisco
+done? 15. Update the WI data to include all species sent by Paul F in November 2023
       23. Throw out rivers and streams (see d_fish_data_maps)
       18. Drop extra columns.
       19. Make sure all cols match the column names and descriptions thing
       21. Convert length units to mm (2/1 - decided not to convert based on discussion of sig. digits)
       22. Many lengthed fish do not have a unit on their length
-      15. Update the WI data to include all species sent by Paul F in November 2023
       25. Set all to state == Wisconsin
       26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
+      27. Add weigh to the aged fish join key.
+      28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
+      29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
+DONE  10. Flag crazy dates
+      30. Check N species in a survey (is 44 spp a reasonable finding?)
+      31. Make sure all gear details are retained (likely this funnels into gear data notes)
+      32. Add flags for 0 efforts and high efforts
+      33. County check to make sure I pulled the correct column
+      37. Counties and lake names are all lower case with _ instead of spaces - all other states are capital first letter with spaces
+      34. Re-generate the wi_effort_file_notes file (this is what Jack reviewed. DO we HAVE to do this?)
+            Check on gear data notes (very messy); Keep an eye on the NA removal in the paste/collapse function
+      35. Schema matched to overall hive
+      36. Review for problems: TEIs sometimes contain multiple water temps straddling the temp cutoffs
+      38. There are two target species cols–collapse and comma separate
+      39. Do the lengths we have from WI get generated? Do they use a plus bin? (this would be a size of fish that was longer than X) (check for grepex of "+" in the data that are imported)
+      40. There are several survey type columns - some rows are NA for the first survey type but have some values for 2, 3, 4 (This probably stems from specific types of surveys within wisconsin (primary.survey.purpose, secondary.survey.purpose;  Suggested change is to fill WI survey types from 1 (if any), then survey type 2 (if any secondary after filling slot 1) ))
+      42. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
+      12. Check coverage of NHDids, Lat, Lon
+      43. Check that our flagging is spelling out implications
+      44. Auto Flagging: (build a flagging template from the MW Hive then apply it state-by-state)
+          0 and negative efforts
+          10SDs above mean effort? (by gear/state?)
+          Lengths (prob group by age/survey/something) - big and small
+          Weights (prob group by age/survey/something)
+          Counts (by TEI)
+      45. Add sampling method simple column to hive
+      46. Collapse targeted sp to one column
+          Nix total effort 3 and targeted species 2 
+      47. Clean water temp units column. 
+      
+
+
+
       
 
       
@@ -927,7 +959,7 @@ rm(wi_winnebago_fishobservations_23April2021 )
 
 ```
 
-##Get targeted cisco data worked in
+## Get targeted cisco data worked in
 ```{r}
 
 wi_target_cisco8nov2023 <- read_csv("wi_raw_disaggregated_data/wi_target_cisco8nov2023.csv")
@@ -1142,58 +1174,9 @@ wi_inland_fishobservations_10Nov2023[ , total_effort_nothing_caught :=  all(is.n
 rm(tot_eff_1)
 
 
-# this correction is deprecated
-      # #all winnebago sub_effort data are contained in the total effort column (will need to calc new total effort vals)
-      # wi_inland_fishobservations_10Nov2023[str_detect(lake_name,"innebago"), .N , .(total_effort_ident,sub_effort_ident) ]
-      # 
-      # 
-      # #for winnebago, total effort from a survey is a sum of how many 5 minute trawls were on that date
-      # wi_inland_fishobservations_10Nov2023[ str_detect(original_file_names, "winnebago") ,
-      #                                       .("n_uniquesubidents" = length(unique(sub_effort_ident)), "unique_eff" = length(unique(sub_effort_1))) , .(total_effort_ident, sub_effort_ident, date, sampling_method, total_effort_1, total_effort_1_unit) ] #these are all 1 unit of 5 minute trawl or 1 net-night of gillnet
-      # 
-      # 
-      # #calculate trawl efforts
-      # wi_inland_fishobservations_10Nov2023[  str_detect(original_file_names, "winnebago") & sampling_method == "trawl" , `:=` (total_effort_1 = length(unique(sub_effort_ident))*5,
-      #                                                                                                       total_effort_1_unit = "minutes"),
-      #                                                                                                       .(total_effort_ident) ]
-      # 
-      # #calculate gillnet efforts
-      # wi_inland_fishobservations_10Nov2023[ str_detect(original_file_names, "winnebago")  & sampling_method == "gillnet" , `:=` (total_effort_1 = length(unique(sub_effort_ident)),
-      #                                                                                                       total_effort_1_unit = "net-nights"),
-      #                                                                                                       .(total_effort_ident) ]
-      # 
-      # wi_inland_fishobservations_10Nov2023[ !is.na(total_effort_ident) , .("nfish" = .N, unique(total_effort_1), unique(total_effort_1_unit)) , .(total_effort_ident, sampling_method)]
-      #   
-#  
-
-
 
 #clean up the columns?
 names(wi_inland_fishobservations_10Nov2023)
-
-
-
-
-
-
-
-# not_garbage <- c( 
-#   "state", "county", "lake_name", "lake_id", "date", "survey_id", "survey_type.1_indivfish", "survey_type.2_indivfish", "survey_type.1_effort", "survey_type.2_effort",
-#   "sampling_method",  "simple_gear", "target_species_effort", "target_species_indivfish", "secondary_target_species",                   
-#   "total_effort_ident", "total.effort.1", "total.effort.2", "total.effort.1.units", "total.effort.2.units", "distance", "distance_units",
-#   "gear_data_notes.10", "water_temp", "water_temp_units", "water_clarity", "water_clarity_units", "lat_start", "lon_start", "lat_end", "lon_end", "site_id.1", "site_id.2", "site_id.3", "site_id.4", "gear_data_notes.1","sub_effort_ident","sub_effort_1", "sub_effort_1_units",
-#   "species.1", "length.1", "length_unit.1", "age", "aging_structure.1_agedfish", "weight.1_indivfish", "weight.1_agedfish", "weight_unit.1",
-#   "sex_agedfish", "sex_indivfish", "young_of_year", "id_indv_win_len", "aging_data_notes.1", "reproductive_condition_notes",
-#   "flag",
-#   "original_file_name.1_agedfish", "original_file_name.1_indivfish", "original_file_name.1_effort", "original_file_name.1_winnebago"
-#   )
-# 
-# 
-# setcolorder(wi_inland_fishobservations_10Nov2023, not_garbage) #reorder from this list before axe-ing the garbage cols
-# 
-# wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023[ , ..not_garbage , ]
-# 
-# #parquet version 2, dated 26 Oct 2023 3:37pm
 
 
 #clean up column names - checked. not the problem
@@ -1219,8 +1202,11 @@ wi_inland_fishobservations_10Nov2023[is.na(flag) | flag == "", .N]
 wi_inland_fishobservations_10Nov2023[is.na(flag) | flag == "", flag := NA, ]
 wi_inland_fishobservations_10Nov2023[year(date) < 1938 |
                                         year(date) > 2023 , flag := ifelse(is.na(flag), "bad_date" , fpaste(flag, "bad_date", sep = ";" )) ,]
+
+
 ```
-#NHDs
+
+# NHDs
 ```{r}
 # add NHDids
 MGLP_crosswalk <- fread("MGLP_FISH_LAKES_12Aug24.csv")
@@ -1615,7 +1601,7 @@ wi_data <- wi_inland_fishobservations_10Nov2023 %>%
 
 write_dataset(dataset = wi_inland_fishobservations_10Nov2023, path = "wi_raw_disaggregated_data/wi_file_arrow", format = "parquet")
 
-wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow/")
+wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow2/")
 
 glimpse(wi_data)
 

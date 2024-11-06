@@ -4877,5 +4877,181 @@ mw_data %>%
   group_by(total_effort_ident) %>% 
   count() %>% 
   filter(n >1)
+
+mw_data %>% 
+  filter(state == "Michigan") %>% 
+  collect() %>% 
+  group_by(is.na(length_1), is.na(length_bin)) %>% 
+  count()
+
+#Iowa na total effort 
+na_total <- mw_data %>% 
+  filter(state == "Iowa") %>% 
+  filter(is.na(total_effort_1)) %>%
+  filter(is.na(flag)) %>% 
+  collect() %>% 
+  distinct(total_effort_ident) 
+
+#do all of these have more than one sampling method within the same total effort ident?
+mw_data %>% 
+  filter(state == "Iowa") %>% 
+  select(total_effort_ident,
+         total_effort_1, 
+         sub_effort_1, 
+         sampling_method_simple,
+         sampling_method, 
+         sampling_method_2,
+         lake_name,
+         date_total_effort_ident,
+         species_1, 
+         length_1, 
+         flag, 
+         total_effort_nothing_caught) %>% 
+  collect() %>% 
+  filter(total_effort_ident %in% na_total$total_effort_ident) %>% 
+  group_by(total_effort_ident, sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+
+#looking at specific cases
+iowa_check <-  mw_data %>% 
+  filter(state == "Iowa" & total_effort_ident == 258) %>% 
+  select(total_effort_ident,
+         total_effort_1, 
+         sub_effort_1, 
+         sampling_method_simple,
+         sampling_method, 
+         lake_name,
+         date_total_effort_ident,
+         species_1, 
+         length_1, 
+         flag, 
+         total_effort_nothing_caught,
+         total_effort_2,
+         total_effort_3) %>% 
+  collect()
+#different sampling method but the same date and lake: 258, 2850
+
+#recruitment workshop
+mw_data %>% 
+  filter(state == "Minnesota" & species_1 == "rock_bass" & sampling_method == "gill_net_standard") %>% 
+  summarise(min_year = min(year),
+            max_year = max(year)) %>% 
+  collect()
+
+mw_data %>% 
+  filter(state == "Minnesota" & species_1 == "rock_bass" & sampling_method == "gill_net_standard") %>% 
+  collect() %>% 
+  group_by(lake_id) %>% 
+  slice_min(order_by = length_1, n = 100, with_ties = F) %>% 
+  group_by(lake_id) %>% 
+  summarise(average_smallest_10 = mean(length_1, na.rm = T)) %>% 
+  filter(!is.na(average_smallest_10)) %>% 
+  summarise(mean_smallest = mean(average_smallest_10))
+
+mw_data %>% 
+  filter(state == "Minnesota" & species_1 == "rock_bass" & sampling_method == "gill_net_standard") %>%
+  group_by(year) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(year) %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  filter(sampling_method_simple == "gill_net" & state == "Minnesota") %>% 
+  group_by(sampling_method) %>% 
+  count() %>% 
+  collect()
+```
+
+#mn large lake summaries
+```{r}
+library(tidyverse)
+library(arrow)
+mw_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
+
+mw_data %>% 
+  filter(lake_name %in% c("Cass",
+                          "Kabetogama", 
+                          "Lake of the Woods", 
+                          "Leech",
+                          "Mille Lacs", 
+                          "Pepin", 
+                          "Rainy", 
+                          "Upper Red", 
+                          "Vermilion", 
+                          "Winnibigoshish")) %>% 
+  filter(!(lake_id %in% c("{D3003F72-D06F-4FE6-8FCE-E8B1A15DC4C9}", 
+                          "11035600",
+                          "40002800",
+                          "77002500 "))) %>% 
+  distinct(lake_name, lake_id) %>% 
+  collect() %>% 
+  arrange(lake_name)
+
+mw_data %>% 
+  filter(lake_name %in% c("Cass",
+                          "Kabetogama", 
+                          "Lake of the Woods", 
+                          "Leech",
+                          "Mille Lacs", 
+                          "Pepin", 
+                          "Rainy", 
+                          "Upper Red", 
+                          "Vermilion", 
+                          "Winnibigoshish")) %>% 
+  filter(!(lake_id %in% c("{D3003F72-D06F-4FE6-8FCE-E8B1A15DC4C9}", 
+                          "11035600",
+                          "40002800",
+                          "77002500 "))) %>% 
+  group_by(lake_name) %>% 
+  summarise(max_year = max(year),
+            min_year = min(year),
+            n_years = n_distinct(year)) %>% 
+  collect()
+
+mw_data %>% 
+  filter(lake_name == "Lake of the Woods" & state == "Minnesota") %>% 
+  group_by(year, survey_type, sampling_method_simple, total_effort_nothing_caught) %>% 
+  count() %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  filter(lake_name == "Lake of the Woods" & state == "Minnesota" & sampling_method_simple == "gill_net") %>%
+  distinct(year, survey_type) %>% 
+  collect() %>% 
+  arrange(year) %>% 
+  print(n = nrow(.))
+
+mw_data %>% 
+  filter(lake_name == "Lake of the Woods" & 
+           state == "Minnesota" & 
+           sampling_method_simple == "gill_net" & 
+           year == 1995) %>%
+  collect() %>% 
+  group_by(survey_type) %>% 
+  summarise(count = n())
+
+mw_data %>% 
+  filter(lake_name == "Lake of the Woods" & 
+           state == "Minnesota" & 
+           sampling_method_simple == "gill_net" & 
+           year == 1995) %>%
+  collect() %>% 
+  select(lake_name, survey_type, species_1, total_effort_nothing_caught)
+
+mw_data %>% 
+  filter(lake_name == "Winnibigoshish" & 
+           state == "Minnesota" & 
+           sampling_method_simple == "gill_net" & 
+           year == 1996) %>%
+  collect() %>% 
+  select(lake_name, survey_type, species_1, total_effort_nothing_caught) %>% 
+  group_by(species_1) %>% 
+  count()
 ```
 

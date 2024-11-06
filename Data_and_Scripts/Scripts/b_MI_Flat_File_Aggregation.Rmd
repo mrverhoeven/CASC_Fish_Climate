@@ -33,8 +33,6 @@ options(scipen = 999)
 
 
 ##Data
-This could readily be changed into a function that takes a filepath and returns files into environment.
-* note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
 files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files

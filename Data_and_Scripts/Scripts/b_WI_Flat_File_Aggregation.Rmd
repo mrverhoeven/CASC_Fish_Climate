@@ -33,6 +33,7 @@ done? 16. Why are no cisco showing up in WI?
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
             See b_WI_cisco.Rmd file
       41. WI - missing NHDids on Cisco
+      48. Should Cisco data be in the data explainer?
 done? 15. Update the WI data to include all species sent by Paul F in November 2023
       23. Throw out rivers and streams (see d_fish_data_maps)
       18. Drop extra columns.
@@ -144,7 +145,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "wi_raw_disaggregated_data/wi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -157,7 +158,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("wi_raw_disaggregated_data/wi_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -248,7 +249,7 @@ if (outer_break) {print("Data import issue");rm(outer_break)
 [3] "wi_inland_fishobservations_10Nov2023.csv"      ~ Individual Fish    
 [4] "wi_inland_lenage_10Nov2023"                ~ Individual Fish             
 [5] "wi_winnebago_cpue_23Apr2021.csv"               ~ CPUE (just has CPUE and units for CPUE)       LINE 338 - LINE 356 shows that this file is redundant and unneeded.       
-[6] "wi_winnebago_fishobservations_23April2021.csv" ~ Individual Fish NO THIS IS NOT!!!!!!!!!
+[6] "wi_winnebago_fishobservations_23April2021.csv" ~ Individual Fish  and multiple fish per row catch data
 
 
 ## Explore Effort Data
@@ -749,7 +750,7 @@ crosscheck[ , .N , .(cpue_obs_match, cpue_Nfish == 0)]
 
 
 # add crosscheck flag into the data:
-wi_inland_fishobservations_10Nov2023[crosscheck, on = .(species, survey_id), flag := ifelse(laa_exceeds_obs==T, "Number of aged fish exceeds number of observed fish", "")  ]
+wi_inland_fishobservations_10Nov2023[crosscheck, on = .(species, survey_id), flag := ifelse(laa_exceeds_obs==T, "Number of aged fish  exceeds number of observed fish in this speciesXsurvey", "")  ]
 
 wi_inland_fishobservations_10Nov2023[ , .N , flag ]
 

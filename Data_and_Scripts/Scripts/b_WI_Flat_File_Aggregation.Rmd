@@ -71,6 +71,7 @@ DONE  10. Flag crazy dates
       46. Collapse targeted sp to one column
           Nix total effort 3 and targeted species 2 
       47. Clean water temp units column. 
+      48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
       
 
 
@@ -145,7 +146,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -158,7 +159,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -247,7 +248,7 @@ if (outer_break) {print("Data import issue");rm(outer_break)
 [1] "wi_inland_cpue_19Mar2021.csv"                  ~ CPUE (Effort and Catch)                 
 [2] "wi_inland_effort_10Nov2023.csv"                ~ True Effort (as distance, sample_time_notes.1, gear_data_notes.9)
 [3] "wi_inland_fishobservations_10Nov2023.csv"      ~ Individual Fish    
-[4] "wi_inland_lenage_10Nov2023"                ~ Individual Fish             
+[4] "wi_inland_lenage_10Nov2023"                    ~ Individual Fish             
 [5] "wi_winnebago_cpue_23Apr2021.csv"               ~ CPUE (just has CPUE and units for CPUE)       LINE 338 - LINE 356 shows that this file is redundant and unneeded.       
 [6] "wi_winnebago_fishobservations_23April2021.csv" ~ Individual Fish  and multiple fish per row catch data
 
@@ -589,119 +590,7 @@ wi_inland_fishobservations_10Nov2023[, .N, species] #285 species/hybrids
 ```
 
 #Fish Count Conflicts
-are the aged fish also in the wi_inland_fishobservations_10Nov2023 file? (MOVED TO ITS OWN SCRIPT, not run here to save memory & runtimes)
-```{r}
-        
-#This is an issue: 
-
-# 
-#         # fish_ob_test <- wi_inland_fishobservations_10Nov2023[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", .N ,][,.(survey_id, sampling_method, species.1, lake_id, length.1, date, age),]
-#         # # 650 walleye in a fyke net in this survey
-#         # 
-#         # 
-#         # len_age_test <- wi_inland_lenage_10Nov2023[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date, age)]
-#         # # 1,137 walleye in fyke net in the same survey, but these fish have no ages, all NA..?
-#         # 
-#         #   ### in the example above, there are more fish in the length age file than the fish ob file... 
-#         # 
-#         # fish_ob_plot <- ggplot(data = fish_ob_test, aes(x = length.1))+geom_histogram(binwidth = .5)
-#         # len_age_plot <- ggplot(data = len_age_test, aes(x = length.1))+geom_histogram(binwidth = .5)
-#         # 
-#         # library(cowplot)
-#         # compare_plot <- plot_grid(fish_ob_plot, len_age_plot, labels = c("fish observations", "length age")) #same distribution of lengths
-#         # 
-#         # len_age_test[fish_ob_test, on = .(survey_id, sampling_method, species.1, lake_id, length.1, date),nomatch = NULL]
-#         # 
-#         # matches <- fish_ob_test[ , date := as.POSIXct(date) ,] %>%
-#         #   inner_join(len_age_test, by = c("survey_id", "sampling_method", "species.1", "lake_id", "length.1", "date"))
-#         # 
-#         # 
-#         # data_common1 <- generics::intersect(len_age_test, fish_ob_test)  # Apply intersect function
-#         # data_common1 #384 have same survey_id, sampling_method, species, lake id, length and date
-# 
-# # review the data from that survey (from each source):
-# wi_inland_fishobservations_10Nov2023[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", , ][,.(survey_id, sampling_method, species.1, lake_id, length.1, date, age),][order(length.1)][ ,.N , length.1]
-#   wi_inland_fishobservations_10Nov2023[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye", , ][,.(survey_id, sampling_method, species.1, lake_id, length.1, date, age),][order(length.1)]
-# 
-# wi_inland_lenage_10Nov2023[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date, age)][order(length.1)][ ,.N , length.1]
-#   wi_inland_lenage_10Nov2023[survey_id == "281" & sampling_method == "fyke_net" & species.1 == "walleye",  .(survey_id, sampling_method, species.1, lake_id, length.1, date, age)][order(length.1)]
-# 
-#   wi_inland_lenage_10Nov2023[ , date := as.IDate(date) , ]
-#   
-# crosscheck <- merge(
-#   wi_inland_fishobservations_10Nov2023[ , .("obsN" = .N), .(survey_id, sampling_method, species.1, lake_id, length.1, date) ],
-#   wi_inland_lenage_10Nov2023[ , .("laaN" = .N), .(survey_id, sampling_method, species.1, lake_id, length.1, date) ],
-#   by = c("survey_id", "sampling_method", "species.1", "lake_id", "length.1", "date")
-#   )
-# 
-# plot(laaN~obsN, data = crosscheck[!is.na(obsN)])
-# abline(0,1)
-# 
-# crosscheck[laaN > obsN] #10k cases (N of lengthXspeciesXgearXsurvey) with more obs in laa data than in the ind fish dataset
-# 
-# 
-# #there are fish with backcalcualted ages (not what we want)
-# wi_inland_lenage_10Nov2023[,.N ,(backcalculated_age)] #yes, dp, fl
-# 
-# #how many ages are NAs?
-# wi_inland_lenage_10Nov2023[, .N,is.na(age)] #443,811 fish have ages and 239,785 fish do not have ages (35% of ages are NA)
-# 
-# # eliminate instances where 1) age is NA 2) age was backcalculated in length age file and 3) summarize by species in survey gear (no lengths) and try a similar test as above
-# 
-# crosscheck <- merge(
-#   wi_inland_fishobservations_10Nov2023[ , .("obsN" = .N), .(survey_id, sampling_method, species.1, lake_id, date) ],
-#   wi_inland_lenage_10Nov2023[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl")  , .("laaN" = .N), .(survey_id, sampling_method, species.1, lake_id, date) ],
-#   by = c("survey_id", "sampling_method", "species.1", "lake_id", "date"), all = T
-#   )
-# 
-# ggplot(crosscheck, aes(laaN, obsN))+
-#   geom_point()+
-#   geom_abline(slope = 1, intercept = 0)
-# 
-# crosscheck[ , laa_subset_prop := laaN/obsN , ]
-# 
-# ggplot(crosscheck, aes(laa_subset_prop))+
-#   geom_histogram()
-# 
-# crosscheck[ , summary(laa_subset_prop)]
-# 
-# crosscheck[laaN > obsN] #eliminating the NA ages and backcalculated ages still leaves ~ 50% of the laaN>obsN data 
-# 
-# 
-# Qsurveys <- crosscheck[crosscheck[laaN>obsN, .N, .(survey_id, sampling_method)][ , N := NULL] , , ]
-# 
-# Qsurveys[ , flagged_laa_obs_Qs := laaN>obsN   ,]
-# 
-# 
-# a <- wi_inland_fishobservations_10Nov2023[survey_id == 651 & species.1 == "yellow_perch"]
-# 
-# b <- wi_inland_lenage_10Nov2023[survey_id == 651 & species.1 == "yellow_perch"]
-# 
-# 
-# 
-# crosscheck <- merge(
-#   wi_inland_fishobservations_10Nov2023[ , .("obsN" = .N), .(survey_id, species.1, lake_id) ],
-#   wi_inland_lenage_10Nov2023[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl")  , .("laaN" = .N), .(survey_id, species.1, lake_id) ],
-#   by = c("survey_id", "species.1", "lake_id"), all = T
-#   )
-# 
-# Qsurveys <- crosscheck[crosscheck[laaN>obsN, .N, .(survey_id)][ , N := NULL] , , ]
-# 
-# 
-# 
-# 
-# rm(crosscheck)
-# 
-# wi_inland_fishobservations_10Nov2023[ ]
-# colnames(wi_inland_fishobservations_10Nov2023)
-
-
-
-
-
-
-
-```
+There are many cases where there are more aged fish than there are "sampled" or total catch fish. A set of diagnoses and scope of problem analyeses have been MOVED TO ITS OWN SCRIPT. IN short, you'll see in the next code block we'll connect what we can and label some things as effed up with a flag column. 
 
 ## Connect to aged fish files
 ```{r}
@@ -766,13 +655,37 @@ wi_inland_lenage_10Nov2023[ , date := as.IDate(date,format = "%m/%d/%Y"),]
 wi_inland_lenage_10Nov2023[, length := round(length,1) ]
 wi_inland_fishobservations_10Nov2023[, length := round(length,1) ]
 
-#add identifiers for individual fish-lengths in a survey 
-wi_inland_fishobservations_10Nov2023[ , id_indv_win_len := seq_len(.N) , .(lake_id, date, sampling_method, survey_id, species, length) ] #assign a id to each ind fish observed within a given length
-wi_inland_lenage_10Nov2023[ , id_indv_win_len := seq_len(.N) , .(lake_id, date, sampling_method, survey_id, species, length) ]  #assign a id to each ind fish observed within a given length
+# try a rounding to tenth lbs to clean up the age link
+wi_inland_lenage_10Nov2023[, weight := round(weight, 1) ]
+wi_inland_fishobservations_10Nov2023[, weight := round(weight, 1) ]
 
-#drop unneeded cols from age data
-wi_inland_lenage_10Nov2023 <- wi_inland_lenage_10Nov2023[ , .(lake_id, date, sampling_method, survey_id, species, length, weight, age, aging_structure, sex, reproductive_condition_notes, aging_data_notes, id_indv_win_len, original_file_name) , ]
-#drop unneeded cols from indivfish table
+# tidy sexes to clean up the age link
+wi_inland_lenage_10Nov2023[, .N , sex ]
+wi_inland_fishobservations_10Nov2023[, .N , sex ]
+ wi_inland_fishobservations_10Nov2023[, sex := tolower(sex) ]
+ wi_inland_fishobservations_10Nov2023[sex == "ns", sex := "not sexed" ]
+ wi_inland_fishobservations_10Nov2023[sex == "", sex := NA]
+
+# tidy aging_structure to clean up the age link
+wi_inland_lenage_10Nov2023[, .N , aging_structure ]
+wi_inland_fishobservations_10Nov2023[, .N , aging_structure ] 
+ wi_inland_fishobservations_10Nov2023[aging_structure == "fin ray" , aging_structure := "fin_ray" , ]
+ wi_inland_fishobservations_10Nov2023[ aging_structure == ""  , aging_structure := NA  ,   ] 
+ 
+ 
+ 
+ 
+#add identifiers for individual fish-lengths, weights, and sexes in a survey 
+wi_inland_fishobservations_10Nov2023[ , id_indv_win_len := seq_len(.N) , .(lake_id, date, sampling_method, survey_id, species, length, weight, sex, aging_structure ) ] #assign a id to each ind fish observed within a given length
+wi_inland_lenage_10Nov2023[ , id_indv_win_len := seq_len(.N) , .(lake_id, date, sampling_method, survey_id, species, length, weight, sex, aging_structure) ]  #assign a id to each ind fish observed within a given length
+
+#retain only the needed cols from age data
+wi_inland_lenage_10Nov2023 <- wi_inland_lenage_10Nov2023[ , .(lake_id, date, sampling_method, survey_id, species,
+                                                              length,length_unit, weight, weight_unit,   aging_structure, sex, 
+                                                              age,
+                                                              reproductive_condition_notes, aging_data_notes, 
+                                                              id_indv_win_len, original_file_name) , ]
+#drop unneeded cols from indivfish table (wi_)
 wi_inland_fishobservations_10Nov2023[ , age := NULL , ]
 
 #cleanup ws to prep for heavy merge
@@ -780,8 +693,10 @@ rm(cde, crosscheck, gear_table, wi_inland_cpue_19Mar2021, cols, filei, files_lis
 #merge/do left join 
 wi_inland_fishobservations_10Nov2023 <- 
 merge(wi_inland_fishobservations_10Nov2023,
-      wi_inland_lenage_10Nov2023[],
-      by =  c("lake_id", "date", "sampling_method", "survey_id", "species", "length", "id_indv_win_len"),
+      wi_inland_lenage_10Nov2023,
+      by =  c("lake_id", "date", "sampling_method", "survey_id",
+              "species", "length", "length", "length_unit", "weight", "weight_unit", "aging_structure", "sex",
+              "id_indv_win_len"),
       all = T,
       suffixes = c("_indivfish","_agedfish")) # works
 

@@ -30,7 +30,8 @@ glimpse(mn_data)
 
 #suitable lakes will have 20+y of std gillnetting
   mn_data %>% 
-    filter(str_detect(sampling.method, "Standard gill")) %>% 
+    filter(str_detect(sampling.method, "Standard gill") &
+             !is.na(total.effort)) %>% 
     group_by(lake.name, lake.id, nhdhr.id) %>% 
     summarise(
       nyears = n_distinct(year(date)))%>%
@@ -44,7 +45,8 @@ glimpse(mn_data)
   
 #for those lakes, how may years of data for each species?retrieve data
   mn_data %>% 
-    filter(str_detect(sampling.method, "Standard gill")) %>% 
+    filter(str_detect(sampling.method, "Standard gill")&
+             !is.na(total.effort)) %>% 
     inner_join(. , suitable_lakes,) %>% 
     group_by(species, lake.name) %>%
     summarize(
@@ -54,7 +56,8 @@ glimpse(mn_data)
 
 #import data: all lake gillnet survey data from locs w/ 20+ years of GN survey records,
   mn_data %>% 
-    filter(str_detect(sampling.method, "Standard gill")) %>% 
+    filter(str_detect(sampling.method, "Standard gill") &
+             !is.na(total.effort)) %>% 
     inner_join(. , suitable_lakes,) %>% 
     collect() %>% 
     setDT() %>% 
@@ -93,7 +96,7 @@ glimpse(mn_data)
     geom_density(aes(color = as.factor(age)))+
     facet_wrap(~lake.name, scales = "free")
 
-#highlight age 3  
+#highlight ages 1,2,3  
   ggplot( gn_dat_20y[species == "walleye" & !is.na(length)] ,
           aes( length, group = as.factor(age)) )+
     geom_density(aes(color = as.factor(age)))+
@@ -150,11 +153,94 @@ glimpse(mn_data)
   
   gn_cpe_20y[ , birth_year := year-est.age ,]
   
-  ggplot(gn_cpe_20y[species == "walleye" & est.age %in% c(0:8)], aes(birth_year, cpe, group = est.age))+
+  ggplot(gn_cpe_20y[species == "walleye" & est.age %in% c(1:8)], aes(birth_year, cpe, group = est.age))+
     geom_path(aes(color = est.age))+
     # geom_smooth(method = "loess")+
     facet_wrap(~lake.name, scales = "free")
   
 
 
+# northern pike -----------------------------------------------------------
+
+  
+  ggplot( gn_dat_20y[species == "northern_pike" & !is.na(length)] ,
+          aes( length, group = as.factor(age)) )+
+    geom_density(aes(color = as.factor(age)))+
+    facet_wrap(~lake.name, scales = "free")
+  
+  #highlight age 3  
+  ggplot( gn_dat_20y[species == "northern_pike" & !is.na(length)] ,
+          aes( length, group = as.factor(age)) )+
+    geom_density(aes(color = as.factor(age)))+
+    facet_wrap(~lake.name, scales = "free")+
+    geom_density(data = gn_dat_20y[species == "northern_pike" & !is.na(length) & age == 1],
+                 aes(length), fill = "red")+
+    geom_density(data = gn_dat_20y[species == "northern_pike" & !is.na(length) & age == 2],
+                 aes(length), fill = "yellow")+
+    geom_density(data = gn_dat_20y[species == "northern_pike" & !is.na(length) & age == 3],
+                 aes(length), fill = "green")
+  
+  
+  ggplot( gn_dat_20y[species == "northern_pike" & !is.na(length)] ,
+          aes( length))+
+    geom_density()+
+    facet_wrap(~age, scales = "free")
+  
+  ggplot( gn_dat_20y[species == "northern_pike" & !is.na(length)] ,
+          aes( length) )+
+    geom_histogram()+
+    facet_wrap(~lake.name, scales = "free")
+  
+  
+  #usually age 3 fish are "recruits", I'd argue that these plots are showing good capture of age 1 and age 2 fish as well. 
+  
+  #calculate an age specific cpe through time for these lakes. Here we'll use the estimated ages becasue of biases introduced in the process of subsampling for ages
+
+  gn_cpe_20y 
+  #get these ordered by date
+  setorder(gn_cpe_20y, year)
+  
+  ggplot(gn_cpe_20y[species == "northern_pike" & est.age %in% c(0:3)], aes(year, cpe, group = est.age))+
+    geom_path(aes(color = est.age))+
+    # geom_smooth(method = "loess")+
+    facet_wrap(~lake.name, scales = "free")
+  
+  
+  
+  ##time lag recruitments to their birth year
+
+  ggplot(gn_cpe_20y[species == "northern_pike" & est.age %in% c(1:8)], aes(birth_year, cpe, group = est.age))+
+    geom_path(aes(color = est.age))+
+    # geom_smooth(method = "loess")+
+    facet_wrap(~lake.name, scales = "free")
+  
+  
+  ggplot(gn_cpe_20y[species %in% c("northern_pike", "walleye", "black_crappie", "cisco", "largemouth_bass", "smallmouth_bass") & est.age %in% c(3)], aes(birth_year, cpe, group = species))+
+    geom_path(aes(color = species))+
+    # geom_smooth(method = "loess")+
+    facet_wrap(~lake.name, scales = "free")
+  
+  #normalize the CPEs w/in lakesXspeciesXage
+  
+  gn_cpe_20y[ , lake_max_cpe := max(cpe)  , .(lake.name, lake.id, nhdhr.id, 
+                     species, est.age) ]
+  
+  
+  
+  ggplot(gn_cpe_20y[species %in% c("northern_pike", "walleye", "black_crappie", "cisco", "yellow_perch",  "largemouth_bass", "smallmouth_bass") & est.age %in% c(3)], aes(birth_year, cpe/lake_max_cpe, group = species))+
+    geom_path(aes(color = species))+
+    # geom_smooth(method = "loess")+
+    facet_wrap(~lake.name, scales = "free")
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   

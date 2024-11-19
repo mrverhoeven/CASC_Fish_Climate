@@ -185,6 +185,9 @@ gn_cpe_20y %>%
 gn_cpe_20y[ , cpe := catch_n/total.effort , ]
 
 
+# zeros expansion ---------------------------------------------------------
+
+
 # check for zeros that are appropriate
 
 gn_cpe_20y[ , .("nzeros" = sum(catch_n==0)) , .(lake.name, lake.id, species, est.age, year(date), total.effort.ident )  ]
@@ -194,6 +197,46 @@ gn_cpe_20y_annsums[ , .("nzeros" = sum(ann_catch==0)) , .(lake.name, lake.id, sp
 
 #seems to jive that there are zero cpes carrying through for species-age classes in here. 
 
+# check for species remaining in as zeros when they 
+
+gn_cpe_20y_annsums[ , .("nspp" = length(unique(species))) , .(lake.id, year) ]
+#here we see that no every species is shoiwng up in all years within a lake
+
+#expand data to cover all species that could be sampled in each lakeXyear
+gn_cpe_20y_annsums %>% 
+  group_by(state, county, lake.name, lake.id, nhdhr.id) %>% 
+  complete(. , year, nesting(species, est.age)) %>% #complete all missing speciesXage data for each year within each lake
+  setDT() %>% 
+  {gn_cpe_20y_annsums <<- .}
+
+gn_cpe_20y_annsums[is.na(ann_catch) , ann_catch := 0 , ]
+
+annual_efforts <- gn_cpe_20y_annsums[!is.na(annual_effort) , .N , .(state, county, lake.name, lake.id, nhdhr.id, year, annual_effort, annual_effort_units ) ]
+setDT(gn_cpe_20y_annsums)
+
+gn_cpe_20y_annsums %>% 
+  select(-c(annual_effort_units,annual_effort) ) %>% 
+  {gn_cpe_20y_annsums <<- .}
+
+
+gn_cpe_20y_annsums[annual_efforts,
+                   on = .(state, county, lake.name, lake.id, nhdhr.id, year),
+                   `:=` (annual_effort = annual_effort, annual_effort_units = annual_effort_units) ]
+
+
+# recalc cpes -------------------------------------------------------------
+
+gn_cpe_20y_annsums[ , cpe := ann_catch/annual_effort , ]
+
+
+
+
+# birth year --------------------------------------------------------------
+
+##time lag recruitments to their birth year
+
+gn_cpe_20y[ , birth_year := year(date)-est.age ,]
+gn_cpe_20y_annsums[ , birth_year := year-est.age ,]  
   
 # walleye -----------------------------------------------------------------
 
@@ -246,10 +289,7 @@ ggplot( gn_dat_20y[species == "walleye" & !is.na(length)] ,
     # geom_smooth(method = "loess")+
     facet_wrap(~lake.name, scales = "free")
   
- ##time lag recruitments to their birth year
-  
-gn_cpe_20y[ , birth_year := year(date)-est.age ,]
-gn_cpe_20y_annsums[ , birth_year := year-est.age ,]  
+
   
 ggplot(gn_cpe_20y_annsums[species == "walleye" & est.age %in% c(1:8)], aes(birth_year, cpe, group = est.age))+
     geom_path(aes(color = est.age))+
@@ -343,15 +383,19 @@ ggplot(gn_cpe_20y_annsums[species == "walleye" & est.age %in% c(1:8)], aes(birth
     geom_histogram()+
     facet_wrap(~lake.name, scales = "free")
   
+  ggplot( gn_dat_20y[species == "yellow_perch" & !is.na(length)] ,
+          aes( length, group = year) )+
+    geom_density(aes(color = year))+
+    facet_wrap(~lake.name, scales = "free")
   
   #looks to me that the age 2 fish are recruiting to the gear pretty well
   
   #calculate an age specific cpe through time for these lakes. Here we'll use the estimated ages becasue of biases introduced in the process of subsampling for ages
   
   #ensure these are ordered by date (fopr plotting)
-  setorder(gn_cpe_20y, year)
+  setorder(gn_cpe_20y_annsums, year)
   
-  ggplot(gn_cpe_20y_annsums[species == "yellow_perch" & est.age %in% c(2,3,4)], aes(year, cpe, group = est.age))+
+  ggplot(gn_cpe_20y_annsums[species == "yellow_perch" & est.age %in% c(2)], aes(year, cpe, group = est.age))+
     geom_path(aes(color = est.age))+
     # geom_smooth(method = "loess")+
     facet_wrap(~lake.name, scales = "free")
@@ -364,6 +408,9 @@ ggplot(gn_cpe_20y_annsums[species == "walleye" & est.age %in% c(1:8)], aes(birth
     geom_path(aes(color = est.age))+
     # geom_smooth(method = "loess")+
     facet_wrap(~lake.name, scales = "free")  
+  
+  
+  
 
 # compare multi-species ---------------------------------------------------
 
@@ -392,12 +439,12 @@ ggplot(gn_cpe_20y_annsums[species == "walleye" & est.age %in% c(1:8)], aes(birth
 
   
   # for each species
-  # fwrite(gn_cpe_20y_annsums[species == "walleye" & est.age == 1, , ],
-  #        file = "Data_and_Scripts/Data/output/Recruitment_Workshop_Data/age1_walleye_GN_cpe.csv")
-  # fwrite(gn_cpe_20y_annsums[species == "northern_pike" & est.age == 2, , ],
-  #        file = "Data_and_Scripts/Data/output/Recruitment_Workshop_Data/age2_northernpike_GN_cpe.csv")
-  # fwrite(gn_cpe_20y_annsums[species == "yellow_perch" & est.age == 3, , ],
-  #        file = "Data_and_Scripts/Data/output/Recruitment_Workshop_Data/age3_yellowperch_GN_cpe.csv")
+  fwrite(gn_cpe_20y_annsums[species == "walleye" & est.age == 1, , ],
+         file = "Data_and_Scripts/Data/output/Recruitment_Workshop_Data/age1_walleye_GN_cpe.csv")
+  fwrite(gn_cpe_20y_annsums[species == "northern_pike" & est.age == 2, , ],
+         file = "Data_and_Scripts/Data/output/Recruitment_Workshop_Data/age2_northernpike_GN_cpe.csv")
+  fwrite(gn_cpe_20y_annsums[species == "yellow_perch" & est.age == 3, , ],
+         file = "Data_and_Scripts/Data/output/Recruitment_Workshop_Data/age3_yellowperch_GN_cpe.csv")
 
   
   gn_cpe_20y[lake.name == "Fox" & species == "largemouth_bass"]

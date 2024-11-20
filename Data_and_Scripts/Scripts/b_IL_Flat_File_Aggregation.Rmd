@@ -41,7 +41,7 @@ options(scipen = 999)
 ##Data
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -54,7 +54,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data/",
+          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -481,9 +481,11 @@ rm(check, effort.catch, effort.effort, final_combined_surveys, final_mismatched_
 #makes fish per row from batch counted fish
 il_catch_age_effort_30Nov23_uncount <- il_catch_age_effort_30Nov23 %>% 
   #creating length bin category for bin counted fish
-  mutate(length_bin = case_when(total_count.1 >1 ~ length.1,
+  mutate(length_bin = case_when((total_count.1 > 1 & (length.1 %% 10 == 0))  ~ length.1,
                                 TRUE ~ NA),
-         length_bin_unit = case_when(total_count.1 > 1 ~ "minimum value of 10mm bin",
+         length_bin = case_when(!is.na(length_bin) ~ paste0(length_bin, "-", length_bin+9.99),
+                                TRUE ~ NA),
+         length_bin_unit = case_when(!is.na(length_bin) ~ "mm",
                                      TRUE ~ NA),
          #making length.1 na for fish that have a bin length
          length.1 = case_when(!is.na(length_bin) ~ NA,
@@ -502,8 +504,14 @@ il_catch_age_effort_30Nov23_uncount <- il_catch_age_effort_30Nov23 %>%
                                                                 "Gear Used:Boat electrofishing DC -- Wisconsin (Night)") ~ "Boat electrofishing DC (Night)",
                                        TRUE ~ gear_data_notes.1))
 
+
 #collapsing effort from the fish obs level file 
 #this file is checked for conflicts between the effort file in a later step - keeping effort in this file makes joining cleaner and retain surveys that didn't catch fish 
+
+il_catch_age_effort_30Nov23_uncount %>% 
+  distinct(length.1, length_bin, length_bin_unit) %>%  
+  print(n = nrow(.))
+
 
 #In this step, I make a targeted species columns the effort spent sub sampling for surveys that have sub sample associated with them
 #this keeps the data in a format so each survey is one row with associated sub sampling tagged 
@@ -759,6 +767,8 @@ surveys.excluded <- excluded %>%
   group_by(lake_id, lake_name.1, survey_id, year, gear_data_notes.1, total_effort_2, total_effort_1, species.1) %>% 
   count() 
 #all joining columns combine correctly between the effort and catch file
+
+rm(effort.check, excluded, no_fish, no_matches, surveys.excluded)
 ``` 
           
 #Age data - effort and catch
@@ -807,15 +817,17 @@ il_aged_fish_surveys_12Dec2023 %>%
   count()
 #data from 13 lakes
 ############starting the merge################
-
 #uncounting aged fish surveys
 #no surveys have sub-sampling associated with them - thus I am just making a subsample time 1 column where all values will be 0
 #make a bin length for fish batch counted with bin lengths
 il_aged_fish_surveys_12Dec2023_uncount <- il_aged_fish_surveys_12Dec2023 %>% 
-  mutate(length_bin = case_when(total_count.1 >1 ~ length.1,
+  mutate(length_bin = case_when((total_count.1 > 1 & (length.1 %% 10 == 0))  ~ length.1,
                                 TRUE ~ NA),
-         length_bin_unit = case_when(total_count.1 > 1 ~ "minimum value of 10mm bin",
+         length_bin = case_when(!is.na(length_bin) ~ paste0(length_bin, "-", length_bin+9.99),
+                                TRUE ~ NA),
+         length_bin_unit = case_when(!is.na(length_bin) ~ "mm",
                                      TRUE ~ NA),
+         #making length.1 na for fish that have a bin length
          length.1 = case_when(!is.na(length_bin) ~ NA,
                               TRUE ~ length.1)) %>% 
   uncount(total_count.1) %>% 
@@ -937,6 +949,8 @@ il_data_merged_age <- il_data_merged_age %>%
                           TRUE ~ flag)) %>%  #flagging surveys without any effort reported 
   rename(lake_area_acres = c_lakesize)
 #this could be merged with the other fish file now, however we likely do not have representative nothing caught surveys and there is an overlap of total effort idents and survey ids
+
+rm(effort.check)
 ```
 
 #merging age fish and standard catch fish
@@ -1274,6 +1288,36 @@ il_data.prep %>%
            lake_type, 
            lat_unspec, 
            lon_unspec)
+
+il_data.prep %>% 
+  group_by(is.na(length.1),
+           is.na(length_bin)) %>% 
+  count()
+
+il_data.prep %>% 
+  mutate(length_bin = as.character(length_bin)) %>% 
+  filter(!str_detect(length_bin, "0$")) %>% 
+  distinct(length_bin, length_bin_unit, original_file_name.1_agedfish, original_file_name.1_effort, original_file_name.1_indvifish) %>%
+  print(n = nrow(.))
+
+il_data.prep %>% 
+  distinct(length.1, length_bin, length_bin_unit) %>% 
+  print(n = nrow(.))
+
+il_data.prep %>% 
+  group_by(is.na(length.1),
+           is.na(length_bin)) %>% 
+  count()
+
+il_data.prep %>% 
+  group_by(sex) %>% 
+  count()
+
+il_data.prep %>% 
+  mutate(sex = case_when(sex == "" ~ NA,
+                         TRUE ~ sex)) %>% 
+  group_by(sex) %>% 
+  count()
 ```
 
 #Data tidying                        
@@ -1574,6 +1618,9 @@ il_data <- il_data.prep %>%
          longitude_lake_centroid = case_when(is.na(lon_unspec) ~ centroid_lon,
                                              TRUE ~ lon_unspec)) %>% 
   ungroup() %>% 
+  #standardize the sex column
+  mutate(sex = case_when(sex == "" ~ NA,
+                         TRUE ~ sex)) %>%
   #columns that still need to be added
   mutate(year = year(date_sample),
          month = month(date_sample),
@@ -1648,14 +1695,11 @@ il_data <- il_data.prep %>%
          sampling_method_2,
          gear_data_notes,
          target_species,
-         target_species_2,
          total_effort_ident,
          total_effort_1, 
          total_effort_2,
-         total_effort_3,
          total_effort_1_units,
          total_effort_2_units,
-         total_effort_3_units,
          total_effort_nothing_caught,
          water_temp,
          water_temp_units,
@@ -1679,7 +1723,6 @@ il_data <- il_data.prep %>%
          length_bin_unit,
          age,
          aging_structure.1,
-         aging_structure_2,
          weight.1,
          weight_unit.1,
          batch_weight,
@@ -1691,7 +1734,6 @@ il_data <- il_data.prep %>%
          ind_fish_ident,
          lakesize,
          lakesize_units,
-         area_group,
          lat_unspec,
          lon_unspec,
          waterbody_type,

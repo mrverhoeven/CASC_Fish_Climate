@@ -604,37 +604,33 @@ wi_inland_cpue_19Mar2021[ , unique(sampling_method)]
 wi_inland_fishobservations_10Nov2023[ , sort(unique(sampling_method))  , ]
 wi_inland_lenage_10Nov2023[ ,sort(unique(sampling_method))  ,]
 
-
-
-
-
+# the dates are fucked up. Grab out the survey start date, and do the merge on that?
 # DATES prep date col
-wi_inland_lenage_10Nov2023[ , str(date) ,]
-
-wi_inland_lenage_10Nov2023[ , date := as.IDate(date),]
+wi_inland_lenage_10Nov2023[ , summary(date) ,]
+wi_inland_lenage_10Nov2023[!(year(as.IDate(date)) %in% c(1930:2023)) , unique(year(as.IDate(date))),]
+wi_inland_lenage_10Nov2023[!is.na(date) & !(year(as.IDate(date)) %in% c(1930:2023)) , .N,]
+#about 3.5k records with a clearly erroneous date
 
 # length-age records missing sample dates are a problem for the join. ~20k records
 wi_inland_fishobservations_10Nov2023[ , .N , is.na(date) ]
 wi_inland_lenage_10Nov2023[ , .N , is.na(date) ]
 
-wi_inland_lenage_10Nov2023[ , .N , is.na(date)]
-
 wi_inland_lenage_10Nov2023[ is.na(date), unique(year)]
 wi_inland_lenage_10Nov2023[ , .N , year]
 
 #botched date to year. will recover that momentarily
+wi_inland_lenage_10Nov2023[ year == "218" , date ,]
 wi_inland_lenage_10Nov2023[ year == "218" , year := 2018 ,]
 
-wi_inland_fishobservations_10Nov2023[ , .N , year ]
+wi_inland_fishobservations_10Nov2023[ , .N , sort(year) ]
 
 #sample_date from the state
-
 # how many sample dates in a survey 
 wi_inland_lenage_10Nov2023[ , n_distinct(date) , survey_id][ , hist(V1)]
 
-# so a quick recap here is that there are ~20k records in the fish obs that do not have a sample date a person could dredge up the survey start and end dates, but it is not clear to me how that could help ID fish within a survey
+# so a quick recap here is that there are ~20k records in the fish obs that do not have a sample date a person could dredge up the survey start and end dates, but it is not clear to me how that could help ID fish within a survey. For another 20k, there are bad dates in the length age data 
   wi_inland_fishobservations_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
-  wi_inland_lenage_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
+  wi_inland_lenage_10Nov2023[ , .N , .("nosampledate" = is.na(date), "errordate" = !(year(as.IDate(date)) %in% c(1930:2023))) ]
 
 wi_inland_lenage_10Nov2023[ , .N , species]
 
@@ -693,6 +689,12 @@ wi_inland_fishobservations_10Nov2023[, length := round(length,1) ]
 wi_inland_lenage_10Nov2023[, weight := round(weight, 1) ]
 wi_inland_fishobservations_10Nov2023[, weight := round(weight, 1) ]
 
+wi_inland_fishobservations_10Nov2023[ , unique(length_unit)]
+wi_inland_fishobservations_10Nov2023[ , unique(weight_unit)]
+  wi_inland_fishobservations_10Nov2023[ , weight_unit := "lb"]
+wi_inland_lenage_10Nov2023[ , unique(length_unit)]
+wi_inland_lenage_10Nov2023[ , unique(weight_unit)]
+
 # tidy sexes to clean up the age link
 wi_inland_lenage_10Nov2023[, .N , sex ]
 wi_inland_fishobservations_10Nov2023[, .N , sex ]
@@ -712,7 +714,7 @@ wi_inland_fishobservations_10Nov2023[, .N , aging_structure ]
  
  
  
-#add identifiers for individual fish-lengths, weights, and sex, structure in a survey 
+#add identifiers for individual fish-lengths, weights, and sex, structure in a survey IGNORING DATE because its effed
 wi_inland_fishobservations_10Nov2023[ , id_indv_win_len := seq_len(.N) , .(lake_id, date, sampling_method, survey_id, species, length, weight, sex, aging_structure, age ) ] #assign a id to each ind fish observed within a given length
 wi_inland_lenage_10Nov2023[ ,           id_indv_win_len := seq_len(.N) , .(lake_id, date, sampling_method, survey_id, species, length, weight, sex, aging_structure, age) ]  #assign a id to each ind fish observed within a given length
 
@@ -726,24 +728,62 @@ wi_inland_lenage_10Nov2023 <- wi_inland_lenage_10Nov2023[ , .(lake_id, date, yea
 #rename age cols from indivfish table (wi_)
 wi_inland_fishobservations_10Nov2023[ ,.N , age]
 wi_inland_fishobservations_10Nov2023[  , .N  , .("noage" = is.na(age), "nolength" = is.na(length)) ]
-wi_inland_fishobservations_10Nov2023[ , age_fishobsfile := age]
-wi_inland_fishobservations_10Nov2023[ , age := NULL]
+
+
+wi_inland_lenage_10Nov2023[ , date := as.IDate(date)  , ]
+
 
 #merge/do left join 
-test <- 
+wi_inland_fishobservations_10Nov2023 <- 
 merge(wi_inland_fishobservations_10Nov2023,
       wi_inland_lenage_10Nov2023,
-      by =  c("lake_id", "date", "sampling_method", "survey_id",
+      by =  c("lake_id", "date",  "sampling_method", "survey_id",
               "species", "length",  "length_unit", "weight", "weight_unit", "sex", "aging_structure", 
               "id_indv_win_len"),
       all = T,
       suffixes = c("_indivfish","_agedfish")) # works
 
-#check work -- not working
-test[  , .N  , .("Has_Observatinon_Dat" = !is.na(original_file_name_indivfish), "Has_age_dat" = !is.na(age_agedfish))   ]
-test[  , .N , .() ]
+#check work -- fro about 153k aged fish records we succeeded in direct matching. 
+wi_inland_fishobservations_10Nov2023[  , .N  , .("Has_Observatinon_Dat" = !is.na(original_file_name_indivfish), "Has_age_dat" = !is.na(age_agedfish))   ]
+  #tag the unmatched as likely duplicates  
+  wi_inland_fishobservations_10Nov2023[ , .N , flag ]
+  wi_inland_fishobservations_10Nov2023[flag == "", flag := NA]
+  wi_inland_fishobservations_10Nov2023[is.na(original_file_name_indivfish) & !is.na(original_file_name_agedfish),
+                                       flag := ifelse(is.na(flag), "likely duplicate fish record retained for length-age" , fpaste(flag, "likely duplicate fish record retained for length-age", sep = ";" ))
+                                       ]
+#where we have two ages, how's the match?
+wi_inland_fishobservations_10Nov2023[  , .N , .("hasfishrecord" = !is.na(original_file_name_indivfish), "hasagerecord" = !is.na(original_file_name_agedfish))]
+#where we have two ages:
+wi_inland_fishobservations_10Nov2023[ , hist(age_indivfish - age_agedfish, breaks = seq(-11.5,11.5,1)) , ]
+#indivfish table unmatched ages
+wi_inland_fishobservations_10Nov2023[is.na(original_file_name_agedfish) ,  .N , .(age_indivfish) ]
 
-wi_inland_fishobservations_10Nov2023[ !is.na(age) , .("n_fish" = .N, "n_dates" = length(unique(date))) , .(lake_id, lake_name) ]
+#were these unmatched ages from surveys where we had no other aged fish records?
+wi_inland_fishobservations_10Nov2023[ , 
+                                      .("nagesinindfish" = sum(!is.na(age_indivfish)),
+                                      "nagesinagedfish" = sum(!is.na(age_agedfish))) ,
+                                      survey_id][ nagesinindfish>0 & nagesinagedfish == 0]
+
+#where are there surveys that have aged fish records? for these, drop the old ages
+surveys <- wi_inland_fishobservations_10Nov2023[ , 
+                                      .("nagesinindfish" = sum(!is.na(age_indivfish)),
+                                      "nagesinagedfish" = sum(!is.na(age_agedfish))) ,
+                                      survey_id][nagesinagedfish > 0][ ,survey_id]
+#drop those ages from indiv fish file
+wi_inland_fishobservations_10Nov2023[survey_id %in% surveys, age_indivfish := NA]
+
+
+wi_inland_fishobservations_10Nov2023[  , .N, .("ageinindfish" = !is.na(age_indivfish), "ageinagedfish" = !is.na(age_agedfish)) ]
+
+wi_inland_fishobservations_10Nov2023[ is.na(age_agedfish) , age_agedfish := age_indivfish ,] 
+
+wi_inland_fishobservations_10Nov2023[ , age_indivfish := NULL   ,  ]
+
+setnames(wi_inland_fishobservations_10Nov2023, old = "age_agedfish", new = "age" )
+
+
+
+wi_inland_fishobservations_10Nov2023[ !is.na(age_) , .("n_fish" = .N, "n_dates" = length(unique(date))) , .(lake_id, lake_name) ]
 
 # fwrite(crosscheck, file = "Data_and_Scripts/Data/output/crosscheck_cpue_fishobs_lengthage.csv")
 rm(wi_inland_lenage_10Nov2023)

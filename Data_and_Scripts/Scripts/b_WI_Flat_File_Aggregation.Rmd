@@ -144,20 +144,20 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
 n <- length(files_list)
 
 for(i in 1:n) {
-  #i = 3
+  #i = 4
   outer_break <- FALSE# clean up so that break tool will refresh
   
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -605,6 +605,57 @@ wi_inland_fishobservations_10Nov2023[ , sort(unique(sampling_method))  , ]
 wi_inland_lenage_10Nov2023[ ,sort(unique(sampling_method))  ,]
 
 
+
+
+
+# DATES prep date col
+wi_inland_lenage_10Nov2023[ , str(date) ,]
+
+wi_inland_lenage_10Nov2023[ , date1 := as.IDate(date),]
+
+wi_inland_lenage_10Nov2023[ , .N , is.na(date)]
+
+wi_inland_lenage_10Nov2023[ is.na(year), .N]
+
+#botched date to year:
+wi_inland_lenage_10Nov2023[ year == "218" , date_survey_start ,]
+
+#sample_date from the state
+# length-age records missing sample dates are a problem for the join. 
+wi_inland_fishobservations_10Nov2023[ , .N , is.na(date) ]
+wi_inland_lenage_10Nov2023[ , .N , is.na(date) ]
+
+# how many sample dates in a survey 
+wi_inland_lenage_10Nov2023[ , n_distinct(date) , survey_id][ , hist(V1)]
+
+#survey start and end dates?
+  wi_inland_lenage_10Nov2023[ , date_survey_start := as.IDate(gsub("survey.begin.date:", "" ,garbage_bin_notes.1), format = "%Y-%m-%d") ,]
+  wi_inland_lenage_10Nov2023[ , date_survey_end := as.IDate(gsub("survey.end.date:", "" ,garbage_bin_notes.2), format = "%Y-%m-%d") ,]
+  
+  wi_inland_lenage_10Nov2023[is.na(date), .N , date_survey_start]
+  wi_inland_lenage_10Nov2023[is.na(date), .N , date_survey_end]
+  
+  wi_inland_lenage_10Nov2023[ , .(date_survey_start, date_survey_end, "time_elapsed" = date_survey_end - date_survey_start) , ]  
+  
+  
+  
+  wi_inland_fishobservations_10Nov2023[ , date_survey_start := as.IDate(gsub("survey.begin.date:", "" ,garbage_bin_notes.3), format = "%Y-%m-%d") ,]
+  wi_inland_fishobservations_10Nov2023[ , date_survey_end := as.IDate(gsub("survey.end.date:", "" ,garbage_bin_notes.4), format = "%Y-%m-%d") ,]
+  
+  wi_inland_lenage_10Nov2023[is.na(date), .N , date_survey_start]
+  wi_inland_lenage_10Nov2023[is.na(date), .N , date_survey_end]
+
+  wi_inland_lenage_10Nov2023[is.na(date) , .(date_survey_end, date_survey_start, "time_elapsed" = date_survey_end - date_survey_start) , ] 
+
+  wi_inland_lenage_10Nov2023[is.na(date) , hist(date_survey_end - date_survey_start) , ] 
+
+# so a quick recap here is that there are ~20k records in the fish obs that do not have a sample date
+  wi_inland_fishobservations_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
+  wi_inland_lenage_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
+
+
+
+
 wi_inland_lenage_10Nov2023[ , .N , species]
 
 wi_inland_cpue_19Mar2021[ , .N ,.(survey_id, sampling_method, species, lake_id, total_count) ][N>1] #this line shows that I have defined a unique key (length = length of full data; no N>1)
@@ -653,8 +704,6 @@ wi_inland_fishobservations_10Nov2023[ , .N , flag ]
 #now bring the laa data back into the obs file
 # Thin to only age obs and not backcalculated: 
 wi_inland_lenage_10Nov2023 <- wi_inland_lenage_10Nov2023[!is.na(age) & !backcalculated_age %in% c("dp", "yes", "fl") ]
-#prep date col
-wi_inland_lenage_10Nov2023[ , date := as.IDate(date,format = "%m/%d/%Y"),]
 
 # try a rounding to tenth inches to clean up the age link
 wi_inland_lenage_10Nov2023[, length := round(length,1) ]
@@ -739,20 +788,19 @@ crosscheck[is.na(obs_Nfish) & !(survey_id %in% wi_inland_effort_10Nov2023[ , sur
 # but did they all have laa data? NOPE!
 crosscheck[is.na(obs_Nfish) & !(survey_id %in% wi_inland_effort_10Nov2023[ , survey_id , ]), ,][ is.na(laa_n_gears) ]
 #grab only cpue records where we've only got data in the cpue file
-# only_cpue_survey_ids <- crosscheck[is.na(obs_Nfish) & !(survey_id %in% wi_inland_effort_10Nov2023[ , survey_id , ]), ,][ is.na(laa_n_gears) ][, unique(survey_id) , ]
+only_cpue_survey_ids <- crosscheck[is.na(obs_Nfish) & !(survey_id %in% wi_inland_effort_10Nov2023[ , survey_id , ]), ,][ is.na(laa_n_gears) ][, unique(survey_id) , ]
 #   wi_inland_cpue_19Mar2021[ survey_id %in% only_cpue_survey_ids] %>% 
 #     filter(total_count == 0) %>% 
 #     {wi_inland_cpue_19Mar2021_zeros<<- .}
 wi_inland_cpue_19Mar2021[ survey_id %in% only_cpue_survey_ids] %>% 
     filter(total_count != 0) %>%
-    uncount(weights= total_count,) %>%
-    full_join( . , wi_inland_cpue_19Mar2021_zeros ) %>% 
+    uncount(weights= total_count,) %>% 
     {wi_inland_cpue_19Mar2021<<- .}
 #diagnostic check for require retain zeros. Showed zeros not needed (no additional survey efforts in the zeros data)
 # any(!(wi_inland_cpue_19Mar2021_zeros[ , survey_id ,] %in% wi_inland_cpue_19Mar2021[ , survey_id , ]))
-rm(wi_inland_cpue_19Mar2021_zeros)
-wi_inland_cpue_19Mar2021 <- wi_inland_cpue_19Mar2021[ is.na(total_count), ,]
-  wi_inland_cpue_19Mar2021[ , total_count := NULL , ] 
+# rm(wi_inland_cpue_19Mar2021_zeros)
+# wi_inland_cpue_19Mar2021 <- wi_inland_cpue_19Mar2021[ is.na(total_count), ,]
+# wi_inland_cpue_19Mar2021[ , total_count := NULL , ] 
 
 #is the survey ID the effort grouing var?
   wi_inland_effort_10Nov2023[ , n_distinct(total.effort.1) , .(survey_id, sample_id) ][ , hist(V1) ,]
@@ -877,8 +925,12 @@ colnames(wi_inland_fishobservations_10Nov2023)[str_detect(colnames(wi_inland_fis
 
 #year
 colnames(wi_inland_fishobservations_10Nov2023)[str_detect(colnames(wi_inland_fishobservations_10Nov2023), "year")] #what's here for year data?
+colnames(wi_inland_fishobservations_10Nov2023)[str_detect(colnames(wi_inland_fishobservations_10Nov2023), "date")]
 wi_inland_fishobservations_10Nov2023[ , .N , is.na(date) ]
 wi_inland_fishobservations_10Nov2023[ , .N , .(is.na(date), is.na(year)) ] #no cases of na date where year can cover, drop year
+  wi_inland_fishobservations_10Nov2023[is.na(date)& is.na(year)]
+
+
 wi_inland_fishobservations_10Nov2023[ , year := NULL , ]
 
 

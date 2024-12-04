@@ -144,7 +144,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -157,7 +157,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -631,6 +631,57 @@ wi_inland_lenage_10Nov2023[ , n_distinct(date) , survey_id][ , hist(V1)]
 # so a quick recap here is that there are ~20k records in the fish obs that do not have a sample date a person could dredge up the survey start and end dates, but it is not clear to me how that could help ID fish within a survey. For another 20k, there are bad dates in the length age data 
   wi_inland_fishobservations_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
   wi_inland_lenage_10Nov2023[ , .N , .("nosampledate" = is.na(date), "errordate" = !(year(as.IDate(date)) %in% c(1930:2023))) ]
+
+
+
+
+# DATES prep date col
+wi_inland_lenage_10Nov2023[ , str(date) ,]
+
+wi_inland_lenage_10Nov2023[ , date1 := as.IDate(date),]
+
+wi_inland_lenage_10Nov2023[ , .N , is.na(date)]
+
+wi_inland_lenage_10Nov2023[ is.na(year), .N]
+
+#botched date to year:
+wi_inland_lenage_10Nov2023[ year == "218" , date_survey_start ,]
+
+#sample_date from the state
+# length-age records missing sample dates are a problem for the join. 
+wi_inland_fishobservations_10Nov2023[ , .N , is.na(date) ]
+wi_inland_lenage_10Nov2023[ , .N , is.na(date) ]
+
+# how many sample dates in a survey 
+wi_inland_lenage_10Nov2023[ , n_distinct(date) , survey_id][ , hist(V1)]
+
+#survey start and end dates?
+  wi_inland_lenage_10Nov2023[ , date_survey_start := as.IDate(gsub("survey.begin.date:", "" ,garbage_bin_notes.1), format = "%Y-%m-%d") ,]
+  wi_inland_lenage_10Nov2023[ , date_survey_end := as.IDate(gsub("survey.end.date:", "" ,garbage_bin_notes.2), format = "%Y-%m-%d") ,]
+  
+  wi_inland_lenage_10Nov2023[is.na(date), .N , date_survey_start]
+  wi_inland_lenage_10Nov2023[is.na(date), .N , date_survey_end]
+  
+  wi_inland_lenage_10Nov2023[ , .(date_survey_start, date_survey_end, "time_elapsed" = date_survey_end - date_survey_start) , ]  
+  
+  
+  
+  wi_inland_fishobservations_10Nov2023[ , date_survey_start := as.IDate(gsub("survey.begin.date:", "" ,garbage_bin_notes.3), format = "%Y-%m-%d") ,]
+  wi_inland_fishobservations_10Nov2023[ , date_survey_end := as.IDate(gsub("survey.end.date:", "" ,garbage_bin_notes.4), format = "%Y-%m-%d") ,]
+  
+  wi_inland_lenage_10Nov2023[is.na(date), .N , date_survey_start]
+  wi_inland_lenage_10Nov2023[is.na(date), .N , date_survey_end]
+
+  wi_inland_lenage_10Nov2023[is.na(date) , .(date_survey_end, date_survey_start, "time_elapsed" = date_survey_end - date_survey_start) , ] 
+
+  wi_inland_lenage_10Nov2023[is.na(date) , hist(date_survey_end - date_survey_start) , ] 
+
+# so a quick recap here is that there are ~20k records in the fish obs that do not have a sample date
+  wi_inland_fishobservations_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
+  wi_inland_lenage_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
+
+
+
 
 wi_inland_lenage_10Nov2023[ , .N , species]
 

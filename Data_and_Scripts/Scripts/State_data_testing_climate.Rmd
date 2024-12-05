@@ -4566,6 +4566,12 @@ cross %>%
 mw_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
 glimpse(mw_data)
 
+mw_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
+  filter(state %in% c("Illinois", "Michigan")) %>% 
+  group_by(species_1, state) %>% 
+  count() %>% 
+  collect()
+
 mw_data %>% 
   distinct(state, sampling_method_simple, sampling_method, sampling_method_2) %>% 
   collect() %>% 
@@ -5068,5 +5074,19 @@ mw_data %>%
   select(lake_name, survey_type, species_1, total_effort_nothing_caught) %>% 
   group_by(species_1) %>% 
   count()
+
+#writing data head for mn large lakes format
+cpe_head <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "MN_Data", "mn_raw_disaggregated_data", "mn_cpue_21aug2023.csv")) %>% 
+  head()
+
+effort_head <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "MN_Data", "mn_raw_disaggregated_data", "mn_effort_18aug2023.csv")) %>% 
+  head()
+
+fish_head <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "MN_Data", "mn_raw_disaggregated_data", "mn_indiv_fish_23nov2023.csv")) %>% 
+  head()
+
+write_csv(cpe_head, "Data_and_Scripts/mn_cpe_example.csv")
+write_csv(effort_head, "Data_and_Scripts/mn_effort_example.csv")
+write_csv(fish_head, "Data_and_Scripts/mn_fish_example.csv")
 ```
 

@@ -33,14 +33,14 @@ done? 16. Why are no cisco showing up in WI?
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
             See b_WI_cisco.Rmd file
       41. WI - missing NHDids on Cisco
-      48. Should Cisco data be in the data explainer?
+      48. Should Cisco data be in the data explainer? They are, but to rerun from that route would nix all our work, so not doing that
 done? 15. Update the WI data to include all species sent by Paul F in November 2023
       23. Throw out rivers and streams (see d_fish_data_maps)
       21. Convert length units to mm (2/1 - decided not to convert based on discussion of sig. digits)
       22. Many lengthed fish do not have a unit on their length
       25. Set all to state == Wisconsin
       26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
-      27. Add weigh to the aged fish join key.
+DONE  27. Add weigh to the aged fish join key.
       28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
       29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
 DONE  10. Flag crazy dates
@@ -70,7 +70,7 @@ DONE  10. Flag crazy dates
           Nix total effort 3 and targeted species 2 
       47. Clean water temp units column. 
       48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
-      
+      49. TEIs for aged fish that were not matched to fish obs should be assigned TEI == NA
 
 
 
@@ -144,7 +144,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -157,7 +157,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -645,7 +645,9 @@ wi_inland_lenage_10Nov2023[ , .N , is.na(date)]
 wi_inland_lenage_10Nov2023[ is.na(year), .N]
 
 #botched date to year:
-wi_inland_lenage_10Nov2023[ year == "218" , date_survey_start ,]
+wi_inland_lenage_10Nov2023[ , .N, year]
+wi_inland_lenage_10Nov2023[ , .N, year(date)]
+
 
 #sample_date from the state
 # length-age records missing sample dates are a problem for the join. 
@@ -680,10 +682,6 @@ wi_inland_lenage_10Nov2023[ , n_distinct(date) , survey_id][ , hist(V1)]
   wi_inland_fishobservations_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
   wi_inland_lenage_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
 
-
-
-
-wi_inland_lenage_10Nov2023[ , .N , species]
 
 wi_inland_cpue_19Mar2021[ , .N ,.(survey_id, sampling_method, species, lake_id, total_count) ][N>1] #this line shows that I have defined a unique key (length = length of full data; no N>1)
 
@@ -776,7 +774,7 @@ wi_inland_lenage_10Nov2023 <- wi_inland_lenage_10Nov2023[ , .(lake_id, date, yea
                                                               age,
                                                               reproductive_condition_notes, aging_data_notes, 
                                                               id_indv_win_len, original_file_name) , ]
-#rename age cols from indivfish table (wi_)
+#already some age data in the fishobs
 wi_inland_fishobservations_10Nov2023[ ,.N , age]
 wi_inland_fishobservations_10Nov2023[  , .N  , .("noage" = is.na(age), "nolength" = is.na(length)) ]
 
@@ -802,7 +800,9 @@ wi_inland_fishobservations_10Nov2023[  , .N  , .("Has_Observatinon_Dat" = !is.na
   wi_inland_fishobservations_10Nov2023[is.na(original_file_name_indivfish) & !is.na(original_file_name_agedfish),
                                        flag := ifelse(is.na(flag), "likely duplicate fish record retained for length-age" , fpaste(flag, "likely duplicate fish record retained for length-age", sep = ";" ))
                                        ]
-#where we have two ages, how's the match?
+wi_inland_fishobservations_10Nov2023[ ,.N , flag]
+  
+  #where we have two ages, how's the match?
 wi_inland_fishobservations_10Nov2023[  , .N , .("hasfishrecord" = !is.na(original_file_name_indivfish), "hasagerecord" = !is.na(original_file_name_agedfish))]
 #where we have two ages:
 wi_inland_fishobservations_10Nov2023[ , hist(age_indivfish - age_agedfish, breaks = seq(-11.5,11.5,1)) , ]
@@ -834,10 +834,10 @@ setnames(wi_inland_fishobservations_10Nov2023, old = "age_agedfish", new = "age"
 
 
 
-wi_inland_fishobservations_10Nov2023[ !is.na(age_) , .("n_fish" = .N, "n_dates" = length(unique(date))) , .(lake_id, lake_name) ]
+wi_inland_fishobservations_10Nov2023[ !is.na(age) , .("n_fish" = .N, "n_dates" = length(unique(date))) , .(lake_id, lake_name) ]
 
 # fwrite(crosscheck, file = "Data_and_Scripts/Data/output/crosscheck_cpue_fishobs_lengthage.csv")
-rm(wi_inland_lenage_10Nov2023)
+rm(wi_inland_lenage_10Nov2023, surveys)
 ```
 
 

@@ -6,7 +6,7 @@ output: html_document
 ---
 # Preamble
 
-#a few notes
+a few notes:
 - Ages were excluded from this file
 - We limited species in this because the files had different species extents
 - In my dates exploration, I found a survey start and end dates, all surveys expect for 4 happen over a 7 day time frame
@@ -35,7 +35,7 @@ options(scipen = 999)
 ##Data
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -46,7 +46,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("E:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
+          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MI_Data/mi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -121,8 +121,8 @@ for(i in 1:n) {
 ```
 
 
-#Data review
-#this chunk explores the sturcture of the data and does some foundational data ag
+#Data Ag Prep
+this chunk explores the structure of the data and does some foundation data ag
 ```{r}
 #effort:
 mi_statustrends_effort_16Mar2021[ , .N , .(lake_id, lake_name.1, date.1 , survey_type.1, sampling_method_abbrev)  ]
@@ -213,7 +213,7 @@ mi_statustrends_catch_16Mar2021 %>%
 
 
 # Effort Merge
-#the bulk of the ag happens in this chunk
+the bulk of the ag happens in this chunk
 ```{r}
 #Start with a merge of catch and catch-length?
 
@@ -339,18 +339,6 @@ setkeyv(mi_statustrends_catchlengthclass_03July2023_uncount, keycols )
 mi_catch_merge <- merge(mi_statustrends_catch_16Mar2021_uncount, mi_statustrends_catchlengthclass_03July2023_uncount, by = keycols, all = T, suffixes = c("_catch", "_catchlengths"))
 
 
-#add ages where we've got em' (ambiguous gears means we can't tie these to catch-- they're going to go into the mi flat file without gear assigned)
-# #add an ident
-# mi_statustrends_lenage_20May2021[ , ident := seq_len(.N) , .(lake_id, survey_id, sampling_method_abbrev, species.1) ]
-# #set key columns
-# keycols <- c("lake_id", "survey_id", "sampling_method_abbrev", "species.1", "ident")
-# setkeyv(mi_statustrends_catch_16Mar2021_uncount, keycols )
-# setkeyv(mi_statustrends_catchlengthclass_03July2023_uncount, keycols )
-# 
-# #merge together all catch data
-# mi_catch_merge <- merge(mi_statustrends_catch_16Mar2021_uncount, mi_statustrends_catchlengthclass_03July2023_uncount, by = keycols, all = T, suffixes = c("_catch", "_catchlengths"))
-
-
 #merge effort into this
 
 #set key columns
@@ -367,7 +355,75 @@ data_coverage[ ,.N , .("effortNA" = is.na(effort_nrows), "catchNA" = is.na(catch
 mi_catch_eff_merge <- merge(mi_catch_merge, mi_statustrends_effort_16Mar2021, by = keycols, all = T, suffixes = c("_mergedcatch", "_effort"))
 
 
-### dataset cleanup and tidying                       
+#aged fish do not have a sampling method with them - we cannot directly attach an age to fish collected in a community survey
+#here we will add aged fish as "extra" fish that do not have any effort associated with them 
+aged_fish_join <- mi_statustrends_lenage_20May2021 %>% 
+  #several records do not have a lake id - it would be impossible to cross walk, lets remove them
+  mutate(lake_id = case_when(lake_id == "" ~ NA,
+                             TRUE ~ lake_id)) %>% 
+  filter(!is.na(lake_id)) %>% 
+  mutate(sampling_method_abbrev = "unspecified",
+         date.1_effort = dmy(date.1),
+         date.1_effort = as.character(date.1_effort)
+         ) %>% 
+  rename(original_file_name.1_age = original_file_name.1,
+         survey_type.1_effort = survey_type.1) %>% 
+  select(-date.1,
+         -file_type,
+         -data_type) 
+
+aged_fish_join %>% 
+  group_by(lake_id) %>% 
+  count() 
+
+mi_catch_eff_merge %>% 
+  group_by(original_file_name.1_catch,
+           original_file_name.1_catchlengths,
+           original_file_name.1) %>% 
+  count()
+#this just shows the various original files - effort file is in original file name.1
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  full_join(aged_fish_join, 
+            by = c("lake_id", 
+                   "survey_id", 
+                   "date.1_effort",
+                   "sampling_method_abbrev",
+                   "species.1",
+                   "length.1",
+                   "length_unit.1",
+                   "jan2023_inventoried",
+                   "file_number",
+                   "file_status",
+                   "state",
+                   "source_contact",
+                   "date_recieved",
+                   "source_agency",
+                   "new_file_name",
+                   "targeted_or_standard",
+                   "unique_row_key.1",
+                   "survey_type.1_effort"),
+            suffix = c("_full", "_aged"))
+glimpse(mi_catch_eff_merge)
+
+mi_catch_eff_merge %>% 
+  filter(!is.na(age)) %>% 
+  glimpse()
+
+mi_catch_eff_merge %>% 
+  group_by(original_file_name.1,
+           original_file_name.1_catch,
+           original_file_name.1_catchlengths,
+           original_file_name.1_age) %>% 
+  count()
+#this actually works super slick, we now have aged fish as "supplemental" rows due to the fact we could not tie them to the actual sampling method
+#as we progress down the script we will need to make sure that we call the correct columns and create a flag to remove this from cpe generation
+
+#there are four originals files that we need to keep track of
+#catch: catch data, catch inch group - found in original_file_name.1_catch and catchlength columns
+#age: age clean - found within the "original_file_name.1_age" column
+#effort: effort - found within the "original_file_name.1" column
+
 
 #check the product:
 colnames(mi_catch_eff_merge)
@@ -528,33 +584,110 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
                                             sampling_method_abbrev == "LMFYKE" ~ "large_mesh_fyke_net",
                                             sampling_method_abbrev == "SEINE" ~ "seine",
                                             sampling_method_abbrev == "SMFYKE" ~ "small_mesh_fyke_net",
-                                            sampling_method_abbrev == "TRAPNET" ~ "trap_net")) %>% 
+                                            sampling_method_abbrev == "TRAPNET" ~ "trap_net",
+                                     sampling_method_abbrev == "unspecified" ~ "unspecified")) %>% 
   #unit length 
   mutate(length_unit.1 = case_when(length_unit.1 == "col_name_Inch_Group" ~ "inch_group",
+                                   length_unit.1 == "col_name_LENGHT_IN" ~ "inches",
+                                   is.na(length.1) ~ NA,
                                    TRUE ~ length_unit.1)) %>% 
   #effort unit 
   mutate(effort_units.1 = case_when(effort_units.1 == "HAULS" ~ "hauls",
                                     effort_units.1 == "MINUT" ~ "minutes",
                                     effort_units.1 == "LIFTS" ~ "lifts")) %>%
-  rename(. , original_file_name.1_effort = original_file_name.1) %>% 
+  #original file name for effort found in the original_file_name.1 spot 
+  rename(original_file_name.1_effort = original_file_name.1) %>% 
   #Twin lake (survey id 4042) does not have effort info so looks lake info, from the MSU team we know that the lake id is 48-28. This will allow us to connect to NHDHRID and other lake info
   mutate(lake_id = case_when(survey_id == "4042" ~ "48-28",
                              TRUE ~ lake_id)) %>% 
   #selects for columns to be used during analysis - limits memory usage and creates more clarity
   #effort files for survey type, lat/long, and target species contained more data than the merged catch files
-  select(state, county, lake_id, lake_name.1, date.1, year, survey_type.1_effort, survey_id, lat_unspec_effort, lon_unspec_effort, sampling_method, sampling_method_abbrev, target_species_effort, species.1, species.abbrev, length.1, length_unit.1, total_effort_1_effort, effort_units.1, effort_ident, nothing_caught, original_file_name.1_catch,original_file_name.1_catchlengths,original_file_name.1_effort)                        
+  select(state, county, lake_id, lake_name.1, date.1, year, survey_type.1_effort, survey_id, lat_unspec_effort, lon_unspec_effort, sampling_method, sampling_method_abbrev, target_species_effort, species.1, species.abbrev, length.1, length_unit.1, total_effort_1_effort, effort_units.1, effort_ident, nothing_caught, original_file_name.1_catch,original_file_name.1_catchlengths,original_file_name.1_effort, original_file_name.1_age, age, aging_structure.1)         
 
-#mi_catch_eff_merge[state == "Michigan", state := "mi"]
+mi_catch_eff_merge %>% 
+  group_by(original_file_name.1_catch, 
+           original_file_name.1_catchlengths, 
+           original_file_name.1_effort, 
+           original_file_name.1_age) %>% 
+  count()
+#this shows good original file separation - aged fish are only from the aged fish file and do not have effort
+#there is one survey that has file records but does not have any effort
 
-local_to_nhdhr(mi_catch_eff_merge[!is.na(lake_id)], from_colname = "lake_id", states = "mi"  ) %>%
+mi_catch_eff_merge %>% 
+  group_by(original_file_name.1_catch, 
+           original_file_name.1_catchlengths, 
+           original_file_name.1_effort, 
+           original_file_name.1_age) %>% 
+  summarise(no_lengths = sum(is.na(length.1)),
+            has_lengths = sum(!is.na(length.1)))
+#all fish records that do not associate with the inchgrp clean original file do not have lengths 
+
+mi_catch_eff_merge %>% 
+  filter(is.na(length.1)) %>% 
+  group_by(year, original_file_name.1_catch ,original_file_name.1_catchlengths, original_file_name.1_age) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#this just shows that all na lengths come from a no catchlength df and are not aged fish
+
+mi_catch_eff_merge %>% 
+  filter(!is.na(length.1)) %>% 
+  distinct(length.1, length_unit.1, original_file_name.1_age, original_file_name.1_catchlengths) %>% 
+  print(n = nrow(.))
+#all aged fish were measured more finely than to the nearest inch grouping 
+
+mi_catch_eff_merge %>% 
+  group_by(is.na(age), length_unit.1) %>% 
+  count()
+#perfect, we see here that if a fish is aged that it got a specific length but all other fish are measured in inch bins 
+
+#now we need to fill aged fish survey level data with more info where we can
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  group_by(lake_id) %>% 
+  mutate(
+    county = if (all(is.na(county))) county else first(na.omit(county)),
+    lake_name.1 = if (all(is.na(lake_name.1))) lake_name.1 else first(na.omit(lake_name.1)),
+    lat_unspec_effort = if (all(is.na(lat_unspec_effort))) lat_unspec_effort else first(na.omit(lat_unspec_effort)),
+    lon_unspec_effort = if (all(is.na(lon_unspec_effort))) lon_unspec_effort else first(na.omit(lon_unspec_effort))
+  ) %>% 
+  ungroup()
+
+mi_catch_eff_merge %>% 
+  filter(!is.na(age)) %>% 
+  group_by(is.na(county),
+           is.na(lake_name.1),
+           is.na(lat_unspec_effort),
+           is.na(lake_id)) %>% 
+  count()
+#we were able to recover lake level info for all lake ids from the aged fish file
+
+mi_catch_eff_merge %>% 
+  group_by(lake_id) %>% 
+  distinct(county, lake_name.1, lat_unspec_effort) %>% 
+  group_by(lake_id) %>% 
+  count() %>% 
+  filter(n >1)
+#this just shows that all lake_ids in the aged file were attached to the correct lake id
+
+mi_catch_eff_merge %>% 
+  group_by(is.na(age)) %>% 
+  summarise(na_lake_id = sum(is.na(lake_id))) 
+#no na lake ids
+
+
+local_to_nhdhr(mi_catch_eff_merge %>% filter(!is.na(lake_id)), from_colname = "lake_id", states = "mi") %>%
   count(nhdhr.id)
 
-mi_catch_eff_merge[!is.na(lake_id)  ,   nhdhr.id := local_to_nhdhr(mi_catch_eff_merge[!is.na(lake_id)], from_colname = "lake_id" , states = "mi" )$nhdhr.id ,  ]
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  local_to_nhdhr(from_colname = "lake_id", states = "mi")
 
 #If there are NAs in the lake Ids you feed into these local to NHD functions, you'll end up raking a ton of extra nhdhr vals from the NA local ID column. 
 
 #these are the unmatched lake_ids that we're left with.
+mi_catch_eff_merge <- as.data.table(mi_catch_eff_merge)
 mi_catch_eff_merge[is.na(nhdhr.id), .N , lake_id ]
+mi_catch_eff_merge %>% 
+  group_by(is.na(age), is.na(nhdhr.id)) %>% 
+  count()
 
 #do we need to retain more date columns?
 mi_statustrends_catch_16Mar2021_uncount %>% 
@@ -586,8 +719,8 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
   left_join(gear_xwalk)
 
 mi_catch_eff_merge %>% 
-group_by(sampling_method_agency, sampling_method_abbrev, sampling_method_simple, sampling_method, sampling_method_2) %>% 
-count()
+  group_by(sampling_method_agency, sampling_method_abbrev, sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  count()
 
 #adding leading tag to nhdhr_id
 mi_catch_eff_merge <- mi_catch_eff_merge %>% 
@@ -720,6 +853,56 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
                                           "length.1"), relationship = "many-to-one")
 rm(length_weight_flags_1)
 
+#adding flag to aged fish that are "extra"
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  mutate(flag = case_when(!is.na(age) ~ paste("likely duplicate fish record retained for length-age", ";", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")
+         )
+
+mi_catch_eff_merge %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+#cleaning up length columns
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  mutate(length_1 = case_when(!is.na(age) ~ length.1,
+                              TRUE ~ NA),
+         length_unit_1 = case_when(!is.na(age) ~ length_unit.1,
+                                   TRUE ~ NA),
+         length_bin = case_when(is.na(age) & !is.na(length.1) ~ paste0(length.1, "-", length.1+0.99),
+                                TRUE ~ NA),
+         length_bin_unit = case_when(!is.na(length_bin) ~ "inches",
+                                     TRUE ~ NA)
+         )
+mi_catch_eff_merge %>% 
+  group_by(is.na(length_1),
+           length_unit_1,
+           is.na(age),
+           length_bin,
+           length_bin_unit) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+mi_catch_eff_merge %>% 
+  group_by(is.na(length.1)) %>% 
+  count()
+
+mi_catch_eff_merge %>% 
+  group_by(aging_structure.1) %>% 
+  count()
+
+#cleaning up the age structure
+mi_catch_eff_merge <- mi_catch_eff_merge %>%
+  mutate(aging_structure_1 = str_trim(aging_structure.1),
+         aging_structure_1 = str_to_lower(aging_structure.1),
+         aging_structure_1 = na_if(aging_structure_1, "")) %>% 
+  filter(aging_structure_1 != "length-frequency" | is.na(aging_structure_1))
+
+mi_catch_eff_merge %>% 
+  group_by(aging_structure_1) %>% 
+  count()
 
 #matching to schema
 mi_data <- mi_catch_eff_merge %>% 
@@ -738,14 +921,14 @@ mi_data <- mi_catch_eff_merge %>%
          survey_type_4 = as.character(NA),
          gear_data_notes = as.character(NA),
          target_species = target_species_effort,
-         target_species_2 = as.character(NA),
+         #target_species_2 = as.character(NA),
          total_effort_ident = as.character(effort_ident),
          total_effort_1 = total_effort_1_effort,
          total_effort_2 = as.numeric(NA),
-         total_effort_3 = as.numeric(NA),
+         #total_effort_3 = as.numeric(NA),
          total_effort_1_units = effort_units.1,
          total_effort_2_units = as.character(NA),
-         total_effort_3_units = as.character(NA),
+         #total_effort_3_units = as.character(NA),
          total_effort_nothing_caught = nothing_caught,
          water_temp = as.numeric(NA),
          water_temp_units = as.character(NA),
@@ -762,13 +945,7 @@ mi_data <- mi_catch_eff_merge %>%
          sub_effort_2 = as.numeric(NA),
          sub_effort_2_units = as.character(NA),
          sub_effort_nothing_caught = as.logical(NA),
-         length_1 = as.numeric(NA),
-         length_unit_1 = as.character(NA),
-         length_bin = as.character(length.1),
-         length_bin_unit = "lower end of 1 inch length bin",
-         age = as.numeric(NA),
-         aging_structure_1 = as.character(NA),
-         aging_structure_2 = as.character(NA),
+         #aging_structure_2 = as.character(NA),
          weight_1 = as.numeric(NA),
          weight_unit_1 = as.character(NA),
          batch_weight = as.character(NA),
@@ -778,7 +955,7 @@ mi_data <- mi_catch_eff_merge %>%
          ind_fish_ident = as.character(NA),
          lakesize = as.numeric(NA),
          lakesize_units = as.character(NA),
-         area_group = as.character(NA),
+         #area_group = as.character(NA),
          lat_unspec = lat_unspec_effort,
          lon_unspec = lon_unspec_effort,
          waterbody_type = as.character(NA),
@@ -787,7 +964,8 @@ mi_data <- mi_catch_eff_merge %>%
          obs_id = as.character(row_number())) %>% 
    unite("original_file_names", c(original_file_name.1_catch,
                                       original_file_name.1_catchlengths,
-                                      original_file_name.1_effort), 
+                                      original_file_name.1_effort,
+                                  original_file_name.1_age), 
                                       remove = T, 
                                       na.rm = T,
          sep = " ") %>% 
@@ -814,14 +992,14 @@ mi_data <- mi_catch_eff_merge %>%
          sampling_method_2,
          gear_data_notes,
          target_species,
-         target_species_2,
+         #target_species_2,
          total_effort_ident,
          total_effort_1,
          total_effort_2,
-         total_effort_3,
+         #total_effort_3,
          total_effort_1_units,
          total_effort_2_units,
-         total_effort_3_units,
+         #total_effort_3_units,
          total_effort_nothing_caught,
          water_temp,
          water_temp_units,
@@ -845,7 +1023,7 @@ mi_data <- mi_catch_eff_merge %>%
          length_bin_unit,
          age,
          aging_structure_1,
-         aging_structure_2,
+         #aging_structure_2,
          weight_1,
          weight_unit_1,
          batch_weight,
@@ -857,7 +1035,7 @@ mi_data <- mi_catch_eff_merge %>%
          ind_fish_ident,
          lakesize,
          lakesize_units,
-         area_group,
+         #area_group,
          lat_unspec,
          lon_unspec,
          waterbody_type,
@@ -874,6 +1052,17 @@ glimpse(mi_data)
  
 # Review & QC datasets
 ```{r}
+mi_data %>% 
+  filter(survey_id == "2446") %>% 
+  group_by(total_effort_ident,
+           survey_id,
+           sampling_method_2,
+           date_total_effort_ident,
+           flag) %>% 
+  summarise(aged_fish = sum(!is.na(age))) 
+#here we can see that aged fish get a different total effort ident within a survey id 
+#this isn't a problem, it is another reminder that users need to filter out ages if they want cpe
+
 mi_data %>% 
   distinct(total_effort_1, .keep_all = T) %>% 
   group_by(lake_name, lake_id, survey_id, total_effort_1_units) %>% 
@@ -918,7 +1107,8 @@ mi_data %>%
   filter(is.na(total_effort_1)) %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(lake_name, survey_id, sampling_method, total_effort_1) %>% 
-  count()
+  count() %>% 
+  print(n = nrow(.))
                         
                         
                         # how many surveys were we missing catch data from?
@@ -951,6 +1141,42 @@ mi_data %>%
 
 mi_data %>% 
   group_by(flag) %>% 
+  count()
+
+mi_data %>% 
+  group_by(is.na(age)) %>% 
+  count()
+
+mi_data %>% 
+  group_by(total_effort_nothing_caught) %>% 
+  count()
+
+mi_data %>% 
+  group_by(is.na(length_1),
+           length_unit_1,
+           is.na(age),
+           length_bin,
+           length_bin_unit) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+mi_data %>% 
+  group_by(is.na(age), aging_structure_1) %>% 
+  count()
+
+mi_data %>% 
+  group_by(original_file_names) %>% 
+  count()
+
+mi_data %>% 
+  group_by(total_effort_ident, total_effort_1) %>% 
+  count() %>% 
+  group_by(total_effort_ident) %>% 
+  count() %>% 
+  filter(n >1)
+
+mi_data %>% 
+  group_by(length_unit_1, weight_unit_1, total_effort_1_units, total_effort_2_units, length_bin_unit) %>% 
   count()
 ```
 

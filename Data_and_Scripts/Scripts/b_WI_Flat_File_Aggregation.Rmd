@@ -28,22 +28,28 @@ DONE  13. cleannames() to colnames
 DONE  14. Update the total effort ident grouping to be at the surveyXgearXdate level
 DONE  17. Ensure nothing_caught is assigned at the total_effort_ident level
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
+DONE  27. Add weigh to the aged fish join key.
+DONE  10. Flag crazy dates
+done? 23. Throw out rivers and streams (see d_fish_data_maps)
 done? 16. Why are no cisco showing up in WI?
             Currently we do have about 30 ish surveys in there  
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
             See b_WI_cisco.Rmd file
       41. WI - missing NHDids on Cisco
-      48. Should Cisco data be in the data explainer? They are, but to rerun from that route would nix all our work, so not doing that
+done? 48. Should Cisco data be in the data explainer? They are, but to rerun from that route would nix all our work, so not doing that
 done? 15. Update the WI data to include all species sent by Paul F in November 2023
-      23. Throw out rivers and streams (see d_fish_data_maps)
+done? 48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
       21. Convert length units to mm (2/1 - decided not to convert based on discussion of sig. digits)
       22. Many lengthed fish do not have a unit on their length
       25. Set all to state == Wisconsin
       26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
-DONE  27. Add weigh to the aged fish join key.
+      49. TEIs for aged fish that were not matched to fish obs should be assigned TEI == NA
+      38. There are two target species cols–collapse and comma separate
+      46. Collapse targeted sp to one column
+          Nix total effort 3 and targeted species 2 
+      39. Do the lengths we have from WI get generated? Do they use a plus bin? (this would be a size of fish that was longer than X) (check for grepex of "+" in the data that are imported)
       28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
       29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
-DONE  10. Flag crazy dates
       30. Check N species in a survey (is 44 spp a reasonable finding?)
       31. Make sure all gear details are retained (likely this funnels into gear data notes)
       32. Add flags for 0 efforts and high efforts
@@ -53,8 +59,7 @@ DONE  10. Flag crazy dates
             Check on gear data notes (very messy); Keep an eye on the NA removal in the paste/collapse function
       35. Schema matched to overall hive (column names and column inclusions)
       36. Review for problems: TEIs sometimes contain multiple water temps straddling the temp cutoffs
-      38. There are two target species cols–collapse and comma separate
-      39. Do the lengths we have from WI get generated? Do they use a plus bin? (this would be a size of fish that was longer than X) (check for grepex of "+" in the data that are imported)
+      47. Clean water temp units column. 
       40. There are several survey type columns - some rows are NA for the first survey type but have some values for 2, 3, 4 (This probably stems from specific types of surveys within wisconsin (primary.survey.purpose, secondary.survey.purpose;  Suggested change is to fill WI survey types from 1 (if any), then survey type 2 (if any secondary after filling slot 1) ))
       42. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
       12. Check coverage of NHDids, Lat, Lon
@@ -66,11 +71,6 @@ DONE  10. Flag crazy dates
           Weights (prob group by age/survey/something)
           Counts (by TEI)
       45. Add sampling method simple column to hive
-      46. Collapse targeted sp to one column
-          Nix total effort 3 and targeted species 2 
-      47. Clean water temp units column. 
-      48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
-      49. TEIs for aged fish that were not matched to fish obs should be assigned TEI == NA
 
 
 

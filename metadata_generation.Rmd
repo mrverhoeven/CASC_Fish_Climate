@@ -573,4 +573,20 @@ mw_data %>%
   collect()
 ```
 
+```{r}
+mw_data <- mw_data %>% 
+  collect()
+
+mw_data %>% 
+  distinct(state, lake_name, lake_id, nhdhr_id, latitude_lake_centroid) %>% 
+  group_by(state) %>%
+  summarise(nhdhr_id_count = sum(!is.na(nhdhr_id)),
+            lat = sum(!is.na(latitude_lake_centroid)),
+            total_lakes = n(),
+            missing_nhd = total_lakes - nhdhr_id_count,
+            missing_lat = total_lakes - lat,
+            coverage_nhd = nhdhr_id_count/total_lakes,
+            coverage_lat = lat/total_lakes
+              )
+```
 

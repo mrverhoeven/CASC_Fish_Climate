@@ -8,66 +8,6 @@ editor_options:
 ---
 # Preamble
 
-## To Do List
-
-
-## Questions for Data Provider:
-- Pending info for multiple outstanding items from Jeff Kopaska
-
-
-
-
-##Instructions
-This code is written in chunks that each accomplish a task moving towards the goal of a file for each state that encompasses all fish observations made/shared with us. The structure of that observation-level data should be one row per individual fish. By joining these data to the effort info, we will be able to filter and aggregate the data in flexible ways, always bringing along info on how much effort it took to catch each the fish obs (or set of fish).
-
-The data explainer sticks .n suffixes on columns where multiple fields from one of the datastes has multiple cols that match that field (i.e., date.1, date.2, date.3). The naming conventions for cols uses "_" and no spaces.
-
-After loading packages, the data from each state will be loaded into the WS and renamed according to the mapping of old colnames to new colnames in the data explainer. Next, the files should be explored a bit, and the script should identify files that will not be used, but instead get removed from the workspace. After this initial exploration fo what's there, the files should be restructured and munged into the obs-level format described above. When this is done, subsequent blocks should conduct some baseline additional QC should be done to verify the product of the munging is as-expected. Finally, the script should tidy up an remaining column or field formatting (e.g., species uses common names, no spaces, but "_"), and drop an unneeded columns. 
-
-
-A basic guide to columns we expect to see in a observation level data are as follows:
-
-LOCATION INFORMATION:
-state - 
-county - county associate with the wb in the state data
-lake_name - common lang name of the lake
-lake_id - usually a local id specific to the state contributing the data
-nhdhr.id - This column is usually added towards the end of the script based on state lake_ids using the mwlaxeref (Paul Frater) package from here: https://drive.google.com/drive/u/1/folders/1HURmPTtufVzI0aqn7D8MpKdL5B8atCL5
-
-SURVEY INFORMATION:
-date_clean - usually multiple dates are submitted with each fish (e.g., collection date, survey end date). Use the date of the survey as the primary date for each fish observation, generating a date_clean column
-survey_type - this is often specified in the data, and sometimes helps to filter out which data are useful for any given purpose (e.g., research survey, fishkill check)
-survey_id - in some states this is a provided variable used as a key to each "survey." Ususally a "survey" is multiple gears on a single lake on a single date (often surveys might run multiple consecutive dates, but only one date is reported )
-sampling_method - This is a gear field, and often includes wide ranging gears and sometimes very specific gears
-total_effort.1 - This should be a numeric field with only the qty of effort
-effort_units.1 - paired with total_effort.1, defines units for numeric
-nothing_caught - specifies that nothing was caught in this effort (species will also be NA)
-target_species - what was the species being targeted in the survey?
-effort_ident - This is a field we add, it is a unique key for each effort unit that we have data for(usually a gear within a survey). For example, a data user could get cpue by counting all fish within a group_by(effort_id) or it's equivalent group_by(lake_id, date, survey_type,sampling_method) 
-
-TAXA INFORMATION: 
-species.1 - species common name
-species_abbrev - State level code sometimes used in data share
-length.1 - length of fish observed, numeric
-length_unit.1 - units for length.1, also specify resolution if needed (e.g, cm, whole cm)
-weight.1 - weight of fish obs, numeric
-weight_unit.1 - units of weight.1, also specify resolution if needed (e.g, lb, whole lb)
-sample_id.1 - unique id for each fish observation sometimes provided and sometimes useful for connecting to aged fish
-age - age in years, numeric
-aging_structure - what was used to determine age?
-young_of_year - was the fish a YOY (i.e. hatched <365d before surveyed)
-sex - sex of fish (male, female, unknown, NA)
-
-SOURCE FILE INFORMATION: These columns come in with each dataset from the data explainer and we leave them in the product so that we could hunt down issues we find a bit more easily. 
-
-original_file_name.1_effort - name of effort file that was used to generate data in this row
-original_file_name.1_indivfish - name of individual fish file that was used to generate data in this row
-original_file_name.1_[...]
-
-FLAGS AND ISSUES:
-flag - this column contains a character string with issues describing each row, each issue separated with a comma. Use mutate(flag = paste(flag, "new issue description", sep = ",")) to add to this column without overwriting other issues already specified.
-
-
 
 ##Libraries
 ```{r}
@@ -183,6 +123,11 @@ for(i in 1:n) {
 ```
 
 #Obs Data
+-this chunk of code uses the fish observation data to:
+1. add total effort and sub effort nothing caught columns
+2. uncounts batch counted fish
+3. creates a total effort nothing caught column
+4. adds gear corrections 
 ```{r}
 
 # We've got a new fish file from Iowa! It looks (kinda) like the old one, but they have added a crap-ton of info 
@@ -487,7 +432,8 @@ gear_corrections <- fread(file = "IA_gear_notes.csv")
       ia_fishobs[ , .N , .(lake_name.1, survey_start_date, survey_id, consolidated_gear )]
       
       ia_fishobs[ , visit_ID := total_effort_ident , ]
-      
+
+      ###########creation of the total effort ident grouping
       ia_fishobs[ , total_effort_ident := .GRP , .(lake_name.1, survey_start_date, survey_id, consolidated_gear )]
 
       ia_fishobs[ , .N , total_effort_ident ]
@@ -572,6 +518,8 @@ ia_fishobs[ , .N ,  .(date.1, lake_name.1, county,  sampling_method.1, lat_unspe
 
 
 ## Restructure the fish obs
+-this chunk keeps columns we want and throws out junk
+-adds flags
 ```{r}
 #reorganize this beast:
 names(ia_fishobs)
@@ -962,6 +910,9 @@ ia_fishobs %>%
   count()
 #looks like the unit is applied to all columns (not just where a value is present) - clean this up later
 
+
+
+
 #what do these dates look like?
 dates <- ia_fishobs %>% 
   distinct(total_effort_ident, sub_effort_ident, .keep_all = T) %>% 
@@ -1083,7 +1034,22 @@ check <- ia_fishobs %>%
          centroid_lon) %>% 
   mutate(diff_lat = abs(lat_unspec - centroid_lat),
          diff_lon = abs(lon_unspec - centroid_lon))
+#any places where the diff of lat/lon is alarming? - nope!
 rm(check)
+
+#Redenius Pond - RED24 - has 0 for iowa reported lat and lon with NA info from the other locations, lets remove that
+ia_fishobs <- ia_fishobs %>% 
+  mutate(lat_unspec = case_when(lat_unspec == 0 ~ NA,
+                                TRUE ~ lat_unspec),
+         lon_unspec = case_when(lon_unspec == 0 ~ NA,
+                                 TRUE ~ lon_unspec)) 
+#no more 0s in those columns
+ia_fishobs %>% 
+  filter(lat_unspec <2 | lon_unspec > -2) %>% 
+  glimpse()
+ia_fishobs %>% 
+  filter(lake_id == "RED24") %>% 
+  distinct(lat_unspec, lon_unspec)
 
 ia_fishobs %>% 
   distinct(lake_name_1, .keep_all = T) %>% 
@@ -1102,23 +1068,202 @@ ia_fishobs <- ia_fishobs %>%
          weight_unit_1_clean = case_when(is.na(weight_1) ~ NA,
                                          TRUE ~ weight_unit_1_clean))
 
-#no effort surveys without flags
+#total effort 1 NA clean up
+#total effort 1 is strictly time while total effort 2 is distance 
+#first i want to move records where distance is recorded but not time to total effort 1
+ia_fishobs <- ia_fishobs %>% 
+  mutate(total_effort_1 = case_when(is.na(total_effort_1) & !is.na(total_effort_2) ~ total_effort_2,
+                                    TRUE ~ total_effort_1),
+         total_effort_1_units = case_when(is.na(total_effort_1_units) & !is.na(total_effort_2_units) ~ total_effort_2_units,
+                                          TRUE ~ total_effort_1_units))
+ia_fishobs %>% 
+  group_by(total_effort_1_units, 
+           total_effort_2_units,
+           is.na(total_effort_1),
+           is.na(total_effort_2),
+           is.na(flag)) %>% 
+  count()
+#we can now see there are no cases where total effort 1 is na but total effort 2 has a value
+#similarly, we can see that the unit is retained with the transfer of total effort 
+#however, there still remains some records that are NA for total effort without a flag
+
+#remaining obs that have na total effort without flag
+check_total <- ia_fishobs %>% 
+  filter(is.na(total_effort_1) & is.na(flag)) %>% 
+  distinct(total_effort_ident, lake_name_1, survey_start_date, survey_id, total_effort_1, total_effort_2, sub_effort_1, sub_effort_2, sampling_method_simple, sampling_method_1, sampling_method_2, total_effort_1_units, total_effort_2_units)
+
+#filter to being back sub efforts even if there is a flag but total effort for collective is na
+check_sub <- ia_fishobs %>% 
+  filter(total_effort_ident %in% check_total$total_effort_ident) %>% 
+  distinct(total_effort_ident, lake_name_1, survey_start_date, survey_id, total_effort_1, total_effort_2, sub_effort_ident, sub_effort_1, sub_effort_2, sampling_method_simple, sampling_method_1, sampling_method_2, flag)
+#here we can see there are a few different reasons a total effort ident may still be na 
+#there are sometimes multipule gears listed within a total effort ident or the agency did not report effort at various levels
+#sometimes effort for a singular sub effort was not reported - however that NA in the sub effort leads to NA total effort during summation 
+
+#given the small amount of na total effort surveys remaining without an "easy" integration given the wonkiness - lets remove 
+#first, make a list of total effort ident to remove
+ident_remove <- check_total %>% 
+  distinct(total_effort_ident)
+
+ia_fishobs <- ia_fishobs %>% 
+  filter(!(total_effort_ident %in% ident_remove$total_effort_ident))
 ia_fishobs %>% 
   group_by(is.na(total_effort_1), is.na(flag)) %>% 
   count()
+#now we can see that total effort idents with na total effort are listed with a flag
+
+rm(check_total, check_sub, ident_remove)
+
+###################return here 1/14######################################
+#this checking process looks like 
+#1. find places that are NA for total effort but have a flag
+#2. take the the survey id from that total effort and plug it into the filter below for survey id to get original data
+#3. returns a df with relevent info
+
+#based on some level of research, I can see that there was a flag created based on notes.2 column for inadequate sample
+#this note is applied to all levels within the survey id/total effort ident 
+#we can see that there are sub efforts within the total effort that remain unaffected but get the flag tag because they are in the same total effort 
+#next exploration is tyring to figure out if it is worth recooping these sub efforts 
+
+#with flag na effort?
+check <- ia_fishobs %>% 
+  filter(is.na(total_effort_1)) %>% 
+  distinct(total_effort_ident,survey_id, sub_effort_ident, sampling_method_1, sampling_method_2, total_effort_1, total_effort_2, sub_effort_1, sub_effort_2, flag)
+
+
+#do the na efforts with flags call hold a similar patter - filter orignal ia obs and each notes.2
+spec_check <- ia_fishobs_30Nov2023 %>% 
+  filter(survey_id %in% c(check$survey_id)) %>% 
+  distinct(lake_name.1, survey_id, date.1, sampling_method.1, sampling_method.2, total_effort_1, notes.2, total_effort_ident, sub_effort_ident)
+
+spec_check %>% 
+  group_by(total_effort_ident) %>% 
+  count()
+
+spec_check %>% 
+  group_by(total_effort_ident) %>% 
+  summarize(has_adequate_0 = any(notes.2 == "Sample.IsSampleQualityAdequate:0")) %>% 
+  summarize(all_have_adequate0 = all(has_adequate_0)) %>% 
+  pull(all_have_adequate0)
+#this tells us that every total_effort_ident has at least one sub effort ident that is not adequate - likely leading to NA total effort 
+
+spec_check %>% 
+  group_by(notes.2, is.na(total_effort_1)) %>% 
+  count()
+#we can see that the only cases that are NA for total effort are the adequate 0s which pick up a flag early in the ag process 
+
+check %>% 
+  filter(is.na(total_effort_1) & !is.na(flag)) %>% 
+  distinct(total_effort_ident, sub_effort_ident, flag) %>% 
+  summarise(sum_na = sum(is.na(flag))) 
+
+check %>% 
+  filter(is.na(total_effort_1) & !is.na(flag)) %>% 
+  distinct(survey_id, total_effort_ident, sub_effort_ident, sub_effort_1) 
+
+ia_fishobs %>% 
+  filter(visit_id == "A971153C-0FB8-4B55-993B-90644B8926D0") %>% 
+  distinct(lake_name_1, date_1, sampling_method_1, sampling_method_2, total_effort_ident, sub_effort_ident, total_effort_1, sub_effort_1, visit_id)
+
+ia_fishobs %>% 
+  mutate(across(everything(), as.character)) %>% 
+  purrr::map_lgl(~ any(. == "A971153C-0FB8-4B55-993B-90644B8926D0", na.rm = T)) %>% 
+  which()
+  
+rm(check, spec_check)
+########################################################################
+
+#sex column correction 
+ia_fishobs <- ia_fishobs %>% 
+  mutate(sex = case_when(sex == "" ~ NA,
+                         sex == "Undetermined" ~ "Unknown",
+                         TRUE ~ sex)) 
+
+#cleaning up age class
+ia_fishobs <- ia_fishobs %>% 
+  mutate(age_class = case_when(age_class == "Adult" ~ "adult",
+                               age_class == "Sub-Adult" ~ "sub_adult",
+                               age_class == "Young of Year"~ "young_of_year",
+                               TRUE ~ age_class))
+
+#lat/lon
+ia_fishobs %>% 
+  summarise(min_lat = min(centroid_lat, na.rm = T),
+            min_lon = min(centroid_lon, na.rm = T),
+            min_unspec_lat = min(lat_unspec, na.rm = T),
+            min_unspec_lon = min(lon_unspec, na.rm = T))
+
+#batch weight and units
+ia_fishobs %>% 
+  filter(!is.na(batch_weight)) %>% 
+  group_by(total_effort_ident, sub_effort_ident, species_1, batch_weight) %>% 
+  count() 
+#looks like there are many batch weights within a sub effort idnet
+#it is probably net specific - how should we incorporate that into our structure? 
+
+check <- ia_fishobs %>%
+  group_by(sub_effort_ident) %>% 
+  filter(any(!is.na(batch_weight))) %>% 
+  ungroup() %>% 
+  distinct(total_effort_ident, sub_effort_ident, species_1, batch_count_ident ,batch_weight)
+rm(check)
+
+ia_fishobs %>% 
+  filter(total_effort_ident == "6091" & sub_effort_ident == "10F4963C-1E49-4277-B20B-CE9156BE1B52") %>% 
+  group_by(total_effort_ident, sub_effort_ident, species_1, batch_count_ident ,batch_weight) %>% 
+  count() %>% 
+  arrange(batch_count_ident)
+#is the count generated as the same count in the original batch count?
+ia_fishobs_30Nov2023 %>% 
+  filter(sub_effort_ident == "10F4963C-1E49-4277-B20B-CE9156BE1B52" & !is.na(batch_count_ident)) %>% 
+  select(sub_effort_ident, species.1, batch_count_ident, batch_weight, individual_count) %>% 
+  arrange(batch_count_ident)
+
+#lets just retain the batch_count_ident in a notes columns so that a user would be able to make sense of the batch counts
+ia_fishobs <- ia_fishobs %>% 
+  mutate(notes_1 = paste0("Batch_Count_Ident: ", batch_count_ident, "; ", notes_1))
+
+ia_fishobs %>% 
+  filter(total_effort_ident == "6091") %>% 
+  group_by(notes_1) %>% 
+  count()
+#we can see that batch count ident gets added to notes 1, even if it were na
+#this allows it to be extracted by a user if batch weight were important 
+
+####are there cases of multiple total efforts idents in a year-lake-gear (grouping that makes up the ident)
+multi_tei_in_year <- ia_fishobs %>% 
+  group_by(year(survey_start_date), lake_name_1, consolidated_gear) %>% 
+  summarise(n_total_effort_idents = n_distinct(total_effort_ident)) %>% 
+  filter(n_total_effort_idents >1)
 
 check <- ia_fishobs %>% 
-  filter(is.na(total_effort_1) & is.na(flag)) %>% 
-  distinct(total_effort_ident, lake_name_1, survey_start_date, survey_id, total_effort_1, total_effort_2, sub_effort_1, sub_effort_2, sampling_method_simple, sampling_method_1, sampling_method_2)
+  group_by(year = year(survey_start_date), lake_name_1, consolidated_gear) %>% 
+  summarise(
+    n_total_effort_idents = n_distinct(total_effort_ident),
+    .groups = "drop"
+  ) %>% 
+  filter(n_total_effort_idents > 1) %>%
+  inner_join(
+    ia_fishobs %>% 
+      mutate(year = year(survey_start_date)),
+    by = c("year", "lake_name_1", "consolidated_gear")
+  ) %>% 
+  mutate(year = year(survey_start_date)) %>% 
+  distinct(lake_name_1, 
+           lake_name,
+           consolidated_gear, 
+           year,
+           sampling_method_1, 
+           sampling_method_2, 
+           total_effort_ident, 
+           survey_start_date)
+#in the first call, we find all cases where there are multiple total efforts of the same gear-lake within a year
+#second call shows why that might be
+#it looks like in a lot of cases there is a large range in when sampling with the same method (fall and spring), other cases looks like the grouping gear was different than the more defined gear in the end 
 
-no_effort_flags <- ia_fishobs %>% 
-  filter(is.na(total_effort_1) & is.na(flag)) %>%
-  distinct(total_effort_ident, lake_name_1, survey_start_date, survey_id, total_effort_1, total_effort_2, sub_effort_1, sub_effort_2, sampling_method_simple, sampling_method_1, sampling_method_2, flag) %>% 
-  group_by(total_effort_ident) %>% 
-  mutate(flag = case_when(n_distinct(sampling_method_1) > 1 ~ "multipule sampling gears listed by the agency",
-                          is.na(total_effort_1)
-                          TRUE ~ flag))
-###########stopped right above here creating flags for why there are no total efforts######
+rm(multi_tei_in_year, check)
+##########################################################
+
 
 #creating auto flags for effort
 flag_xwalk <- ia_fishobs %>% 
@@ -1211,9 +1356,6 @@ ia_fishobs_trial <- ia_fishobs %>%
          survey_type_3 = as.character(NA),
          survey_type_4 = as.character(NA),
          gear_data_notes = gear_data_notes_1,
-         target_species_2 = as.character(NA),
-         total_effort_3 = as.numeric(NA),
-         total_effort_3_units = as.character(NA),
          water_temp = as.numeric(NA),
          water_temp_units = as.character(NA),
          water_clarity = as.numeric(NA),
@@ -1223,14 +1365,12 @@ ia_fishobs_trial <- ia_fishobs %>%
          site_id = site_id_1,
          species_1 = species_clean,
          length_unit_1 = length_unit_1_clean,
-         aging_structure_2 = as.character(NA),
          weight_unit_1 = weight_unit_1_clean,
          batch_weight = as.character(batch_weight),
          original_file_names = original_file_name_1,
          ind_fish_ident = fish_ident,
          lakesize = c_lakesize,
          lakesize_units = c_lakesize_units,
-         area_group = as.character(NA),
          waterbody_type = lake_type,
          location_notes_1 = as.character(NA),
          obs_id = as.character(row_number()),
@@ -1270,14 +1410,11 @@ ia_fishobs_trial <- ia_fishobs %>%
          sampling_method_2,
          gear_data_notes,
          target_species,
-         target_species_2,
          total_effort_ident,
          total_effort_1, 
          total_effort_2,
-         total_effort_3,
          total_effort_1_units,
          total_effort_2_units,
-         total_effort_3_units,
          total_effort_nothing_caught,
          water_temp,
          water_temp_units,
@@ -1301,7 +1438,6 @@ ia_fishobs_trial <- ia_fishobs %>%
          length_bin_unit,
          age,
          aging_structure_1,
-         aging_structure_2,
          weight_1,
          weight_unit_1,
          batch_weight,
@@ -1313,7 +1449,6 @@ ia_fishobs_trial <- ia_fishobs %>%
          ind_fish_ident,
          lakesize,
          lakesize_units,
-         area_group,
          lat_unspec,
          lon_unspec,
          waterbody_type,

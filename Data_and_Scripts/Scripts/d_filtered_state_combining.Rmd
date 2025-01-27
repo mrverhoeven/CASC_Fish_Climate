@@ -103,6 +103,35 @@ mw_lake %>%
              coverage_lat = lat/total_lakes
                ) %>% 
   collect()
+
+#looking at new stnd
+mw_data_all <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state"))  %>% 
+  filter(state %in% c("Indiana", "Illinois", "Michigan"))
+
+mw_data %>% 
+  group_by(state, age_class) %>% 
+  count() %>% 
+  collect()
+
+mw_data_all %>% 
+  group_by(state, age_class) %>% 
+  count() %>% 
+  collect()
+
+mw_data_all %>% 
+  filter(state == "Iowa") %>% 
+  group_by(is.na(total_effort_1), is.na(flag)) %>% 
+  count() %>% 
+  collect()
+
+mw_data_all %>% 
+  filter(state == "Iowa") %>%
+  group_by(date_survey, sampling_method, sampling_method_2, lake_id) %>% 
+  summarise(total_efforts = n_distinct(total_effort_ident),
+            sub_efforts = n_distinct(sub_effort_ident),
+            total_effort_values = n_distinct(total_effort_1)) %>% 
+  collect() %>% 
+  filter(total_efforts >1) 
 ```
 
 

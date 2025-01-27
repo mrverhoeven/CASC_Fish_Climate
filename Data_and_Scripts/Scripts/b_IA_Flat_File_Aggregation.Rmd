@@ -167,7 +167,7 @@ setcolorder(ia_fishobs_30Nov2023, c("lake_name.1", "county", "lat_unspec", "lon_
 ### Erroneous zeros
 
 
-# beacuse they drew together databases, there's a bit of craziness that happened with the survey_ident having 1 record that  says total_count = 0 (indicating that total_eff_ident has 0 indiv_fish observations), but one batch count record with N>0
+# because they drew together databases, there's a bit of craziness that happened with the survey_ident having 1 record that  says total_count = 0 (indicating that total_eff_ident has 0 indiv_fish observations), but one batch count record with N>0
 ia_fishobs_30Nov2023[ , .N , sample_id.1 ][N==1]
 
 b <- ia_fishobs_30Nov2023[ia_fishobs_30Nov2023[ , .N , sample_id.1 ][N==1], on = .(sample_id.1) , ]
@@ -435,6 +435,7 @@ gear_corrections <- fread(file = "IA_gear_notes.csv")
 
       ###########creation of the total effort ident grouping
       ia_fishobs[ , total_effort_ident := .GRP , .(lake_name.1, survey_start_date, survey_id, consolidated_gear )]
+      
 
       ia_fishobs[ , .N , total_effort_ident ]
       
@@ -1097,7 +1098,7 @@ check_sub <- ia_fishobs %>%
   filter(total_effort_ident %in% check_total$total_effort_ident) %>% 
   distinct(total_effort_ident, lake_name_1, survey_start_date, survey_id, total_effort_1, total_effort_2, sub_effort_ident, sub_effort_1, sub_effort_2, sampling_method_simple, sampling_method_1, sampling_method_2, flag)
 #here we can see there are a few different reasons a total effort ident may still be na 
-#there are sometimes multipule gears listed within a total effort ident or the agency did not report effort at various levels
+#there are sometimes multiple gears listed within a total effort ident or the agency did not report effort at various levels
 #sometimes effort for a singular sub effort was not reported - however that NA in the sub effort leads to NA total effort during summation 
 
 #given the small amount of na total effort surveys remaining without an "easy" integration given the wonkiness - lets remove 
@@ -1114,7 +1115,6 @@ ia_fishobs %>%
 
 rm(check_total, check_sub, ident_remove)
 
-###################return here 1/14######################################
 #this checking process looks like 
 #1. find places that are NA for total effort but have a flag
 #2. take the the survey id from that total effort and plug it into the filter below for survey id to get original data
@@ -1123,9 +1123,15 @@ rm(check_total, check_sub, ident_remove)
 #based on some level of research, I can see that there was a flag created based on notes.2 column for inadequate sample
 #this note is applied to all levels within the survey id/total effort ident 
 #we can see that there are sub efforts within the total effort that remain unaffected but get the flag tag because they are in the same total effort 
-#next exploration is tyring to figure out if it is worth recooping these sub efforts 
+#next exploration is trying to figure out if it is worth recooping these sub efforts 
 
 #with flag na effort?
+ia_fishobs %>% 
+  mutate(na_effort = case_when(is.na(total_effort_1) ~ T,
+                               T ~ F)) %>% 
+  summarise(prop_na_effort_samples = mean(na_effort))
+#16% of the total samples 
+
 check <- ia_fishobs %>% 
   filter(is.na(total_effort_1)) %>% 
   distinct(total_effort_ident,survey_id, sub_effort_ident, sampling_method_1, sampling_method_2, total_effort_1, total_effort_2, sub_effort_1, sub_effort_2, flag)
@@ -1172,6 +1178,100 @@ ia_fishobs %>%
   
 rm(check, spec_check)
 ########################################################################
+
+####are there cases of multiple total efforts idents in a year-lake-gear (grouping that makes up the ident)
+multi_tei_in_year <- ia_fishobs %>% 
+  group_by(year(survey_start_date), lake_name_1, consolidated_gear) %>% 
+  summarise(n_total_effort_idents = n_distinct(total_effort_ident)) %>% 
+  filter(n_total_effort_idents >1)
+
+check <- ia_fishobs %>% 
+  group_by(year = year(survey_start_date), lake_name_1, consolidated_gear) %>% 
+  summarise(
+    n_total_effort_idents = n_distinct(total_effort_ident),
+    .groups = "drop"
+  ) %>% 
+  filter(n_total_effort_idents > 1) %>%
+  inner_join(
+    ia_fishobs %>% 
+      mutate(year = year(survey_start_date)),
+    by = c("year", "lake_name_1", "consolidated_gear")
+  ) %>% 
+  mutate(year = year(survey_start_date)) %>% 
+  distinct(lake_name_1, 
+           lake_name,
+           consolidated_gear, 
+           year,
+           sampling_method_1, 
+           sampling_method_2, 
+           total_effort_ident,
+           survey_start_date)
+#in the first call, we find all cases where there are multiple total efforts of the same gear-lake within a year
+#second call shows why that might be:
+#it looks like in a lot of cases there is a large range in when sampling with the same method (fall and spring), other cases looks like the grouping gear was different than the more defined gear in the end 
+
+check_org <- ia_fishobs %>% 
+  group_by(year = year(survey_start_date), lake_name_1, consolidated_gear) %>% 
+  summarise(
+    n_total_effort_idents = n_distinct(total_effort_ident),
+    .groups = "drop"
+  ) %>% 
+  filter(n_total_effort_idents > 1) %>%
+  inner_join(
+    ia_fishobs %>% 
+      mutate(year = year(survey_start_date)),
+    by = c("year", "lake_name_1", "consolidated_gear")
+  ) %>% 
+  mutate(year = year(survey_start_date)) %>% 
+  distinct(lake_name_1, 
+           lake_name,
+           consolidated_gear, 
+           year,
+           sampling_method_1, 
+           sampling_method_2, 
+           survey_id,
+           total_effort_ident,
+           survey_start_date) %>% 
+  group_by(lake_name_1, survey_start_date, consolidated_gear) %>% 
+  summarise(n_total_idents = n_distinct(total_effort_ident),
+            n_survey_ids = n_distinct(survey_id))
+
+#here we can see an example of a sampling_start_dateXgearXlake that has 10 different tei, stemming from differen survey ids
+specific_check <- ia_fishobs %>% 
+  filter(lake_name_1 == "Pool 16, Mississippi River", consolidated_gear == "Hoop Net Unspecified" & survey_start_date == "2021-07-19") %>% 
+  group_by(survey_id, total_effort_ident, sub_effort_ident, lake_name_1, consolidated_gear, survey_start_date) %>% 
+  count()
+
+#how common is this?
+ia_fishobs %>% 
+  group_by(consolidated_gear, survey_start_date, lake_name_1) %>% 
+  summarise(n_survey_id = n_distinct(survey_id),
+            n_total_effort_ident = n_distinct(total_effort_ident)) %>% 
+  filter(n_survey_id > 1) %>% 
+  arrange(desc(n_survey_id))
+#only 241 lakeXgearXdate this happens
+
+ia_fishobs %>% 
+  group_by(consolidated_gear, survey_start_date, lake_name_1) %>% 
+  summarise(n_survey_id = n_distinct(survey_id),
+            n_total_effort_ident = n_distinct(total_effort_ident)) %>% 
+  mutate(multi_tei = case_when(n_survey_id > 1 ~ T,
+                               n_survey_id <= 1 ~ F)) %>% 
+  ungroup() %>% 
+  summarise(prop_samples = mean(multi_tei))
+
+ia_fishobs %>% 
+  group_by(consolidated_gear, survey_start_date, lake_name_1) %>% 
+  summarise(n_survey_id = n_distinct(survey_id),
+            n_total_effort_ident = n_distinct(total_effort_ident)) %>% 
+  mutate(mismatch = case_when(n_survey_id != n_total_effort_ident  ~ T,
+                               n_survey_id == n_total_effort_ident ~ F)) %>% 
+  ungroup() %>% 
+  summarise(prop_mismatch = mean(mismatch))
+#this shows that the number of total efforts is alway equal to the number of survey_ids, cherry on top for evidence that this is driving the issue
+
+rm(multi_tei_in_year, check, check_org, specific_check)
+##########################################################
 
 #sex column correction 
 ia_fishobs <- ia_fishobs %>% 
@@ -1229,40 +1329,6 @@ ia_fishobs %>%
   count()
 #we can see that batch count ident gets added to notes 1, even if it were na
 #this allows it to be extracted by a user if batch weight were important 
-
-####are there cases of multiple total efforts idents in a year-lake-gear (grouping that makes up the ident)
-multi_tei_in_year <- ia_fishobs %>% 
-  group_by(year(survey_start_date), lake_name_1, consolidated_gear) %>% 
-  summarise(n_total_effort_idents = n_distinct(total_effort_ident)) %>% 
-  filter(n_total_effort_idents >1)
-
-check <- ia_fishobs %>% 
-  group_by(year = year(survey_start_date), lake_name_1, consolidated_gear) %>% 
-  summarise(
-    n_total_effort_idents = n_distinct(total_effort_ident),
-    .groups = "drop"
-  ) %>% 
-  filter(n_total_effort_idents > 1) %>%
-  inner_join(
-    ia_fishobs %>% 
-      mutate(year = year(survey_start_date)),
-    by = c("year", "lake_name_1", "consolidated_gear")
-  ) %>% 
-  mutate(year = year(survey_start_date)) %>% 
-  distinct(lake_name_1, 
-           lake_name,
-           consolidated_gear, 
-           year,
-           sampling_method_1, 
-           sampling_method_2, 
-           total_effort_ident, 
-           survey_start_date)
-#in the first call, we find all cases where there are multiple total efforts of the same gear-lake within a year
-#second call shows why that might be
-#it looks like in a lot of cases there is a large range in when sampling with the same method (fall and spring), other cases looks like the grouping gear was different than the more defined gear in the end 
-
-rm(multi_tei_in_year, check)
-##########################################################
 
 
 #creating auto flags for effort
@@ -1347,6 +1413,20 @@ ia_fishobs <- ia_fishobs %>%
   select(-flag) %>% 
   left_join(fish_length_weight_flag_xwalk, relationship = "many-to-one")
 rm(fish_length_weight_flag_xwalk)
+
+#making na total effort idents when the effort is na
+ia_fishobs <- ia_fishobs %>% 
+  mutate(total_effort_ident = case_when(is.na(total_effort_1) ~ NA,
+                                        TRUE ~ total_effort_ident))
+ia_fishobs %>% 
+  group_by(is.na(total_effort_ident), is.na(total_effort_1)) %>% 
+  count()
+
+ia_fishobs %>% 
+  mutate(na_effort = case_when(is.na(total_effort_1) ~ T,
+                               !is.na(total_effort_1) ~ F)) %>% 
+  summarise(prop = mean(na_effort))
+  
 
 #Denver's attempt to clean up columns
 ia_fishobs_trial <- ia_fishobs %>% 
@@ -1489,6 +1569,10 @@ ia_fishobs_trial %>%
 ia_fishobs_trial %>% 
   distinct(lake_name, .keep_all = T) %>% 
   group_by(is.na(nhdhr_id), is.na(latitude_lake_centroid)) %>% 
+  count()
+
+ia_fishobs_trial %>% 
+  group_by(is.na(total_effort_ident), is.na(total_effort_1)) %>% 
   count()
 
 #fish obs unpacked and tidied, clean up ws

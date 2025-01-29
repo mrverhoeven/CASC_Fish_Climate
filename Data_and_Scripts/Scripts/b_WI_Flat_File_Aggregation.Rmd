@@ -41,23 +41,22 @@ DONE      40. There are several survey type columns - some rows are NA for the f
       21. Convert length units to mm (decided not to convert based on discussion of sig. digits)
 done? 48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
       22. Many lengthed fish do not have a unit on their length
-      25. Set all to state == Wisconsin
+DONE  25. Set all to state == Wisconsin
 DONE  26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
 DONE  49. TEIs for aged fish that were not matched to fish obs should be assigned TEI == NA
 DONE  36. Review for problems: TEIs sometimes contain multiple water temps straddling the temp cutoffs (prework 47. Clean water temp units column.)
 DONE  38. There are two target species cols–collapse and comma separate
 DONE  46. Collapse targeted sp to one column
           Nix total effort 3 and targeted species 2 
-      29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
+DONE  29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
       31. Make sure all gear details are retained (likely this funnels into gear data notes)
-      
       34. Re-generate the wi_effort_file_notes file (this is what Jack reviewed. DO we HAVE to do this?)
             Check on gear data notes (very messy); Keep an eye on the NA removal in the paste/collapse function
       
       #NHDs and locs
-done? 23. Throw out rivers and streams (see d_fish_data_maps)
-      41. WI - missing NHDids on Cisco
-      12. Check coverage of NHDids, Lat, Lon
+DONE  23. Throw out rivers and streams
+DONE  41. WI - missing NHDids on Cisco
+DONE  12. Check coverage of NHDids, Lat, Lon
       33. County check to make sure I pulled the correct column
       37. Counties and lake names are all lower case with _ instead of spaces - all other states are capital first letter with spaces
       
@@ -1385,6 +1384,7 @@ wi_inland_fishobservations_10Nov2023[ , all(is.na(species))  , .(total_effort_id
 wi_inland_fishobservations_10Nov2023[ , total_effort_nothing_caught :=  all(is.na(species))  , .(total_effort_ident)]
 
 
+
 rm(tot_eff_1)
 
 # Set no effort records to TEI == NA
@@ -1395,10 +1395,14 @@ wi_inland_fishobservations_10Nov2023[ is.na(total_effort_1), .N , ]
 wi_inland_fishobservations_10Nov2023[ is.na(total_effort_1), .N , .(total_effort_1_unit, total_effort_ident)]
 wi_inland_fishobservations_10Nov2023[is.na(total_effort_1), total_effort_ident := NA , ]
 
+#drop old total effort val
+wi_inland_fishobservations_10Nov2023[ , total_effort := NULL, ]
+
+
 
 #multi-temp TEIs
 wi_inland_fishobservations_10Nov2023[!is.na(water_temp) , .N , .(total_effort_ident, water_temp)][ , max(water_temp-min(water_temp))  , .(total_effort_ident) ][V1<20, hist(V1)]
-
+ # checked in with Denver on this topic. leaving as-is. Temps are often associated with a sample below the level of TEI, so should be dealt with on the suitable gear filtering end (e.g., if any of the nets in a survey was suitable temp, consider the entire survey as suitable, or dont)
 
 
 
@@ -1430,10 +1434,10 @@ wi_inland_fishobservations_10Nov2023[year(date) < 1938 |
 
 ```
 
-# NHDs
+# NHDs & Lakes Only Trim
 ```{r}
 # add NHDids
-MGLP_crosswalk <- fread("MGLP_FISH_LAKES_12Aug24.csv")
+MGLP_crosswalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv")
 
 MGLP_crosswalk <- MGLP_crosswalk[STATE == "WI"]
 MGLP_crosswalk[ , STATE_ID := as.numeric(STATE_ID) , ]
@@ -1453,12 +1457,8 @@ setnames(wi_inland_fishobservations_10Nov2023, "NHDHR_ID", "nhdhr_id")
 
 #check coverage
 wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) , .N , is.na(nhdhr_id)]
-#report remaining unmatched from mwlaxeref & MSU
-wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) & is.na(nhdhr_id), .N , .(lake_id, lake_name) ]
-```
+wi_inland_fishobservations_10Nov2023[ , length(unique(lake_id)) , is.na(nhdhr_id) ]
 
-#more tidying
-```{r}
 
 # wi_inland_fishobservations_10Nov2023[nothing_caught == T, unique(total_effort_ident)]
 wi_inland_fishobservations_10Nov2023 %>% 
@@ -1472,7 +1472,7 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
 
 #sifting for lakes (so our data does not contain lakes/stream)
 
-wi_lat_long <- read_csv("wi_raw_disaggregated_data/wi_lake_wbic_lat_long_PNF.csv")%>%
+wi_lat_long <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
   mutate(lake.id = as.character(lake.id))%>%
   setDT()
 
@@ -1481,7 +1481,7 @@ wi_inland_fishobservations_10Nov2023[ , lake_id:= as.character(lake_id) , ]
 wi_inland_fishobservations_10Nov2023[wi_lat_long, on = .(lake_id= lake.id), `:=` ("latitude_lake_centroid" = lat, "longitude_lake_centroid" = long)  ]
 
 # downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
-WI_hydro_list <- read_csv("wi_raw_disaggregated_data/24k_Hydro_Waterbodies_(Open_Water).csv")
+WI_hydro_list <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_Rivers_Info/24k_Hydro_Waterbodies_(Open_Water).csv")
 
 WI_hydro_list <- as.data.table(WI_hydro_list)
 
@@ -1511,6 +1511,8 @@ wi_inland_fishobservations_10Nov2023 %>%
 
 wi_inland_fishobservations_10Nov2023[ , .N , waterbody_type ]
 
+wi_inland_fishobservations_10Nov2023[ is.na(waterbody_type) ,  .N  ,   .(original_file_names, survey_type)] 
+
 #drop weird waters
 wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023[waterbody_type %in% c("Lake/Pond", "Backwater", "Reservoir/Flowage", "Unspecified Open Water"), , ]
 
@@ -1521,15 +1523,26 @@ wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) , length(unique(lake_id)) 
 wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) & is.na(nhdhr_id), .N , .(lake_id, lake_name) ]
 
 
-
-
-
 ```
 
-#fix gears here
+
+#fix gears here, addding simple gear
 ```{r}
 
+#we're after 4 columns:  sampling_method_simple, sampling_method, sampling_method_2, gear_data_notes
 
+glimpse(wi_inland_fishobservations_10Nov2023)
+
+wi_inland_fishobservations_10Nov2023[ , .N , gear_data_notes ]
+
+wi_inland_fishobservations_10Nov2023[ , .N , (sampling_method,  ]
+
+#this file lives in the crosswalk folder in the drive
+#here we read in a gear cross walk, the file contains each unique gear and assigns it new labels that are consistent across states
+gear_xwalk <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv") %>% 
+  filter(state == "South_Dakota") %>% 
+  rename(sampling_method.1 = gear_1) %>% 
+  select(sampling_method.1, sampling_method_simple, sampling_method_1, sampling_method_2)
 
 
 ```

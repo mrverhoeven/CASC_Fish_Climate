@@ -904,6 +904,37 @@ mi_catch_eff_merge %>%
   group_by(aging_structure_1) %>% 
   count()
 
+#more aged fish than desired?
+mi_catch_eff_merge %>% 
+  group_by(species.1, is.na(age)) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#we can see that there are more species within the aged fish file than in the catch file - lets remove them
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  filter(!(str_detect(species.1, "taxon")) | is.na(species.1)) 
+
+mi_catch_eff_merge %>% 
+  group_by(species.1, is.na(age)) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#now we can see that there are only the 8 sport fish species, but they include aged fish as well
+
+#since we are not able to retain effort information with aged fish, lets remove the total effort ident from them
+mi_catch_eff_merge %>% 
+  group_by(is.na(age), is.na(total_effort_1_effort), is.na(effort_ident)) %>% 
+  count()
+#here we can see all records get assigned a total effort ident, even if total effort is na - lets remove the total effort ident when effort is NA
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  mutate(effort_ident = case_when(is.na(total_effort_1_effort) ~ NA,
+                                  TRUE ~ effort_ident)) 
+
+mi_catch_eff_merge %>% 
+  group_by(is.na(age), is.na(total_effort_1_effort), is.na(effort_ident)) %>% 
+  count()
+#now we can see that aged fish have an NA effot ident becuase they don't have effort, there is also one odd survey that doesn't have effor that also does not retain an effort ident
+
 #matching to schema
 mi_data <- mi_catch_eff_merge %>% 
   ungroup() %>% 

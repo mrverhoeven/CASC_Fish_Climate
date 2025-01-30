@@ -1522,6 +1522,8 @@ wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) , length(unique(lake_id)) 
 #report remaining unmatched from mwlaxeref & MSU
 wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) & is.na(nhdhr_id), .N , .(lake_id, lake_name) ]
 
+rm(wi_lat_long, WI_hydro_list, MGLP_crosswalk)
+
 
 ```
 
@@ -1535,7 +1537,73 @@ glimpse(wi_inland_fishobservations_10Nov2023)
 
 wi_inland_fishobservations_10Nov2023[ , .N , gear_data_notes ]
 
-wi_inland_fishobservations_10Nov2023[ , .N , (sampling_method,  ]
+wi_inland_fishobservations_10Nov2023[ , .N , .(state, sampling_method, gear_data_notes, gear_data_notes_1, gear_data_notes_2, gear_data_notes_3, gear_data_notes_4, gear_data_notes_5, gear_data_notes_6, gear_data_notes_7, gear_data_notes_8, gear_data_notes_9, gear_data_notes_10, gear_data_notes_11, gear_data_notes_12, gear_data_notes_13, gear_data_notes_14, gear_data_notes_15)  ][order(sampling_method)]
+
+#almost all of these are net.number columns:
+wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = T)   , unique(gear_data_notes) ]
+
+#vert GN comments
+wi_inland_fishobservations_10Nov2023[ , .N , sampling_method]
+wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N , gear_data_notes ]
+
+#move net.number to another column: 
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = F),.N   , gear_data_notes ]
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = F),.N   , original_file_names ]
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number"), ':=' ("gear_data_notes_16" = gear_data_notes, "gear_data_notes" = NA) , ]
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "mesh"), ':=' ("gear_data_notes_17" = gear_data_notes, "gear_data_notes" = NA) , ]
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes_17, "mesh sizes"), ':=' ("gear_data_notes_18" = gear_data_notes_17, "gear_data_notes_17" = NA)  ]
+
+#gear_data_notes now distriubuted and future loc is empty
+  wi_inland_fishobservations_10Nov2023[ ,  .N,  gear_data_notes]
+  
+#nix gear data notes entries that are NA:
+  wi_inland_fishobservations_10Nov2023[  ,  unique(word(gear_data_notes_1, sep = ":")) ,  ]
+  wi_inland_fishobservations_10Nov2023[ str_detect(gear_data_notes_1, ":NA") , .N , gear_data_notes_1   ]
+  wi_inland_fishobservations_10Nov2023[ str_detect(gear_data_notes_1, ":NA") , gear_data_notes_1 := NA   ] 
+  wi_inland_fishobservations_10Nov2023[ , , ]
+  
+  for (i in 1:17) {
+  col_name <- paste0("gear_data_notes_", i)
+  wi_inland_fishobservations_10Nov2023[ str_detect(get(col_name), ":NA"), (col_name) := NA ]
+  }
+  
+  #summarize outcome and check for multi-info columns
+  for (i in 1:17) {
+  col_name <- paste0("gear_data_notes_", i)
+  print(wi_inland_fishobservations_10Nov2023[ , unique(word(get(col_name), sep = ":")) , ])
+  }
+  
+#great: this shows that one piece of info is showing up in each gear data column. Now we'll collapse these into a sampling method 2 column. We don't need everything though, only the following: for nets:net,type,length,bar (sampling_method,number of nets 9, mesh 17) for EF: type,current,daynight, netteres (sampling_method, current.type, numberofdippers)
+  
+  wi_inland_fishobservations_10Nov2023[ , .N ,  .(sampling_method)]
+  
+  colnames(wi_inland_fishobservations_10Nov2023)
+  
+  wi_inland_fishobservations_10Nov2023[ , sampling_method_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")) ,.SDcols = c("sampling_method", paste0("gear_data_notes_", 1:17))]
+
+wi_inland_fishobservations_10Nov2023[ str_detect(sampling_method, "gillnet") , .N , .(sampling_method_2) ]
+  
+  wi_inland_fishobservations_10Nov2023[str_detect(sampling_method_2, "mesh:6")]
+  
+  del_col <- paste0("gear_data_notes_", 1:17)
+  
+  wi_inland_fishobservations_10Nov2023[ , (del_col) := NULL , ]
+  
+  wi_inland_fishobservations_10Nov2023[ sampling_method %in% c("fyke_net", "boom_shocker", "vertical_gill_net") , .N , .(sampling_method, sampling_method_2) ]
+  
+  wi_inland_fishobservations_10Nov2023[ , ]
+  
+  
+  rm(mw_data, samling_method_sim, cde)
+  
+  
+  a <- wi_inland_fishobservations_10Nov2023[ str_detect(sampling_method, "boom_shocker") , .N , .(sampling_method_2) ]
+  
+  
+  
+  
+  
+wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "mesh", negate = F)   , unique(gear_data_notes_17) ]
 
 #this file lives in the crosswalk folder in the drive
 #here we read in a gear cross walk, the file contains each unique gear and assigns it new labels that are consistent across states

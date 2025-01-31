@@ -1562,42 +1562,64 @@ wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N 
   wi_inland_fishobservations_10Nov2023[ str_detect(gear_data_notes_1, ":NA") , gear_data_notes_1 := NA   ] 
   wi_inland_fishobservations_10Nov2023[ , , ]
   
-  for (i in 1:17) {
+  for (i in 1:18) {
   col_name <- paste0("gear_data_notes_", i)
   wi_inland_fishobservations_10Nov2023[ str_detect(get(col_name), ":NA"), (col_name) := NA ]
   }
   
   #summarize outcome and check for multi-info columns
-  for (i in 1:17) {
+  for (i in 1:18) {
   col_name <- paste0("gear_data_notes_", i)
   print(wi_inland_fishobservations_10Nov2023[ , unique(word(get(col_name), sep = ":")) , ])
   }
   
-#great: this shows that one piece of info is showing up in each gear data column. Now we'll collapse these into a sampling method 2 column. We don't need everything though, only the following: for nets:net,type,length,bar (sampling_method,number of nets 9, mesh 17) for EF: type,current,daynight, netteres (sampling_method, current.type, numberofdippers)
+#great: this shows that one piece of info is showing up in each gear data column. Now we'll collapse these into a sampling method 2 column. We don't need everything though, only the following: for nets:net,type,length,bar (sampling_method, mesh 17) for EF: type,current,daynight, netteres (sampling_method, current.type, numberofdippers)
   
   wi_inland_fishobservations_10Nov2023[ , .N ,  .(sampling_method)]
   
   colnames(wi_inland_fishobservations_10Nov2023)
   
-  wi_inland_fishobservations_10Nov2023[ , sampling_method_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")) ,.SDcols = c("sampling_method", paste0("gear_data_notes_", 1:17))]
+  wi_inland_fishobservations_10Nov2023[ , sampling_method_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")) ,.SDcols = c("sampling_method", paste0("gear_data_notes_", 1:18))]
+  
+# a <- wi_inland_fishobservations_10Nov2023[ str_detect(sampling_method, "boom_shocker") , .N , .(sampling_method_2) ]
+
+#construct a "gear_2" to parallel the other states  
+  wi_inland_fishobservations_10Nov2023[ sampling_method == "boom_shocker",
+                                        gear_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")),
+                                        .SDcols = c("sampling_method", "gear_data_notes_5", "gear_data_notes_6")] 
+  
+  wi_inland_fishobservations_10Nov2023[ sampling_method %in% c("fyke_net", "vertical_gill_net") ,
+                                        gear_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")),
+                                        .SDcols = c("sampling_method", "gear_data_notes_17")] 
+  
+  
+#drop collated columns  
+  del_col <- paste0("gear_data_notes_", 1:18)
+  wi_inland_fishobservations_10Nov2023[ , (del_col) := NULL , ]
+  
+#rename to match gear crosswalk
+  
+  setnames(wi_inland_fishobservations_10Nov2023,
+           old = c("sampling_method", "sampling_method_2"),
+           new = c("gear_1", "gear_2"))
+
+  wi_inland_fishobservations_10Nov2023[ , .N , .(state, gear_1, gear_2) ]  
+  
+  names(wi_inland_fishobservations_10Nov2023)
 
 wi_inland_fishobservations_10Nov2023[ str_detect(sampling_method, "gillnet") , .N , .(sampling_method_2) ]
   
   wi_inland_fishobservations_10Nov2023[str_detect(sampling_method_2, "mesh:6")]
   
-  del_col <- paste0("gear_data_notes_", 1:17)
   
-  wi_inland_fishobservations_10Nov2023[ , (del_col) := NULL , ]
   
   wi_inland_fishobservations_10Nov2023[ sampling_method %in% c("fyke_net", "boom_shocker", "vertical_gill_net") , .N , .(sampling_method, sampling_method_2) ]
   
-  wi_inland_fishobservations_10Nov2023[ , ]
-  
-  
   rm(mw_data, samling_method_sim, cde)
   
+  wi_inland_fishobservations10Nov2023[  , .N  ,  gear_data_notes ]
   
-  a <- wi_inland_fishobservations_10Nov2023[ str_detect(sampling_method, "boom_shocker") , .N , .(sampling_method_2) ]
+  
   
   
   

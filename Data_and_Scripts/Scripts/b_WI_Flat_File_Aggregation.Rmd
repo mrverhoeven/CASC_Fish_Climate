@@ -38,9 +38,6 @@ DONE 48. Should Cisco data be in the data explainer? They are, but to rerun from
 DONE 15. Update the WI data to include all species sent by Paul F in November 2023
 DONE  39. Do the lengths we have from WI get generated? Do they use a plus bin? (this would be a size of fish that was longer than X) (check for grepex of "+" in the data that are imported): NO. Not sure why this was thought up
 DONE      40. There are several survey type columns - some rows are NA for the first survey type but have some values for 2, 3, 4 (This probably stems from specific types of surveys within wisconsin (primary.survey.purpose, secondary.survey.purpose;  Suggested change is to fill WI survey types from 1 (if any), then survey type 2 (if any secondary after filling slot 1) ))
-      21. Convert length units to mm (decided not to convert based on discussion of sig. digits)
-done? 48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
-      22. Many lengthed fish do not have a unit on their length
 DONE  25. Set all to state == Wisconsin
 DONE  26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
 DONE  49. TEIs for aged fish that were not matched to fish obs should be assigned TEI == NA
@@ -49,16 +46,18 @@ DONE  38. There are two target species cols–collapse and comma separate
 DONE  46. Collapse targeted sp to one column
           Nix total effort 3 and targeted species 2 
 DONE  29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
-      31. Make sure all gear details are retained (likely this funnels into gear data notes)
-      34. Re-generate the wi_effort_file_notes file (this is what Jack reviewed. DO we HAVE to do this?)
-            Check on gear data notes (very messy); Keep an eye on the NA removal in the paste/collapse function
+DONE  31. Make sure all gear details are retained (likely this funnels into gear data notes)
+done? 48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
+      22. Many lengthed fish do not have a unit on their length
+      21. Convert length units to mm (decided not to convert based on discussion of sig. digits)
+      
       
       #NHDs and locs
 DONE  23. Throw out rivers and streams
 DONE  41. WI - missing NHDids on Cisco
 DONE  12. Check coverage of NHDids, Lat, Lon
-      33. County check to make sure I pulled the correct column
-      37. Counties and lake names are all lower case with _ instead of spaces - all other states are capital first letter with spaces
+DONE  33. County check to make sure I pulled the correct column
+DONE  37. Counties and lake names are all lower case with _ instead of spaces - all other states are capital first letter with spaces
       
       #flags
       43. Check that our flagging is spelling out implications
@@ -71,7 +70,7 @@ DONE  12. Check coverage of NHDids, Lat, Lon
           Counts (by TEI)
       
       #schema and hive match
-      45. Add sampling method simple column to hive
+DONE  45. Add sampling method simple column to hive
       35. Schema matched to overall hive (column names and column inclusions)
       28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
       42. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
@@ -99,6 +98,7 @@ library(tidyr)
 library(lubridate)
 library(ggplot2)
 library(mwlaxeref)
+library(fedmatch)
 
 options(scipen = 999)
 ```
@@ -1524,6 +1524,16 @@ wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) & is.na(nhdhr_id), .N , .(
 
 rm(wi_lat_long, WI_hydro_list, MGLP_crosswalk)
 
+#county col
+wi_inland_fishobservations_10Nov2023[ , county := gsub(" ", "_", tolower(county)) ]
+
+#lake_names
+wi_inland_fishobservations_10Nov2023[ , .N , lake_name ]
+wi_inland_fishobservations_10Nov2023[ , .N , gsub(" ", "_", clean_strings(lake_name)) ]
+wi_inland_fishobservations_10Nov2023[ , lake_name  :=  gsub(" ", "_", clean_strings(lake_name)) ]
+
+
+
 
 ```
 
@@ -1539,14 +1549,15 @@ wi_inland_fishobservations_10Nov2023[ , .N , gear_data_notes ]
 
 wi_inland_fishobservations_10Nov2023[ , .N , .(state, sampling_method, gear_data_notes, gear_data_notes_1, gear_data_notes_2, gear_data_notes_3, gear_data_notes_4, gear_data_notes_5, gear_data_notes_6, gear_data_notes_7, gear_data_notes_8, gear_data_notes_9, gear_data_notes_10, gear_data_notes_11, gear_data_notes_12, gear_data_notes_13, gear_data_notes_14, gear_data_notes_15)  ][order(sampling_method)]
 
-#almost all of these are net.number columns:
+#almost all of these are net.number or mesh columns:
 wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = T)   , unique(gear_data_notes) ]
+wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number")   , unique(gear_data_notes) ]
 
 #vert GN comments
 wi_inland_fishobservations_10Nov2023[ , .N , sampling_method]
 wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N , gear_data_notes ]
 
-#move net.number to another column: 
+#move these gear_data_notes to other columns: 
   wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = F),.N   , gear_data_notes ]
   wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = F),.N   , original_file_names ]
   wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number"), ':=' ("gear_data_notes_16" = gear_data_notes, "gear_data_notes" = NA) , ]
@@ -1558,28 +1569,24 @@ wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N 
   
 #nix gear data notes entries that are NA:
   wi_inland_fishobservations_10Nov2023[  ,  unique(word(gear_data_notes_1, sep = ":")) ,  ]
-  wi_inland_fishobservations_10Nov2023[ str_detect(gear_data_notes_1, ":NA") , .N , gear_data_notes_1   ]
-  wi_inland_fishobservations_10Nov2023[ str_detect(gear_data_notes_1, ":NA") , gear_data_notes_1 := NA   ] 
-  wi_inland_fishobservations_10Nov2023[ , , ]
-  
+
   for (i in 1:18) {
   col_name <- paste0("gear_data_notes_", i)
   wi_inland_fishobservations_10Nov2023[ str_detect(get(col_name), ":NA"), (col_name) := NA ]
   }
   
-  #summarize outcome and check for multi-info columns
-  for (i in 1:18) {
-  col_name <- paste0("gear_data_notes_", i)
-  print(wi_inland_fishobservations_10Nov2023[ , unique(word(get(col_name), sep = ":")) , ])
-  }
-  
+  # #summarize outcome and check for multi-info columns
+  # for (i in 1:18) {
+  # col_name <- paste0("gear_data_notes_", i)
+  # print(wi_inland_fishobservations_10Nov2023[ , unique(word(get(col_name), sep = ":")) , ])
+  # }
+  # 
 #great: this shows that one piece of info is showing up in each gear data column. Now we'll collapse these into a sampling method 2 column. We don't need everything though, only the following: for nets:net,type,length,bar (sampling_method, mesh 17) for EF: type,current,daynight, netteres (sampling_method, current.type, numberofdippers)
   
   wi_inland_fishobservations_10Nov2023[ , .N ,  .(sampling_method)]
   
   colnames(wi_inland_fishobservations_10Nov2023)
   
-  wi_inland_fishobservations_10Nov2023[ , sampling_method_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")) ,.SDcols = c("sampling_method", paste0("gear_data_notes_", 1:18))]
   
 # a <- wi_inland_fishobservations_10Nov2023[ str_detect(sampling_method, "boom_shocker") , .N , .(sampling_method_2) ]
 
@@ -1592,47 +1599,45 @@ wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N 
                                         gear_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")),
                                         .SDcols = c("sampling_method", "gear_data_notes_17")] 
   
+  wi_inland_fishobservations_10Nov2023[ , sampling_method_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")) ,.SDcols = c("sampling_method", paste0("gear_data_notes_", 1:18))]
   
 #drop collated columns  
   del_col <- paste0("gear_data_notes_", 1:18)
   wi_inland_fishobservations_10Nov2023[ , (del_col) := NULL , ]
-  
+  wi_inland_fishobservations_10Nov2023[ , gear_data_notes := NULL , ]  
 #rename to match gear crosswalk
   
   setnames(wi_inland_fishobservations_10Nov2023,
            old = c("sampling_method", "sampling_method_2"),
-           new = c("gear_1", "gear_2"))
+           new = c("gear_1", "gear_data_notes"))
 
+  
+  #this was exported and in MS excel, I matched the gears to the names of the broader region. 
   wi_inland_fishobservations_10Nov2023[ , .N , .(state, gear_1, gear_2) ]  
   
-  names(wi_inland_fishobservations_10Nov2023)
-
-wi_inland_fishobservations_10Nov2023[ str_detect(sampling_method, "gillnet") , .N , .(sampling_method_2) ]
-  
-  wi_inland_fishobservations_10Nov2023[str_detect(sampling_method_2, "mesh:6")]
-  
-  
-  
-  wi_inland_fishobservations_10Nov2023[ sampling_method %in% c("fyke_net", "boom_shocker", "vertical_gill_net") , .N , .(sampling_method, sampling_method_2) ]
+    wi_inland_fishobservations_10Nov2023[ gear_1 %in% c("fyke_net", "boom_shocker", "vertical_gill_net") , .N , .(gear_1, gear_2) ]
   
   rm(mw_data, samling_method_sim, cde)
   
-  wi_inland_fishobservations10Nov2023[  , .N  ,  gear_data_notes ]
+  head(wi_inland_fishobservations_10Nov2023[  , .N  ,  gear_data_notes ])
   
-  
-  
-  
-  
-  
-  
-wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "mesh", negate = F)   , unique(gear_data_notes_17) ]
-
 #this file lives in the crosswalk folder in the drive
 #here we read in a gear cross walk, the file contains each unique gear and assigns it new labels that are consistent across states
-gear_xwalk <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv") %>% 
-  filter(state == "South_Dakota") %>% 
-  rename(sampling_method.1 = gear_1) %>% 
-  select(sampling_method.1, sampling_method_simple, sampling_method_1, sampling_method_2)
+gear_xwalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
+  filter(state == "Wisconsin") 
+
+#NA's chocke the match, so fill with chr string
+wi_inland_fishobservations_10Nov2023[, gear_2 := fifelse(is.na(gear_2), "MISSING_VALUE", gear_2)]
+gear_xwalk[, gear_2 := fifelse(is.na(gear_2), "MISSING_VALUE", gear_2)]
+
+wi_inland_fishobservations_10Nov2023[gear_xwalk, on = .(gear_1 = gear_1, gear_2 = gear_2),':=' (sampling_method_simple = i.sampling_method_simple, sampling_method_1 = i.sampling_method_1, sampling_method_2 = i.sampling_method_2)  , ]
+
+wi_inland_fishobservations_10Nov2023[ , .N , .(state, gear_1, gear_2, sampling_method_simple, sampling_method_1, sampling_method_2) ]
+
+#remove crosswalk and old columns
+rm(gear_xwalk)
+
+wi_inland_fishobservations_10Nov2023[ , ':=' (gear_1 = NULL, gear_2 = NULL) , ]
 
 
 ```
@@ -1649,10 +1654,7 @@ wi_inland_fishobservations_10Nov2023 %>%
 
 #county
 wi_inland_fishobservations_10Nov2023 %>% 
-  mutate(county = case_when(is.na(county) ~ tolower(County),
-                            TRUE ~ county)) %>% 
-  group_by(county,
-           County) %>% 
+  group_by(county) %>% 
   count() %>% 
   print(n = nrow(.))
 

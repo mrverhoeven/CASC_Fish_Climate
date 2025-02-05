@@ -30,14 +30,14 @@ DONE  17. Ensure nothing_caught is assigned at the total_effort_ident level
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
 DONE  27. Add weigh to the aged fish join key.
 DONE  10. Flag crazy dates
-DONE 16. Why are no cisco showing up in WI?
+DONE  16. Why are no cisco showing up in WI?
             Currently we do have about 30 ish surveys in there  
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
             See b_WI_cisco.Rmd file
-DONE 48. Should Cisco data be in the data explainer? They are, but to rerun from that route would nix all our work, so not doing that
-DONE 15. Update the WI data to include all species sent by Paul F in November 2023
+DONE  48. Should Cisco data be in the data explainer? They are, but to rerun from that route would nix all our work, so not doing that
+DONE  15. Update the WI data to include all species sent by Paul F in November 2023
 DONE  39. Do the lengths we have from WI get generated? Do they use a plus bin? (this would be a size of fish that was longer than X) (check for grepex of "+" in the data that are imported): NO. Not sure why this was thought up
-DONE      40. There are several survey type columns - some rows are NA for the first survey type but have some values for 2, 3, 4 (This probably stems from specific types of surveys within wisconsin (primary.survey.purpose, secondary.survey.purpose;  Suggested change is to fill WI survey types from 1 (if any), then survey type 2 (if any secondary after filling slot 1) ))
+DONE  40. There are several survey type columns - some rows are NA for the first survey type but have some values for 2, 3, 4 (This probably stems from specific types of surveys within wisconsin (primary.survey.purpose, secondary.survey.purpose;  Suggested change is to fill WI survey types from 1 (if any), then survey type 2 (if any secondary after filling slot 1) ))
 DONE  25. Set all to state == Wisconsin
 DONE  26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
 DONE  49. TEIs for aged fish that were not matched to fish obs should be assigned TEI == NA
@@ -47,9 +47,9 @@ DONE  46. Collapse targeted sp to one column
           Nix total effort 3 and targeted species 2 
 DONE  29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
 DONE  31. Make sure all gear details are retained (likely this funnels into gear data notes)
-done? 48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
-      22. Many lengthed fish do not have a unit on their length
-      21. Convert length units to mm (decided not to convert based on discussion of sig. digits)
+DONE  48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
+DONE  22. Many lengthed fish do not have a unit on their length
+DONE  21. Convert length units to mm (decided not to convert based on discussion of sig. digits)
       
       
       #NHDs and locs
@@ -59,6 +59,14 @@ DONE  12. Check coverage of NHDids, Lat, Lon
 DONE  33. County check to make sure I pulled the correct column
 DONE  37. Counties and lake names are all lower case with _ instead of spaces - all other states are capital first letter with spaces
       
+      #schema and hive match
+DONE  45. Add sampling method simple column to hive
+DONE  28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
+DONE  42. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
+      35. Schema matched to overall hive (column names and column inclusions)
+      30. Check N species in a survey (is 44 spp a reasonable finding?)
+
+
       #flags
       43. Check that our flagging is spelling out implications
       32. Add flags for 0 efforts and high efforts
@@ -69,14 +77,6 @@ DONE  37. Counties and lake names are all lower case with _ instead of spaces - 
           Weights (prob group by age/survey/something)
           Counts (by TEI)
       
-      #schema and hive match
-DONE  45. Add sampling method simple column to hive
-      35. Schema matched to overall hive (column names and column inclusions)
-      28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
-      42. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
-      30. Check N species in a survey (is 44 spp a reasonable finding?)
-
-
 
       
 
@@ -150,7 +150,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -163,7 +163,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -1117,7 +1117,7 @@ rm(wi_winnebago_fishobservations_23April2021 )
 ## Get targeted cisco data worked in
 ```{r}
 
-wi_target_cisco8nov2023 <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_target_cisco8nov2023.csv")
+wi_target_cisco8nov2023 <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_target_cisco8nov2023.csv")
 
 #clean WI targeted cisco data so that it can match the format of the regular wi data
 wi_cisco_clean <- wi_target_cisco8nov2023 %>%
@@ -1437,7 +1437,8 @@ wi_inland_fishobservations_10Nov2023[year(date) < 1938 |
 # NHDs & Lakes Only Trim
 ```{r}
 # add NHDids
-MGLP_crosswalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv")
+#here using the MSU-provided crosswalk
+MGLP_crosswalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv")
 
 MGLP_crosswalk <- MGLP_crosswalk[STATE == "WI"]
 MGLP_crosswalk[ , STATE_ID := as.numeric(STATE_ID) , ]
@@ -1472,7 +1473,7 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
 
 #sifting for lakes (so our data does not contain lakes/stream)
 
-wi_lat_long <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
+wi_lat_long <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
   mutate(lake.id = as.character(lake.id))%>%
   setDT()
 
@@ -1481,7 +1482,7 @@ wi_inland_fishobservations_10Nov2023[ , lake_id:= as.character(lake_id) , ]
 wi_inland_fishobservations_10Nov2023[wi_lat_long, on = .(lake_id= lake.id), `:=` ("latitude_lake_centroid" = lat, "longitude_lake_centroid" = long)  ]
 
 # downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
-WI_hydro_list <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_Rivers_Info/24k_Hydro_Waterbodies_(Open_Water).csv")
+WI_hydro_list <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_Rivers_Info/24k_Hydro_Waterbodies_(Open_Water).csv")
 
 WI_hydro_list <- as.data.table(WI_hydro_list)
 
@@ -1623,7 +1624,7 @@ wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N 
   
 #this file lives in the crosswalk folder in the drive
 #here we read in a gear cross walk, the file contains each unique gear and assigns it new labels that are consistent across states
-gear_xwalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
+gear_xwalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
   filter(state == "Wisconsin") 
 
 #NA's chocke the match, so fill with chr string
@@ -1639,40 +1640,91 @@ rm(gear_xwalk)
 
 wi_inland_fishobservations_10Nov2023[ , ':=' (gear_1 = NULL, gear_2 = NULL) , ]
 
+```
+
+##flags and other blemishes
+```{r}
+
+#fix sexes
+wi_inland_fishobservations_10Nov2023[,.N, sex]
+
+wi_inland_fishobservations_10Nov2023[ sex == "u", sex := "Unknown"]
+wi_inland_fishobservations_10Nov2023[ sex == "m", sex := "Male"]
+wi_inland_fishobservations_10Nov2023[ sex == "f", sex := "Female"]
+wi_inland_fishobservations_10Nov2023[ sex == "not sexed", sex := NA]
+
+#rename units for length 
+wi_inland_fishobservations_10Nov2023[ , .N , length_unit ]
+wi_inland_fishobservations_10Nov2023[length_unit=="in" , length_unit := "inches" ,]
+  wi_inland_fishobservations_10Nov2023[is.na(length) , .N , length_unit ]
+#length units to NA where no length data
+wi_inland_fishobservations_10Nov2023[is.na(length) , length_unit := NA ]
+#some lengthed fish w/o units:
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) , .N ,is.na(length) ]
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) & !is.na(length) , mean(length), species ] #means suggestive of inches
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) & !is.na(length) , .N, original_file_names ]
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) & !is.na(length) , hist(length), ]
+# we're going to call those inches
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) & !is.na(length) , length_unit := "inches"  , ]
+
+#effort units
+wi_inland_fishobservations_10Nov2023[ , .N , .(total_effort_1_unit, total_effort_2_unit) ]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) , .N , is.na(total_effort_2)   ]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, total_effort_2_unit]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, original_file_names]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, .(sampling_method_1, total_effort_2_unit)]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , ':=' (total_effort_1 = total_effort_2, total_effort_1_unit = total_effort_2_unit, total_effort_2 = NA, total_effort_2_unit = NA)]
+
+wi_inland_fishobservations_10Nov2023[ , .N , .(sampling_method_1 , total_effort_1_unit)][order(sampling_method_1)]
+wi_inland_fishobservations_10Nov2023[ , .N , .( total_effort_1_unit)]
+#fixing these up
+wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "net-nights" , total_effort_1_unit := "net_nights" , ]
+wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets", .N , .(sampling_method_1) ]
+
+wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets" & sampling_method_1 %in% c("seine", "seine_smallmesh") , total_effort_1_unit := "hauls" ]
+wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets" & sampling_method_1 %in% c("frame_net_miniature" ,"fyke_net", "gill_net_bottom", "gill_net_vertical","gill_net_floating" ) , total_effort_1_unit := "net_nights" ]
+
+
+#Fish weights
+wi_inland_fishobservations_10Nov2023[  , .N  , weight_unit ]
+wi_inland_fishobservations_10Nov2023[ is.na(weight_unit) , .N  , is.na(weight) ]
+wi_inland_fishobservations_10Nov2023[ weight_unit == "lb", weight_unit := "pounds"]
+
+
+#year
+wi_inland_fishobservations_10Nov2023[ , .N , is.na(year) ]
+wi_inland_fishobservations_10Nov2023[ is.na(year), .N , is.na(date) ]
+  wi_inland_fishobservations_10Nov2023[ is.na(year) & !str_detect(flag, "bad_date"), year := year(date) ]
+
+#survey types
+wi_inland_fishobservations_10Nov2023 %>% 
+  group_by(survey_type, survey_type_2, survey_type_3) %>% 
+  count() %>% 
+  print(n = nrow(.))
+wi_inland_fishobservations_10Nov2023[survey_type_2 == "", survey_type_2 := NA]
+
+#construct a "survey_type" to parallel the other states  
+setnames(wi_inland_fishobservations_10Nov2023, old = "survey_type", new ="survey_type_1")
+wi_inland_fishobservations_10Nov2023[ ,
+                                        survey_type := apply(.SD, 1, function(x) paste( collapse = ": ")),
+                                        .SDcols = c("survey_type_3", "survey_type_2", "survey_type_1")] 
+wi_inland_fishobservations_10Nov2023[ , c("survey_type_3", "survey_type_2", "survey_type_1") := NULL ] 
+  
+
 
 ```
 
 
+
+
+
+
+
+
 #Denver's standarization for hive structure 
 ```{r}
-glimpse(wi_inland_fishobservations_10Nov2023)
 
-#state
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(state) %>% 
-  count()
 
-#county
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(county) %>% 
-  count() %>% 
-  print(n = nrow(.))
-
-#year - going to pull year from date
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(year,
-           year(date)) %>% 
-  count() %>% 
-  print(n = nrow(.))
-
-#survey types
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(survey_type_1_effort,
-           survey_type_2_effort,
-           survey_type_1_indivfish,
-           survey_type_2_indivfish) %>% 
-  count() %>% 
-  print(n = nrow(.))
 
 #gear data notes
 wi_inland_fishobservations_10Nov2023 %>% 

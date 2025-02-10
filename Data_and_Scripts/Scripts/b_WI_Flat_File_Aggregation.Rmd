@@ -30,37 +30,45 @@ DONE  17. Ensure nothing_caught is assigned at the total_effort_ident level
             - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
 DONE  27. Add weigh to the aged fish join key.
 DONE  10. Flag crazy dates
-DONE 16. Why are no cisco showing up in WI?
+DONE  16. Why are no cisco showing up in WI?
             Currently we do have about 30 ish surveys in there  
             Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
             See b_WI_cisco.Rmd file
-DONE 48. Should Cisco data be in the data explainer? They are, but to rerun from that route would nix all our work, so not doing that
-DONE 15. Update the WI data to include all species sent by Paul F in November 2023
+DONE  48. Should Cisco data be in the data explainer? They are, but to rerun from that route would nix all our work, so not doing that
+DONE  15. Update the WI data to include all species sent by Paul F in November 2023
 DONE  39. Do the lengths we have from WI get generated? Do they use a plus bin? (this would be a size of fish that was longer than X) (check for grepex of "+" in the data that are imported): NO. Not sure why this was thought up
-DONE      40. There are several survey type columns - some rows are NA for the first survey type but have some values for 2, 3, 4 (This probably stems from specific types of surveys within wisconsin (primary.survey.purpose, secondary.survey.purpose;  Suggested change is to fill WI survey types from 1 (if any), then survey type 2 (if any secondary after filling slot 1) ))
-      21. Convert length units to mm (decided not to convert based on discussion of sig. digits)
-done? 48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
-      22. Many lengthed fish do not have a unit on their length
-      25. Set all to state == Wisconsin
+DONE  40. There are several survey type columns - some rows are NA for the first survey type but have some values for 2, 3, 4 (This probably stems from specific types of surveys within wisconsin (primary.survey.purpose, secondary.survey.purpose;  Suggested change is to fill WI survey types from 1 (if any), then survey type 2 (if any secondary after filling slot 1) ))
+DONE  25. Set all to state == Wisconsin
 DONE  26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
 DONE  49. TEIs for aged fish that were not matched to fish obs should be assigned TEI == NA
 DONE  36. Review for problems: TEIs sometimes contain multiple water temps straddling the temp cutoffs (prework 47. Clean water temp units column.)
 DONE  38. There are two target species cols–collapse and comma separate
 DONE  46. Collapse targeted sp to one column
           Nix total effort 3 and targeted species 2 
-      29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
-      31. Make sure all gear details are retained (likely this funnels into gear data notes)
+DONE  29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
+DONE  31. Make sure all gear details are retained (likely this funnels into gear data notes)
+DONE  48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
+DONE  22. Many lengthed fish do not have a unit on their length
+DONE  21. Convert length units to mm (decided not to convert based on discussion of sig. digits)
       
-      34. Re-generate the wi_effort_file_notes file (this is what Jack reviewed. DO we HAVE to do this?)
-            Check on gear data notes (very messy); Keep an eye on the NA removal in the paste/collapse function
       
       #NHDs and locs
-done? 23. Throw out rivers and streams (see d_fish_data_maps)
-      41. WI - missing NHDids on Cisco
-      12. Check coverage of NHDids, Lat, Lon
-      33. County check to make sure I pulled the correct column
-      37. Counties and lake names are all lower case with _ instead of spaces - all other states are capital first letter with spaces
+DONE  23. Throw out rivers and streams
+DONE  41. WI - missing NHDids on Cisco
+DONE  12. Check coverage of NHDids, Lat, Lon
+DONE  33. County check to make sure I pulled the correct column
+DONE  37. Counties and lake names are all lower case with _ instead of spaces - all other states are capital first letter with spaces
       
+      #schema and hive match
+DONE  45. Add sampling method simple column to hive
+DONE  28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
+DONE  42. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
+      
+OUTSTANDING FIXES
+      35. Schema matched to overall hive (column names and column inclusions)
+      30. Check N species in a survey (is 44 spp a reasonable finding?)
+
+
       #flags
       43. Check that our flagging is spelling out implications
       32. Add flags for 0 efforts and high efforts
@@ -70,16 +78,6 @@ done? 23. Throw out rivers and streams (see d_fish_data_maps)
           Lengths (prob group by age/survey/something) - big and small
           Weights (prob group by age/survey/something)
           Counts (by TEI)
-      
-      #schema and hive match
-      45. Add sampling method simple column to hive
-      35. Schema matched to overall hive (column names and column inclusions)
-      28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
-      42. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
-      30. Check N species in a survey (is 44 spp a reasonable finding?)
-
-
-
       
 
       
@@ -100,6 +98,7 @@ library(tidyr)
 library(lubridate)
 library(ggplot2)
 library(mwlaxeref)
+library(fedmatch)
 
 options(scipen = 999)
 ```
@@ -151,7 +150,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -164,7 +163,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -1118,7 +1117,7 @@ rm(wi_winnebago_fishobservations_23April2021 )
 ## Get targeted cisco data worked in
 ```{r}
 
-wi_target_cisco8nov2023 <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_target_cisco8nov2023.csv")
+wi_target_cisco8nov2023 <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_target_cisco8nov2023.csv")
 
 #clean WI targeted cisco data so that it can match the format of the regular wi data
 wi_cisco_clean <- wi_target_cisco8nov2023 %>%
@@ -1243,6 +1242,44 @@ rm(wi_cisco_final)
 ```
 
 
+
+#fix effort values
+```{r}
+#effort units
+wi_inland_fishobservations_10Nov2023[ , .N , .(total_effort_1_unit, total_effort_2_unit) ]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) , .N , is.na(total_effort_2)   ]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, total_effort_2_unit]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, original_file_names]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, .(sampling_method_1, total_effort_2_unit)]
+wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , ':=' (total_effort_1 = total_effort_2, total_effort_1_unit = total_effort_2_unit, total_effort_2 = NA, total_effort_2_unit = NA)]
+
+wi_inland_fishobservations_10Nov2023[ , .N , .(sampling_method_1 , total_effort_1_unit)][order(sampling_method_1)]
+wi_inland_fishobservations_10Nov2023[ , .N , .( total_effort_1_unit)]
+#fixing these up
+wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "net-nights" , total_effort_1_unit := "net_nights" , ]
+wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets", .N , .(sampling_method_1) ]
+
+wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets" & sampling_method_1 %in% c("seine", "seine_smallmesh") , total_effort_1_unit := "hauls" ]
+wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets" & sampling_method_1 %in% c("frame_net_miniature" ,"fyke_net", "gill_net_bottom", "gill_net_vertical","gill_net_floating" ) , total_effort_1_unit := "net_nights" ]
+
+for (i in 1:3) {
+  col_name <- paste0("sample_time_notes_", i)
+  wi_inland_fishobservations_10Nov2023[ str_detect(get(col_name), ":NA"), (col_name) := NA ]
+  }
+  
+  
+  wi_inland_fishobservations_10Nov2023[ is.na(total_effort_1) , .N , .(sample_time_notes_1, sample_time_notes_2, sample_time_notes_3, sample_time_units_1, sample_time_units_2, sample_time_units_3, sample_time_min) ]
+  setnames(wi_inland_fishobservations_10Nov2023, old = c("sample_time_notes_1", "sample_time_notes_3"), new = c("minutes_sampled", "hours_sampled"))
+
+  wi_inland_fishobservations_10Nov2023[ , gear_data_notes := do.call(paste, c(replace(.SD, is.na(.SD), ""), sep = "")), .SDcols= c("gear_data_notes",
+                                                                                                   "site_id_1",
+                                                                                                   "site_id_2",
+                                                                                                   "site_id_3",
+                                                                                                   "site_id_4")]
+
+
+
+```
 
 
 # Total efforts and idents
@@ -1385,6 +1422,7 @@ wi_inland_fishobservations_10Nov2023[ , all(is.na(species))  , .(total_effort_id
 wi_inland_fishobservations_10Nov2023[ , total_effort_nothing_caught :=  all(is.na(species))  , .(total_effort_ident)]
 
 
+
 rm(tot_eff_1)
 
 # Set no effort records to TEI == NA
@@ -1395,10 +1433,14 @@ wi_inland_fishobservations_10Nov2023[ is.na(total_effort_1), .N , ]
 wi_inland_fishobservations_10Nov2023[ is.na(total_effort_1), .N , .(total_effort_1_unit, total_effort_ident)]
 wi_inland_fishobservations_10Nov2023[is.na(total_effort_1), total_effort_ident := NA , ]
 
+#drop old total effort val
+wi_inland_fishobservations_10Nov2023[ , total_effort := NULL, ]
+
+
 
 #multi-temp TEIs
 wi_inland_fishobservations_10Nov2023[!is.na(water_temp) , .N , .(total_effort_ident, water_temp)][ , max(water_temp-min(water_temp))  , .(total_effort_ident) ][V1<20, hist(V1)]
-
+ # checked in with Denver on this topic. leaving as-is. Temps are often associated with a sample below the level of TEI, so should be dealt with on the suitable gear filtering end (e.g., if any of the nets in a survey was suitable temp, consider the entire survey as suitable, or dont)
 
 
 
@@ -1430,10 +1472,11 @@ wi_inland_fishobservations_10Nov2023[year(date) < 1938 |
 
 ```
 
-# NHDs
+# NHDs & Lakes Only Trim
 ```{r}
 # add NHDids
-MGLP_crosswalk <- fread("MGLP_FISH_LAKES_12Aug24.csv")
+#here using the MSU-provided crosswalk
+MGLP_crosswalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv")
 
 MGLP_crosswalk <- MGLP_crosswalk[STATE == "WI"]
 MGLP_crosswalk[ , STATE_ID := as.numeric(STATE_ID) , ]
@@ -1453,12 +1496,8 @@ setnames(wi_inland_fishobservations_10Nov2023, "NHDHR_ID", "nhdhr_id")
 
 #check coverage
 wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) , .N , is.na(nhdhr_id)]
-#report remaining unmatched from mwlaxeref & MSU
-wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) & is.na(nhdhr_id), .N , .(lake_id, lake_name) ]
-```
+wi_inland_fishobservations_10Nov2023[ , length(unique(lake_id)) , is.na(nhdhr_id) ]
 
-#more tidying
-```{r}
 
 # wi_inland_fishobservations_10Nov2023[nothing_caught == T, unique(total_effort_ident)]
 wi_inland_fishobservations_10Nov2023 %>% 
@@ -1472,7 +1511,7 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
 
 #sifting for lakes (so our data does not contain lakes/stream)
 
-wi_lat_long <- read_csv("wi_raw_disaggregated_data/wi_lake_wbic_lat_long_PNF.csv")%>%
+wi_lat_long <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
   mutate(lake.id = as.character(lake.id))%>%
   setDT()
 
@@ -1481,7 +1520,7 @@ wi_inland_fishobservations_10Nov2023[ , lake_id:= as.character(lake_id) , ]
 wi_inland_fishobservations_10Nov2023[wi_lat_long, on = .(lake_id= lake.id), `:=` ("latitude_lake_centroid" = lat, "longitude_lake_centroid" = long)  ]
 
 # downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
-WI_hydro_list <- read_csv("wi_raw_disaggregated_data/24k_Hydro_Waterbodies_(Open_Water).csv")
+WI_hydro_list <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_Rivers_Info/24k_Hydro_Waterbodies_(Open_Water).csv")
 
 WI_hydro_list <- as.data.table(WI_hydro_list)
 
@@ -1511,6 +1550,8 @@ wi_inland_fishobservations_10Nov2023 %>%
 
 wi_inland_fishobservations_10Nov2023[ , .N , waterbody_type ]
 
+wi_inland_fishobservations_10Nov2023[ is.na(waterbody_type) ,  .N  ,   .(original_file_names, survey_type)] 
+
 #drop weird waters
 wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023[waterbody_type %in% c("Lake/Pond", "Backwater", "Reservoir/Flowage", "Unspecified Open Water"), , ]
 
@@ -1520,97 +1561,276 @@ wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) , length(unique(lake_id)) 
 #report remaining unmatched from mwlaxeref & MSU
 wi_inland_fishobservations_10Nov2023[ !is.na(lake_id) & is.na(nhdhr_id), .N , .(lake_id, lake_name) ]
 
+rm(wi_lat_long, WI_hydro_list, MGLP_crosswalk)
+
+#county col
+wi_inland_fishobservations_10Nov2023[ , county := gsub(" ", "_", tolower(county)) ]
+
+#lake_names
+wi_inland_fishobservations_10Nov2023[ , .N , lake_name ]
+wi_inland_fishobservations_10Nov2023[ , .N , gsub(" ", "_", clean_strings(lake_name)) ]
+wi_inland_fishobservations_10Nov2023[ , lake_name  :=  gsub(" ", "_", clean_strings(lake_name)) ]
 
 
 
 
 ```
 
-#fix gears here
+
+#fix gears here, addding simple gear
 ```{r}
 
+#we're after 4 columns:  sampling_method_simple, sampling_method, sampling_method_2, gear_data_notes
 
-
-
-```
-
-
-#Denver's standarization for hive structure 
-```{r}
 glimpse(wi_inland_fishobservations_10Nov2023)
 
-#state
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(state) %>% 
-  count()
+wi_inland_fishobservations_10Nov2023[ , .N , gear_data_notes ]
 
-#county
-wi_inland_fishobservations_10Nov2023 %>% 
-  mutate(county = case_when(is.na(county) ~ tolower(County),
-                            TRUE ~ county)) %>% 
-  group_by(county,
-           County) %>% 
-  count() %>% 
-  print(n = nrow(.))
+wi_inland_fishobservations_10Nov2023[ , .N , .(state, sampling_method, gear_data_notes, gear_data_notes_1, gear_data_notes_2, gear_data_notes_3, gear_data_notes_4, gear_data_notes_5, gear_data_notes_6, gear_data_notes_7, gear_data_notes_8, gear_data_notes_9, gear_data_notes_10, gear_data_notes_11, gear_data_notes_12, gear_data_notes_13, gear_data_notes_14, gear_data_notes_15)  ][order(sampling_method)]
 
-#year - going to pull year from date
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(year,
-           year(date)) %>% 
-  count() %>% 
-  print(n = nrow(.))
+#almost all of these are net.number or mesh columns:
+wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = T)   , unique(gear_data_notes) ]
+wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number")   , unique(gear_data_notes) ]
+
+#vert GN comments
+wi_inland_fishobservations_10Nov2023[ , .N , sampling_method]
+wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N , gear_data_notes ]
+
+#move these gear_data_notes to other columns: 
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = F),.N   , gear_data_notes ]
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number", negate = F),.N   , original_file_names ]
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "net.number"), ':=' ("gear_data_notes_16" = gear_data_notes, "gear_data_notes" = NA) , ]
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes, "mesh"), ':=' ("gear_data_notes_17" = gear_data_notes, "gear_data_notes" = NA) , ]
+  wi_inland_fishobservations_10Nov2023[str_detect(gear_data_notes_17, "mesh sizes"), ':=' ("gear_data_notes_18" = gear_data_notes_17, "gear_data_notes_17" = NA)  ]
+
+#gear_data_notes now distriubuted and future loc is empty
+  wi_inland_fishobservations_10Nov2023[ ,  .N,  gear_data_notes]
+  
+#nix gear data notes entries that are NA:
+  wi_inland_fishobservations_10Nov2023[  ,  unique(word(gear_data_notes_1, sep = ":")) ,  ]
+
+  for (i in 1:18) {
+  col_name <- paste0("gear_data_notes_", i)
+  wi_inland_fishobservations_10Nov2023[ str_detect(get(col_name), ":NA"), (col_name) := NA ]
+  }
+  
+  # #summarize outcome and check for multi-info columns
+  # for (i in 1:18) {
+  # col_name <- paste0("gear_data_notes_", i)
+  # print(wi_inland_fishobservations_10Nov2023[ , unique(word(get(col_name), sep = ":")) , ])
+  # }
+  # 
+#great: this shows that one piece of info is showing up in each gear data column. Now we'll collapse these into a sampling method 2 column. We don't need everything though, only the following: for nets:net,type,length,bar (sampling_method, mesh 17) for EF: type,current,daynight, netteres (sampling_method, current.type, numberofdippers)
+  
+  wi_inland_fishobservations_10Nov2023[ , .N ,  .(sampling_method)]
+  
+  colnames(wi_inland_fishobservations_10Nov2023)
+  
+  
+# a <- wi_inland_fishobservations_10Nov2023[ str_detect(sampling_method, "boom_shocker") , .N , .(sampling_method_2) ]
+
+#construct a "gear_2" to parallel the other states  
+  wi_inland_fishobservations_10Nov2023[ sampling_method == "boom_shocker",
+                                        gear_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")),
+                                        .SDcols = c("sampling_method", "gear_data_notes_5", "gear_data_notes_6")] 
+  
+  wi_inland_fishobservations_10Nov2023[ sampling_method %in% c("fyke_net", "vertical_gill_net") ,
+                                        gear_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")),
+                                        .SDcols = c("sampling_method", "gear_data_notes_17")] 
+  
+  wi_inland_fishobservations_10Nov2023[ , sampling_method_2 := apply(.SD, 1, function(x) paste(na.omit(x), collapse = ", ")) ,.SDcols = c("sampling_method", paste0("gear_data_notes_", 1:18))]
+  
+#drop collated columns  
+  del_col <- paste0("gear_data_notes_", 1:18)
+  wi_inland_fishobservations_10Nov2023[ , (del_col) := NULL , ]
+  wi_inland_fishobservations_10Nov2023[ , gear_data_notes := NULL , ]  
+#rename to match gear crosswalk
+  
+  setnames(wi_inland_fishobservations_10Nov2023,
+           old = c("sampling_method", "sampling_method_2"),
+           new = c("gear_1", "gear_data_notes"))
+
+  
+  #this was exported and in MS excel, I matched the gears to the names of the broader region. 
+  wi_inland_fishobservations_10Nov2023[ , .N , .(state, gear_1, gear_2) ]  
+  
+    wi_inland_fishobservations_10Nov2023[ gear_1 %in% c("fyke_net", "boom_shocker", "vertical_gill_net") , .N , .(gear_1, gear_2) ]
+  
+  rm(mw_data, samling_method_sim, cde)
+  
+  head(wi_inland_fishobservations_10Nov2023[  , .N  ,  gear_data_notes ])
+  
+#this file lives in the crosswalk folder in the drive
+#here we read in a gear cross walk, the file contains each unique gear and assigns it new labels that are consistent across states
+gear_xwalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
+  filter(state == "Wisconsin") 
+
+#NA's chocke the match, so fill with chr string
+wi_inland_fishobservations_10Nov2023[, gear_2 := fifelse(is.na(gear_2), "MISSING_VALUE", gear_2)]
+gear_xwalk[, gear_2 := fifelse(is.na(gear_2), "MISSING_VALUE", gear_2)]
+
+wi_inland_fishobservations_10Nov2023[gear_xwalk, on = .(gear_1 = gear_1, gear_2 = gear_2),':=' (sampling_method_simple = i.sampling_method_simple, sampling_method_1 = i.sampling_method_1, sampling_method_2 = i.sampling_method_2)  , ]
+
+wi_inland_fishobservations_10Nov2023[ , .N , .(state, gear_1, gear_2, sampling_method_simple, sampling_method_1, sampling_method_2) ]
+
+#remove crosswalk and old columns
+rm(gear_xwalk)
+
+wi_inland_fishobservations_10Nov2023[ , ':=' (gear_1 = NULL, gear_2 = NULL) , ]
+
+```
+
+##flags and other blemishes
+```{r}
+
+#fix sexes
+wi_inland_fishobservations_10Nov2023[,.N, sex]
+
+wi_inland_fishobservations_10Nov2023[ sex == "u", sex := "Unknown"]
+wi_inland_fishobservations_10Nov2023[ sex == "m", sex := "Male"]
+wi_inland_fishobservations_10Nov2023[ sex == "f", sex := "Female"]
+wi_inland_fishobservations_10Nov2023[ sex == "not sexed", sex := NA]
+
+#rename units for length 
+wi_inland_fishobservations_10Nov2023[ , .N , length_unit ]
+wi_inland_fishobservations_10Nov2023[length_unit=="in" , length_unit := "inches" ,]
+  wi_inland_fishobservations_10Nov2023[is.na(length) , .N , length_unit ]
+#length units to NA where no length data
+wi_inland_fishobservations_10Nov2023[is.na(length) , length_unit := NA ]
+#some lengthed fish w/o units:
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) , .N ,is.na(length) ]
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) & !is.na(length) , mean(length), species ] #means suggestive of inches
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) & !is.na(length) , .N, original_file_names ]
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) & !is.na(length) , hist(length), ]
+# we're going to call those inches
+wi_inland_fishobservations_10Nov2023[is.na(length_unit) & !is.na(length) , length_unit := "inches"  , ]
+
+
+
+#Fish weights
+wi_inland_fishobservations_10Nov2023[  , .N  , weight_unit ]
+wi_inland_fishobservations_10Nov2023[ is.na(weight_unit) , .N  , is.na(weight) ]
+wi_inland_fishobservations_10Nov2023[ weight_unit == "lb", weight_unit := "pounds"]
+
+
+#year
+wi_inland_fishobservations_10Nov2023[ , .N , is.na(year) ]
+wi_inland_fishobservations_10Nov2023[ is.na(year), .N , is.na(date) ]
+  wi_inland_fishobservations_10Nov2023[ is.na(year) & !str_detect(flag, "bad_date"), year := year(date) ]
+#dates
+wi_inland_fishobservations_10Nov2023[ !str_detect(flag, "bad_date"), month := month(date) , ]
+#any info in the start or end to backfill?
+wi_inland_fishobservations_10Nov2023[str_detect(flag, "bad_date") | is.na(date), .N, .(date_survey_start, date_survey_end)]#nope, no data to fill from 
+#TEIdate
+wi_inland_fishobservations_10Nov2023[  , length(unique(date)) , total_effort_ident  ][V1>1]
+wi_inland_fishobservations_10Nov2023[order(date)  , date_total_effort_ident := first(date)  , total_effort_ident  ]
+#surveydate
+wi_inland_fishobservations_10Nov2023[ , length(unique(date))  ,  survey_id] 
+wi_inland_fishobservations_10Nov2023[order(date) , date_survey := first(date)  ,  survey_id] 
+#sub effort date
+wi_inland_fishobservations_10Nov2023[ , length(unique(date))  ,  sub_effort_ident] [V1>1]
+wi_inland_fishobservations_10Nov2023[order(date) , date_sub_effort_ident := first(date)  ,  sub_effort_ident] 
+#change name
+setnames(wi_inland_fishobservations_10Nov2023, old = "date", new = "date_sample")
+#drop old 
+wi_inland_fishobservations_10Nov2023[ , c("date_survey_start", "date_survey_end", "date_recieved") := NULL ,]
+colnames(wi_inland_fishobservations_10Nov2023)[str_detect(colnames(wi_inland_fishobservations_10Nov2023), "date")]
+
+
 
 #survey types
 wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(survey_type_1_effort,
-           survey_type_2_effort,
-           survey_type_1_indivfish,
-           survey_type_2_indivfish) %>% 
+  group_by(survey_type, survey_type_2, survey_type_3) %>% 
   count() %>% 
   print(n = nrow(.))
+wi_inland_fishobservations_10Nov2023[survey_type_2 == "", survey_type_2 := NA]
 
-#gear data notes
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(gear_data_notes_1,
-           gear_data_notes_2,
-           gear_data_notes_3) %>% 
-  count() %>% 
-  print(n = nrow(.))
+#construct a "survey_type" to parallel the other states  
+setnames(wi_inland_fishobservations_10Nov2023, old = "survey_type", new ="survey_type_1")
+wi_inland_fishobservations_10Nov2023[ ,
+                                        survey_type := apply(.SD, 1, function(x) paste(na.omit(x) ,  collapse = ";")),
+                                        .SDcols = c("survey_type_3", "survey_type_2", "survey_type_1")]
 
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(gear_data_notes_4,
-           gear_data_notes_5,
-           gear_data_notes_6) %>% 
-  count() %>% 
-  print(n = nrow(.))
+wi_inland_fishobservations_10Nov2023[ ,.N , survey_type ]
 
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(gear_data_notes_7,
-           gear_data_notes_8,
-           gear_data_notes_9) %>% 
-  count() %>% 
-  print(n = nrow(.))
+wi_inland_fishobservations_10Nov2023[ , c("survey_type_3", "survey_type_2", "survey_type_1") := NULL ]
 
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(gear_data_notes_10,
-           gear_data_notes_11,
-           gear_data_notes_12) %>% 
-  count() %>% 
-  print(n = nrow(.))
 
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(gear_data_notes_13,
-           gear_data_notes_14,
-           gear_data_notes_15) %>% 
-  count() %>% 
-  print(n = nrow(.))
+#nothing caught
+wi_inland_fishobservations_10Nov2023[ , .SD , .SDcols = str_detect(colnames(wi_inland_fishobservations_10Nov2023),"nothing") ]
+wi_inland_fishobservations_10Nov2023[ , nothing_caught := NULL ,] 
+wi_inland_fishobservations_10Nov2023[ total_effort_nothing_caught==T , .N , sub_nothing_caught==T ]
 
-#target species
-wi_inland_fishobservations_10Nov2023 %>% 
-  group_by(target_species_effort,
-           secondary_target_species) %>% 
-  count() %>% 
-  print(n = nrow(.))
+#temp and clarity
+wi_inland_fishobservations_10Nov2023[ , .N , water_clarity_units]
+wi_inland_fishobservations_10Nov2023[!is.na(water_clarity_units) , water_clarity_units := "feet"]
+
+wi_inland_fishobservations_10Nov2023[ , .N , water_temp_units]
+wi_inland_fishobservations_10Nov2023[water_temp_units == "F", water_temp_units := "fahrenheit"]
+
+#lats lons
+wi_inland_fishobservations_10Nov2023[ , summary(.SD), .SDcols = c("lat_start", "lat_end", "lat_unspec", "latitude_lake_centroid", "LAT") ]
+#use MGLP crosswalk centroid locs if not available via direct from state via lak.id linkage
+wi_inland_fishobservations_10Nov2023[is.na(latitude_lake_centroid), length(unique(lake_id)), is.na(LAT)]
+wi_inland_fishobservations_10Nov2023[is.na(latitude_lake_centroid), latitude_lake_centroid := LAT ]
+wi_inland_fishobservations_10Nov2023[is.na(longitude_lake_centroid), longitude_lake_centroid := LON ]
+#drop old
+wi_inland_fishobservations_10Nov2023[   , c("LAT", "LON") := NULL   ,  ]
+
+#site_ids
+wi_inland_fishobservations_10Nov2023[ , .N , .(site_id, site_id_1, site_id_2, site_id_3, site_id_4) ]
+wi_inland_fishobservations_10Nov2023[, site_id := do.call(paste, c(replace(.SD, is.na(.SD), ""), sep = "")), .SDcols= c("site_id",
+                                                                                                   "site_id_1",
+                                                                                                   "site_id_2",
+                                                                                                   "site_id_3",
+                                                                                                   "site_id_4")]
+#drop old
+wi_inland_fishobservations_10Nov2023[   , c("site_id_1","site_id_2","site_id_3","site_id_4") := NULL   ,  ]
+
+#Junky stuff
+wi_inland_fishobservations_10Nov2023[ , .N , garbage_bin_notes_1_indivfish ]
+  wi_inland_fishobservations_10Nov2023[ is.na(species)  , .N , garbage_bin_notes_1_indivfish ]
+  wi_inland_fishobservations_10Nov2023[ ,  garbage_bin_notes_1_indivfish := NULL ]
+wi_inland_fishobservations_10Nov2023[ , .N , garbage_bin_notes_2_indivfish ]
+  wi_inland_fishobservations_10Nov2023[is.na(length), .N , garbage_bin_notes_2_indivfish]
+  wi_inland_fishobservations_10Nov2023[ ,  garbage_bin_notes_2_indivfish := NULL ]
+wi_inland_fishobservations_10Nov2023[ , .N , garbage_bin_notes_3]
+  wi_inland_fishobservations_10Nov2023[str_detect(flag, "bad_date") | is.na(date_sample), .N , garbage_bin_notes_3]
+  wi_inland_fishobservations_10Nov2023[ ,  garbage_bin_notes_3 := NULL ]
+  wi_inland_fishobservations_10Nov2023[ ,  garbage_bin_notes_4 := NULL]
+wi_inland_fishobservations_10Nov2023[ , .N , garbage_bin_notes_5]
+  wi_inland_fishobservations_10Nov2023[ ,.N ,sampling_method_simple]
+  wi_inland_fishobservations_10Nov2023[sampling_method_simple %in% c("miscellaneous") | is.na(sampling_method_simple), .N , .(sampling_method_1, sampling_method_2, garbage_bin_notes_5)]
+  wi_inland_fishobservations_10Nov2023[ , garbage_bin_notes_5 := NULL  ]
+wi_inland_fishobservations_10Nov2023[ , .N , .(mark_recap_data_notes_1, mark_recap_data_notes_2, mark_recap_data_notes_3, mark_recap_data_notes_4, mark_recap_data_notes_5, mark_recap_data_notes_6, mark_recap_data_notes_7) ]
+  wi_inland_fishobservations_10Nov2023[ , c("mark_recap_data_notes_1", "mark_recap_data_notes_2", "mark_recap_data_notes_3", "mark_recap_data_notes_4", "mark_recap_data_notes_5", "mark_recap_data_notes_6", "mark_recap_data_notes_7") := NULL ]
+  
+    
+
+  
+```
+
+
+
+
+
+
+
+
+#Standarization for hive structure 
+```{r}
+#target_species_effort = target_species
+#sub_nothing_caught = sub_effort_nothing_caught
+#sampling_method_1 = sampling_method
+#total_effort_1_unit = total_effort_1_units
+#total_effort_2_unit = total_effort_2_units
+#date = date_sample
+#date = date_
+
+
+
+names(wi_inland_fishobservations_10Nov2023)
+
 
 #total effort ident
 wi_inland_fishobservations_10Nov2023 %>% 
@@ -1712,38 +1932,7 @@ wi_data <- wi_inland_fishobservations_10Nov2023 %>%
          location_notes_1 = as.character(NA),
          notes_1 = as.character(NA),
          obs_id = as.character(row_number())
-         ) %>% 
-  unite("gear_data_notes", c(gear_data_notes,
-                             gear_data_notes_1,
-                             gear_data_notes_2,
-                             gear_data_notes_3,
-                             gear_data_notes_4,
-                             gear_data_notes_5,
-                             gear_data_notes_6,
-                             gear_data_notes_7,
-                             gear_data_notes_8,
-                             gear_data_notes_9,
-                             gear_data_notes_10,
-                             gear_data_notes_11,
-                             gear_data_notes_12,
-                             gear_data_notes_13,
-                             gear_data_notes_14,
-                             gear_data_notes_15), 
-                                      remove = T, 
-                                      na.rm = T,
-         sep = ";") %>% 
-  unite("site_id", c(site_id_1,
-                     site_id_2,
-                     site_id_3,
-                     site_id_4), 
-                                      remove = T, 
-                                      na.rm = T,
-         sep = "_") %>% 
-  unite("original_file_names", c(original_file_name_effort, 
-                                 original_file_name), 
-                                      remove = T, 
-                                      na.rm = T,
-         sep = " ") %>%
+         ) %>%  %>%
   select(state,
          county,
          lake_name,
@@ -1851,252 +2040,7 @@ wi_data %>%
 
 
 
-#species column
-#cols containing "species" (skipping pipe to names includes a format report from arrow)
-wi_data %>% 
-  select(contains("species"))
-  # %>%
-  # names()
-#view unique names of species:
-wi_data %>% 
-  select(species) %>% 
-  unique() %>%
-  arrange(species) %>%
-  collect() %>%
-  print(n = nrow(.))
 
-wi_data %>% 
-  filter(lake_name != "lake_winnebago") %>% 
-  group_by(species.1) %>% 
-  summarise( n = n()) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-wi_data %>% 
-  filter(is.na(species.1)) %>%
-  select(survey_id, sampling_method, total.effort.1, total.effort.1.units, total_effort_ident, lake_name, lake_id, date) %>% 
-  collect() %>% 
-  {species_NA_surveys <<- . }
-
-
-
-
-#these look fine to me. They comply with the Data Agg Doc specs here: https://docs.google.com/document/d/1Ax_4vmsIqDuWU8wtxBRXv73mbLB_TjT4B2gG6Yp_tkQ/edit?pli=1#heading=h.f6zxnh5xaf40
-
-#location columns
-#lake_id & lake_name
-wi_data %>%
-  select(contains("lake"))%>%
-  unique()%>%
-  collect()
-
-#all lake loc data:
-#here I review glimpse(wi_data) and call only the location-ey fields
-wi_data %>% 
-  select(lake_id, lake_name, state, county, site_id.1, site_id.2, site_id.3, site_id.4 )%>%
-  unique() %>%
-  compute()
-
-# I suspect the site IDs are winnebago specific
-wi_data %>% 
-  filter( !is.na(site_id.1)) %>% 
-  select(lake_name) %>% 
-  unique() %>% 
-  collect()
-# it is. drop that from the location data, above
-
-#here I review glimpse(wi_data) and call only the location-ey fields
-wi_data %>% 
-  select(lake_id, lake_name, state, county)%>%
-  unique() %>%
-  compute()
-
-#now check these fields one at a time (lake_name and id are done)
-wi_data %>% 
-  select(state) %>% 
-  unique() %>%
-  collect()
-#view unique names of counties:
-wi_data %>% 
-  group_by(county) %>% 
-  summarize( n = n()) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-# NA counties are a diverse set of waterbodies:
-wi_data %>% 
-  filter( !is.na(county)) %>% 
-  select(lake_name) %>% 
-  unique() %>% 
-  collect() %>% 
-  print( n = 100)
-
-
-#now review the date columns
-#fields with "date"
-wi_data %>%
-  select(contains("date"))
-#date is the only useful column here:
-
-#any NAs in date? yes, they are all from aged fish that went unmatched to a survey
-wi_data %>%
-  filter(is.na(date))%>%
-  group_by(is.na(original_file_name.1_agedfish)) %>% 
-  count() %>% 
-  collect()
-
-wi_data %>%
-  select(date)%>%
-  compute() 
-
-wi_data %>%
-  select(date)%>%
-  collect() %>% 
-  summary() 
-
-# seems unlikely that there are fish data from 1899...
-wi_data %>%
-  filter(date < "1899-1-1")%>%
-  select(date) %>% 
-  unique() %>% 
-  collect() 
-
-wi_data %>% 
-  filter(lake_id == 99999) %>% 
-  select(lake_name) %>% 
-  unique() %>% 
-  collect()
-
-wi_data %>% filter(year(date)<1938) %>% collect() %>% group_by(original_file_name.1_agedfish) %>% count()# these are mostly aged fish
-wi_data %>% filter(year(date)<1938 & is.na(original_file_name.1_agedfish)) %>% collect() 
-
-
-
-#definitely odd, but I don't know that we have any way of determining the true date in these. Let's flag those dates as questionable
-
-wi_data %>%
-  # filter(date < "1940-1-1") %>% 
-  mutate(FLAGGED_date_questionable = date < "1930-1-1") %>% 
-  select(FLAGGED_date_questionable ) %>% 
-  compute()
-
-#in order to amend the parquet file, I'd need to load it into R, add that column then re-write to disk. 
-
-
-#gear
-wi_data %>% 
-  select(sampling_method) %>% 
-  unique() %>% 
-  compute() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-wi_data %>% 
-  group_by(sampling_method) %>% 
-  summarise(n = n()) %>% 
-  collect() %>% 
-  arrange(n) %>% 
-  print( n = nrow(.))  
-
-wi_data %>% 
-  filter(sampling_method == "vertical_gill_net") %>% 
-  group_by(species.1) %>% 
-  summarise(n = n()) %>% 
-  collect()
-
-
-wi_data %>% 
-  filter(sampling_method == "vertical_gill_net" & !is.na(original_file_name.1_effort)) %>% 
-  group_by(survey_id, date, lake_name, lake_id, original_file_name.1_effort, original_file_name.1_indivfish, original_file_name.1_agedfish, original_file_name.1_winnebago) %>% 
-  summarise(n = n()) %>% 
-  collect() %>% print(n = nrow(.))
-
-#target species
-wi_data %>% 
-  group_by(target_species_indivfish) %>% 
-  summarise(n = n()) %>% 
-  collect() %>% 
-  arrange(n) %>% 
-  print(n = nrow(.))
-
-wi_data %>% 
-  group_by(target_species_effort) %>% 
-  summarise(n = n()) %>% 
-  collect() %>% 
-  arrange(n) %>% 
-  print(n = nrow(.))
-#counts are different for fish and effort
-
-wi_data %>% 
-  mutate(same_target = ifelse(target_species_effort == target_species_indivfish, "Same", "Different")) %>% 
-  group_by(same_target) %>% 
-  count() %>% 
-  collect()
-#no conflicting rows between effort and fish, but data might be missing from one or the other
-
-wi_data %>% 
-  filter(is.na(target_species_effort) & !is.na(target_species_indivfish)) %>% 
-  count(species.1) %>% 
-  collect()
-#only one case where effort is na but fish is not
-
-wi_data %>% 
-  filter(!is.na(target_species_effort) & is.na(target_species_indivfish)) %>% 
-  count(species.1) %>% 
-  collect()
-#33657 cases where fish is na but effort is not - ironically the species is also na 
-
-wi_data %>% 
-  filter(is.na(target_species_effort) & is.na(target_species_indivfish)) %>% 
-  summarise(n = n()) %>% 
-  collect()
-#this tells us that the effort column should be used for the targeted data - there is only one case where indivfish has data and effort doesn't. All other cases are na for both
-
-wi_data %>% 
-  select(target_species_effort) %>% 
-  unique() %>% 
-  compute() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-
-#length
-wi_data %>% 
-  group_by(species.1) %>% 
-  summarise(mean = mean(length.1, na.rm = T), min = min(length.1, na.rm = T), max = max(length.1, na.rm = T)) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-#big walleye and pike?
-wi_data %>% 
-  filter((length.1 > 900 & species.1 == "walleye") |
-          (length.1 > 2000 & species.1 == "northern_pike")) %>% 
-  collect()
-#walleye and pike are big have units of inches but appear to be in mm
-
-wi_data %>% 
-  group_by(length_unit.1) %>% 
-  summarise(n = n()) %>% 
-  collect() %>% 
-  arrange(n) %>% 
-  print(n = nrow(.))
-#units are in inches, 4153536 obs that are na for length unit
-
-#Are the cases of na length unit when length is na?
-wi_data %>% 
-  filter(is.na(length.1) & is.na(length_unit.1)) %>% 
-  summarise(n = n()) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-#3928844 are missing both length and length unit
-
-#cases where there are lengths without any length units
-wi_data %>% 
-  filter(!is.na(length.1) & is.na(length_unit.1)) %>% 
-  summarise(n = n()) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-#224692 have a length but are missing the unit
 
 #see if this file has my QC flag in it
 wi_data %>%

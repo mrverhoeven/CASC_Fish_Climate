@@ -1243,39 +1243,63 @@ rm(wi_cisco_final)
 
 
 
-#fix effort values
+#fix & fill effort values
 ```{r}
+
+
+#ON 6 Feb I identified a bunch of total effort data in a different column that seems to fill some holes. I will try to work those data in here so that the TEIs that get generated have all of the corresponding effort data wrapped up in them. 
+
 #effort units
-wi_inland_fishobservations_10Nov2023[ , .N , .(total_effort_1_unit, total_effort_2_unit) ]
-wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) , .N , is.na(total_effort_2)   ]
-wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, total_effort_2_unit]
-wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, original_file_names]
-wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , .N, .(sampling_method_1, total_effort_2_unit)]
-wi_inland_fishobservations_10Nov2023[is.na(total_effort_1_unit) & !is.na(total_effort_2_unit) , ':=' (total_effort_1 = total_effort_2, total_effort_1_unit = total_effort_2_unit, total_effort_2 = NA, total_effort_2_unit = NA)]
+wi_inland_fishobservations_10Nov2023[ , .N , .(total.effort.1.units, total.effort.2.units) ]
+wi_inland_fishobservations_10Nov2023[is.na(total.effort.1.units) , .N , is.na(total.effort.2.units)   ]
+wi_inland_fishobservations_10Nov2023[ , .N , total.effort.1==total_effort ]
 
-wi_inland_fishobservations_10Nov2023[ , .N , .(sampling_method_1 , total_effort_1_unit)][order(sampling_method_1)]
-wi_inland_fishobservations_10Nov2023[ , .N , .( total_effort_1_unit)]
-#fixing these up
-wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "net-nights" , total_effort_1_unit := "net_nights" , ]
-wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets", .N , .(sampling_method_1) ]
+wi_inland_fishobservations_10Nov2023[ , .N , is.na(total_effort)]
+wi_inland_fishobservations_10Nov2023[ !is.na(total_effort), .N  , is.na(total.effort.1) ]
+wi_inland_fishobservations_10Nov2023[ !is.na(total_effort), .N  ,  sampling_method]
+#slide into total_effort column
+wi_inland_fishobservations_10Nov2023[is.na(total.effort.1) & !is.na(total_effort), ':=' (total.effort.1 = total_effort, total.effort.1.units = "unknown") ,   ]
+#drop old
+wi_inland_fishobservations_10Nov2023[   , total_effort:= NULL   ,  ]
 
-wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets" & sampling_method_1 %in% c("seine", "seine_smallmesh") , total_effort_1_unit := "hauls" ]
-wi_inland_fishobservations_10Nov2023[total_effort_1_unit == "number_of_nets" & sampling_method_1 %in% c("frame_net_miniature" ,"fyke_net", "gill_net_bottom", "gill_net_vertical","gill_net_floating" ) , total_effort_1_unit := "net_nights" ]
+#slide dat in from tot eff 2
+wi_inland_fishobservations_10Nov2023[ is.na(total.effort.1), .N  , is.na(total.effort.2) ]
+wi_inland_fishobservations_10Nov2023[ is.na(total.effort.1), .N  , .(total.effort.2.units) ]
+wi_inland_fishobservations_10Nov2023[ is.na(total.effort.1), .N  , is.na(total.effort.2) ]
 
+wi_inland_fishobservations_10Nov2023[is.na(total.effort.1) & !is.na(total.effort.2), ':=' (total.effort.1 = total.effort.2, total.effort.1.units = total.effort.2.units, total.effort.2=NA, total.effort.2.units = NA)  , ]
+
+#and from sampling time notes cols?
+#assign NA to rows for easy summarizing 
 for (i in 1:3) {
-  col_name <- paste0("sample_time_notes_", i)
+  col_name <- paste0("sample_time_notes.", i)
   wi_inland_fishobservations_10Nov2023[ str_detect(get(col_name), ":NA"), (col_name) := NA ]
   }
-  
-  
-  wi_inland_fishobservations_10Nov2023[ is.na(total_effort_1) , .N , .(sample_time_notes_1, sample_time_notes_2, sample_time_notes_3, sample_time_units_1, sample_time_units_2, sample_time_units_3, sample_time_min) ]
-  setnames(wi_inland_fishobservations_10Nov2023, old = c("sample_time_notes_1", "sample_time_notes_3"), new = c("minutes_sampled", "hours_sampled"))
 
-  wi_inland_fishobservations_10Nov2023[ , gear_data_notes := do.call(paste, c(replace(.SD, is.na(.SD), ""), sep = "")), .SDcols= c("gear_data_notes",
-                                                                                                   "site_id_1",
-                                                                                                   "site_id_2",
-                                                                                                   "site_id_3",
-                                                                                                   "site_id_4")]
+wi_inland_fishobservations_10Nov2023[is.na(total.effort.1) , .N , .(sample_time_notes.1, sample_time_notes.2, sample_time_notes.3, sample_time_units.1, sample_time_units.2, sample_time_units.3, sample_time_min)  ]
+
+wi_inland_fishobservations_10Nov2023[!is.na(sample_time_notes.1) , .N , .("tot_eff_na" = is.na(total.effort.1), sample_time_notes.1, sample_time_notes.2, sample_time_notes.3, sample_time_units.1, sample_time_units.2, sample_time_units.3, sample_time_min)  ][tot_eff_na == T]
+
+wi_inland_fishobservations_10Nov2023[ is.na(total.effort.1), .N , .(gear_data_notes.1, gear_data_notes.2, gear_data_notes.3, gear_data_notes.4, gear_data_notes.5, gear_data_notes.6, gear_data_notes.7, gear_data_notes.8, gear_data_notes.9, gear_data_notes.10, gear_data_notes.11, gear_data_notes.12, gear_data_notes.13, gear_data_notes.14, gear_data_notes.15) ]
+
+#nope. No info there
+
+
+wi_inland_fishobservations_10Nov2023[ , .N , .(sampling_method , total.effort.1.units)][order(sampling_method)]
+wi_inland_fishobservations_10Nov2023[ , .N , .( total.effort.1.units)]
+#fixing these up
+wi_inland_fishobservations_10Nov2023[total.effort.1.units == "net-nights" , total.effort.1.units := "net_nights" , ]
+wi_inland_fishobservations_10Nov2023[total.effort.1.units == "number_of_nets", .N , .(sampling_method) ]
+
+wi_inland_fishobservations_10Nov2023[total.effort.1.units == "number_of_nets" & sampling_method %in% c("seine", "seine_smallmesh") , total.effort.1.units := "hauls" ]
+wi_inland_fishobservations_10Nov2023[total.effort.1.units == "number_of_nets" & sampling_method %in% c("frame_net_miniature" ,"fyke_net", "gill_net_bottom", "gill_net_vertical","gill_net_floating" ) , total.effort.1.units := "net_nights" ]
+
+
+  
+wi_inland_fishobservations_10Nov2023[ , c("sample_time_notes.1", "sample_time_notes.2", "sample_time_notes.3", "sample_time_units.1", "sample_time_units.2", "sample_time_units.3", "sample_time_min"):= NULL  , ]  
+
+  
+
 
 
 
@@ -1327,7 +1351,9 @@ wi_inland_fishobservations_10Nov2023[is.na(sample_id), .N , .(original_file_name
   wi_inland_fishobservations_10Nov2023[ , summary(sample_id) , ]
   
   wi_inland_fishobservations_10Nov2023[is.na(sample_id), .N , .(original_file_names) ]
+  #we're going to leave these sample IDs set to NA. Theyre the aged fish that we were not able to even connect to a sampling event in the effort or catch data
   
+    
 #tidy original filenames col
   wi_inland_fishobservations_10Nov2023[ , original_file_names := gsub(" NA", "",gsub("NA ", "", original_file_names))  ,  ]
   
@@ -1373,11 +1399,12 @@ wi_inland_fishobservations_10Nov2023[ ,secondary_target_species := NULL , ]
 wi_inland_fishobservations_10Nov2023[ , length(unique(total.effort.2)) , .(lake_id, lake_name, date, sampling_method, sample_id, total.effort.1) ][ , .N , V1] #each eff gets own row
 wi_inland_fishobservations_10Nov2023[ , length(unique(total.effort.1)) , .(lake_id, lake_name, date, sampling_method, sample_id, total.effort.2) ][ , .N , V1] #each eff gets own row
 wi_inland_fishobservations_10Nov2023[ , length(unique(total.effort.1)) , .(lake_id, lake_name, date, sampling_method, sample_id) ][ , .N , V1] #each eff gets own row
-wi_inland_fishobservations_10Nov2023[ , length(unique(total.effort.1)) , .(lake_id, lake_name, date, sampling_method, sample_id) ][ , .N , V1] # this catches multiple efforts in one 
-wi_inland_fishobservations_10Nov2023[ , length(unique(total.effort.2)) , .(lake_id, lake_name, date, sampling_method) ][ , .N , V1] #this does same
+wi_inland_fishobservations_10Nov2023[ , length(unique(total.effort.1)) , .(lake_id, lake_name, date, sampling_method) ][ , .N , V1] # this catches multiple efforts in one
+wi_inland_fishobservations_10Nov2023[ , length(unique(total.effort.2)) , .(lake_id, lake_name, date, sampling_method) ][ , .N , V1] # this catches multiple efforts in one
+wi_inland_fishobservations_10Nov2023[ , length(unique(total.effort.1)) , .(lake_id, lake_name, date, sampling_method, target_species_effort) ][ , .N , V1] #this does same
 # target species in here: 
 wi_inland_fishobservations_10Nov2023[ , length(unique(target_species_effort)) , .(lake_id, lake_name, date, sampling_method) ][ , .N , V1] #this does same
-
+wi_inland_fishobservations_10Nov2023[ , length(unique(target_species_effort)) , .(lake_id, lake_name, date, sampling_method,sample_id) ][ , .N , V1]
 
 
 
@@ -1388,11 +1415,12 @@ wi_inland_fishobservations_10Nov2023[ ,`:=` (total_effort_ident = .GRP)  , .(lak
 
 #any no catch data?
   wi_inland_fishobservations_10Nov2023[ , sum(is.na(species)) , .(sample_id) ][ ,hist(V1) ,] #yes! every sub_effort_ident (sample_id) with a zero here is a no catch
+  wi_inland_fishobservations_10Nov2023[ , sum(is.na(species)) , .(total_effort_ident) ][ ,hist(V1) ,] # these multi-value returns are actually returning number of sub-effort-idents because each will have its own species == NA record 
 wi_inland_fishobservations_10Nov2023[ , sub_nothing_caught := sum(!is.na(species))==0 , sample_id ]
 
 #fix "total.eff" names
 old <- names(wi_inland_fishobservations_10Nov2023)[str_detect(names(wi_inland_fishobservations_10Nov2023), "total.effort")]
-new <-  c("sub_effort_1", "sub_effort_1_units","total_effort","sub_effort_2","sub_effort_2_units", "total_effort_ident")
+new <-  c("sub_effort_1", "sub_effort_1_units","sub_effort_2","sub_effort_2_units", "total_effort_ident")
 setnames(wi_inland_fishobservations_10Nov2023, old, new)
 
 setnames(wi_inland_fishobservations_10Nov2023, "sample_id", "sub_effort_ident")
@@ -1412,12 +1440,13 @@ tot_eff_1 <- wi_inland_fishobservations_10Nov2023[ , .N , .(sub_effort_ident, su
        "total_eff_2" = sum(sub_effort_2),
        "tot_eff_1_unit"= first(sub_effort_1_units),
        "tot_eff_2_unit"= first(sub_effort_2_units)) ,.(total_effort_ident)]
+
 wi_inland_fishobservations_10Nov2023[tot_eff_1, on = ("total_effort_ident"),
                                      c("total_effort_1","total_effort_1_unit","total_effort_2","total_effort_2_unit") := .(total_eff_1, tot_eff_1_unit, total_eff_2, tot_eff_2_unit), ]
 
 #add a total effort nothing caught
-wi_inland_fishobservations_10Nov2023[ , all(sub_nothing_caught)  , .(total_effort_ident)][ ,summary(V1)]
-wi_inland_fishobservations_10Nov2023[ , all(is.na(species))  , .(total_effort_ident)][ ,summary(V1)]
+wi_inland_fishobservations_10Nov2023[ , all(sub_nothing_caught)  , .(total_effort_ident)][ ,summary(V1)] #5943 seems reasonable, ~6% of TEIs found nothing.
+wi_inland_fishobservations_10Nov2023[ , all(is.na(species))  , .(total_effort_ident)][ ,summary(V1)]#check against another method of calculation
 
 wi_inland_fishobservations_10Nov2023[ , total_effort_nothing_caught :=  all(is.na(species))  , .(total_effort_ident)]
 
@@ -1432,10 +1461,6 @@ wi_inland_fishobservations_10Nov2023[ , summary(total_effort_1) , .(total_effort
 wi_inland_fishobservations_10Nov2023[ is.na(total_effort_1), .N , ]
 wi_inland_fishobservations_10Nov2023[ is.na(total_effort_1), .N , .(total_effort_1_unit, total_effort_ident)]
 wi_inland_fishobservations_10Nov2023[is.na(total_effort_1), total_effort_ident := NA , ]
-
-#drop old total effort val
-wi_inland_fishobservations_10Nov2023[ , total_effort := NULL, ]
-
 
 
 #multi-temp TEIs
@@ -1464,8 +1489,6 @@ wi_inland_fishobservations_10Nov2023[ year(date) < 1938 |
 
 #first clean up flags then add new flag note
 wi_inland_fishobservations_10Nov2023[ , .N , flag]
-wi_inland_fishobservations_10Nov2023[is.na(flag) | flag == "", .N]
-wi_inland_fishobservations_10Nov2023[is.na(flag) | flag == "", flag := NA, ]
 wi_inland_fishobservations_10Nov2023[year(date) < 1938 |
                                         year(date) > 2023 , flag := ifelse(is.na(flag), "bad_date" , paste(flag, "bad_date", sep = ";" )) ,]
 
@@ -1806,7 +1829,17 @@ wi_inland_fishobservations_10Nov2023[ , .N , .(mark_recap_data_notes_1, mark_rec
   wi_inland_fishobservations_10Nov2023[ , c("mark_recap_data_notes_1", "mark_recap_data_notes_2", "mark_recap_data_notes_3", "mark_recap_data_notes_4", "mark_recap_data_notes_5", "mark_recap_data_notes_6", "mark_recap_data_notes_7") := NULL ]
   
     
-
+  wi_inland_fishobservations_10Nov2023[ , gear_data_notes := do.call(paste, c(replace(.SD, is.na(.SD), ""), sep = "")), .SDcols= c("gear_data_notes",
+                                                                                                   "site_id_1",
+                                                                                                   "site_id_2",
+                                                                                                   "site_id_3",
+                                                                                                   "site_id_4")]
+  
+  
+  
+  
+  
+  
   
 ```
 

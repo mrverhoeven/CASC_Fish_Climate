@@ -5090,3 +5090,69 @@ write_csv(effort_head, "Data_and_Scripts/mn_effort_example.csv")
 write_csv(fish_head, "Data_and_Scripts/mn_fish_example.csv")
 ```
 
+# Minneosta large lakes update
+```{r}
+#effort data 
+ll_effort <- read_csv("02tbl_GN_Effort.csv") %>% 
+  rename(SURVEY_ID = ID)
+
+glimpse(ll_effort)
+
+ll_effort %>% 
+  summarise(n_distinct_ID = n_distinct(SURVEY_ID))
+
+ll_effort %>% 
+  group_by(SAMP_STA_TYPE_NAME, GEAR_TP) %>% 
+  count()
+
+ll_effort %>% 
+  group_by(Year, NAME, GEAR_TP) %>%
+  summarise(n_nets = n_distinct(STATION_CODE),
+            n_ID = n_distinct(SURVEY_ID)) %>% 
+  filter(n_ID != n_nets)
+
+ll_effort %>% 
+  distinct(SURVEY_ID)
+
+ll_effort %>% 
+  distinct(Year, NAME, STATION_CODE)
+
+#############################################################################
+#fish data
+ll_fish <- read_csv("MN_LL_FISH.csv") %>% 
+  rename(STATION_CODE = STATION)
+
+glimpse(ll_fish)
+
+ll_fish %>% 
+  distinct(SURVEY_ID)
+
+ll_fish %>% 
+  distinct(SURVEY_ID, STATION_CODE)
+
+#############################################################################
+#combined data
+ll_fish_effort <- ll_fish %>% 
+  left_join(ll_effort, by = c("SURVEY_ID", "STATION_CODE"))
+
+glimpse(ll_fish_effort)
+
+ll_fish_effort %>% 
+  group_by(Year, NAME) %>% 
+  summarise(n_survey_ids = n_distinct(SURVEY_ID),
+            n_nets = )
+
+ll_fish_effort %>% 
+  distinct(Year, NAME, STATION_CODE)
+
+ll_fish_effort %>% 
+  distinct(SURVEY_ID)
+
+ll_fish_effort %>% 
+  group_by(is.na(SURVEY_ID)) %>% 
+  count()
+
+#I would expect that the survey ID Ns would match that of the Year, NAME, STATION_CODE, figure out what that isn't the case
+#I get 14 more survey ids than the other grouping 
+```
+

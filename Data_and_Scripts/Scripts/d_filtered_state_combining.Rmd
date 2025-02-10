@@ -132,10 +132,57 @@ mw_data_all %>%
             total_effort_values = n_distinct(total_effort_1)) %>% 
   collect() %>% 
   filter(total_efforts >1) 
+
+#cross walk for iso data
+mw_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
+
+xwalk <- mw_data %>% 
+  filter(state == "Minnesota") %>% 
+  distinct(lake_id, nhdhr_id, lake_name) %>% 
+  collect() %>% 
+  mutate(lake_name = case_when(lake_name == "Koronis (main lake)" ~ "Koronis",
+                               lake_name == "Winnibigoshish" ~ "Winnie",
+                               lake_name == "Bemidji (main lake)" ~ "Bemidji",
+                               lake_name == "Red (Upper Red)" ~ "Upper Red",
+                               lake_name == "Ten Mile" & lake_id == "56061300" ~ "Tenmile",
+                               TRUE ~ lake_name))
+
+iso_data <- read_csv("Samples_All_2025_FEB.csv") %>% 
+  mutate(lake_name = str_extract(Community, "^[^-]+"))
+
+xwalk_trim <- xwalk %>% 
+  filter(lake_name %in% iso_data$lake_name) %>% 
+  filter(lake_name != "Buffalo" | lake_id == "86009000") %>% 
+  filter(lake_name != "Clearwater" | lake_id == "86025200") %>% 
+  filter(lake_name != "Green" | lake_id == "34007900") %>% 
+  filter(lake_name != "Big Sand" | lake_id == "29018500") %>% 
+  filter(lake_name != "Gull" | lake_id == "11030500") %>% 
+  filter(lake_name != "Horseshoe" | lake_id == "11035800") %>% 
+  filter(lake_name != "Island" | lake_id == "3015300") %>% 
+  filter(lake_name != "Pelican" | lake_id == "18030800") %>% 
+  filter(lake_name != "Rainy" | lake_id == "69069400") %>% 
+  filter(lake_name != "Round" | lake_id == "1013700") %>% 
+  filter(lake_name != "Rush" | lake_id == "56014100") %>% 
+  filter(lake_name != "Steamboat" | lake_id == "11050400") %>% 
+  filter(lake_name != "Washington" | lake_id == "47004600")
+
+#missing
+missing <- tibble(
+    lake_name = c("East Vermilion", "West Vermilion", "Lower Red"), 
+    lake_id = c("69037801", "69037802", "04003502"), 
+    nhdhr_id = c("nhdhr_105954753", "nhdhr_105954753", "nhdhr_120020981")
+  ) 
+
+xwalk_trim <- bind_rows(xwalk_trim, missing)
+
+iso_data_final <- iso_data %>% 
+  left_join(xwalk_trim)
+
+write_csv(iso_data_final, "LAKE_IDs_Samples_All_2025_FEB.csv")
 ```
 
 
-#feb 6, 2024 data to chris custer, 
+#feb 6, 2024 data to chris custer
 ```{r}
 feb <- read_csv("all_state_cpue_6Feb24.csv")
 indy_dates <- read_csv("indy_month_year.csv") %>% 

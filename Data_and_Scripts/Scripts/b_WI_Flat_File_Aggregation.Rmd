@@ -66,13 +66,13 @@ DONE  42. Where values are NA, units should also be NA (efforts, lengths, weight
       
 OUTSTANDING FIXES
 DONE  35. Schema matched to overall hive (column names and column inclusions)
-      30. Check N species in a survey (is 44 spp a reasonable finding?)
+DONE  30. Check N species in a survey (is 44 spp a reasonable finding?)
 
 
       #flags
-      43. Check that our flagging is spelling out implications
-      32. Add flags for 0 efforts and high efforts
-      44. Auto Flagging: (build a flagging template from the MW Hive then apply it state-by-state)
+DONE  43. Check that our flagging is spelling out implications
+DONE  32. Add flags for 0 efforts and high efforts
+DONE  44. Auto Flagging: (build a flagging template from the MW Hive then apply it state-by-state)
           0 and negative efforts
           10SDs above mean effort? (by gear/state?)
           Lengths (prob group by age/survey/something) - big and small
@@ -150,7 +150,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -163,7 +163,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -1117,7 +1117,7 @@ rm(wi_winnebago_fishobservations_23April2021 )
 ## Get targeted cisco data worked in
 ```{r}
 
-wi_target_cisco8nov2023 <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_target_cisco8nov2023.csv")
+wi_target_cisco8nov2023 <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_target_cisco8nov2023.csv")
 
 #clean WI targeted cisco data so that it can match the format of the regular wi data
 wi_cisco_clean <- wi_target_cisco8nov2023 %>%
@@ -1499,7 +1499,7 @@ wi_inland_fishobservations_10Nov2023[year(date) < 1938 |
 ```{r}
 # add NHDids
 #here using the MSU-provided crosswalk
-MGLP_crosswalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv")
+MGLP_crosswalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv")
 
 MGLP_crosswalk <- MGLP_crosswalk[STATE == "WI"]
 MGLP_crosswalk[ , STATE_ID := as.numeric(STATE_ID) , ]
@@ -1534,7 +1534,7 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
 
 #sifting for lakes (so our data does not contain lakes/stream)
 
-wi_lat_long <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
+wi_lat_long <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
   mutate(lake.id = as.character(lake.id))%>%
   setDT()
 
@@ -1543,7 +1543,7 @@ wi_inland_fishobservations_10Nov2023[ , lake_id:= as.character(lake_id) , ]
 wi_inland_fishobservations_10Nov2023[wi_lat_long, on = .(lake_id= lake.id), `:=` ("latitude_lake_centroid" = lat, "longitude_lake_centroid" = long)  ]
 
 # downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
-WI_hydro_list <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_Rivers_Info/24k_Hydro_Waterbodies_(Open_Water).csv")
+WI_hydro_list <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_Rivers_Info/24k_Hydro_Waterbodies_(Open_Water).csv")
 
 WI_hydro_list <- as.data.table(WI_hydro_list)
 
@@ -1685,7 +1685,7 @@ wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N 
   
 #this file lives in the crosswalk folder in the drive
 #here we read in a gear cross walk, the file contains each unique gear and assigns it new labels that are consistent across states
-gear_xwalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
+gear_xwalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
   filter(state == "Wisconsin") 
 
 #NA's chocke the match, so fill with chr string
@@ -2002,14 +2002,7 @@ num_cols <- c("latitude_lake_centroid", "longitude_lake_centroid" , "year", "mon
 wi_inland_fishobservations_10Nov2023[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
 
 
-
-
 ```
-
-
-
-
-
 
 
 
@@ -2040,7 +2033,7 @@ flag_xwalk <- wi_inland_fishobservations_10Nov2023 %>%
          z_score) %>% 
   filter(!is.na(flag))
 
-flag_xwalk_2 <- sd_merged_ce %>% 
+flag_xwalk_2 <- wi_inland_fishobservations_10Nov2023 %>% 
   distinct(total_effort_ident, .keep_all = TRUE) %>%
   filter(!(total_effort_ident %in% flag_xwalk$total_effort_ident)) %>% 
   group_by(sampling_method_simple) %>% 
@@ -2070,102 +2063,106 @@ flag_xwalk_effort <- rbind(flag_xwalk, flag_xwalk_2) %>%
          flag)
 rm(flag_xwalk, flag_xwalk_2)
 
-sd_merged_ce <- sd_merged_ce %>% 
-  left_join(flag_xwalk_effort,
-            relationship = "many-to-one")
+setnames(flag_xwalk_effort,old="flag" ,new="tei_flag" )
 
-sd_merged_ce %>% 
-  filter(!is.na(flag)) %>% 
-  group_by(total_effort_ident, flag) %>% 
-  count()
+wi_inland_fishobservations_10Nov2023[flag_xwalk_effort , on = .(total_effort_ident = total_effort_ident), tei_flag:= tei_flag ]
+wi_inland_fishobservations_10Nov2023[ , .N , .(tei_flag) ]
+wi_inland_fishobservations_10Nov2023[str_detect(tei_flag, " ; ") , .N ,tei_flag]
+wi_inland_fishobservations_10Nov2023[ , tei_flag := gsub(" ; ", "", tei_flag) , ]
 
-sd_merged_ce %>% 
+wi_inland_fishobservations_10Nov2023[, flag := do.call(paste, c(replace(.SD, is.na(.SD), ""), sep = "; ")), .SDcols= c("flag", "tei_flag")]
+
+# Remove "; " from the beginning or end
+wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^;\\s*|\\s*;$", "", flag)]
+
+wi_inland_fishobservations_10Nov2023[ , .N , flag]
+
+wi_inland_fishobservations_10Nov2023 %>% 
   filter(total_effort_ident %in% flag_xwalk_effort$total_effort_ident)
 #flag gets applied to 12350 fish records
 rm(flag_xwalk_effort)
 
-#flag for fish
-length_weight_flag_1 <- sd_merged_ce %>% 
-  filter(!is.na(species.1)) %>% 
-  group_by(species.1) %>% 
-  mutate(mean_length = mean(length.1, na.rm = TRUE),
-         weight.1 = as.numeric(weight.1),
-         mean_weight = mean(weight.1, na.rm = TRUE),
-         sd_length = sd(length.1, na.rm = TRUE),
-         sd_weight = sd(weight.1, na.rm = TRUE),
-         z_score_length = (length.1 - mean_length) / sd_length,
-         z_score_weight = (weight.1 - mean_weight) / sd_weight,
-         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste("unlikely length", ";", coalesce(flag, "")),
-                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste("unlikely weight", ";", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = case_when(length.1 == 0 | weight.1 == 0 ~ paste("length or weight reported as 0", ";", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = na_if(flag, "")) %>% 
-  select(total_effort_ident,
-         total_effort_1,
-         species.1,
-         weight.1,
-         length.1,
-         mean_length,
-         mean_weight,
-         z_score_length,
-         z_score_weight,
-         flag) %>% 
-  filter(!is.na(flag)) %>% 
-  distinct()
+#flag tables for fish
+#summarize length based stats (and trim them to only species where we can do this work)
+length_stats <- wi_inland_fishobservations_10Nov2023[, .(stat = c(names(summary(length_1)), "sd"),
+            value = c(summary(length_1), sd(length_1, na.rm = T)),
+            units = "length_inches"), .(species_1) ]
+length_stats[is.na(value) , .N , species_1 ]
+length_stats <- length_stats[!species_1 %in% length_stats[is.na(value) , unique(species_1) ]]
 
-sd_merged_ce <- sd_merged_ce %>% 
-  select(-flag) %>% 
-  mutate(weight.1 = as.numeric(weight.1)) %>% 
-  left_join(length_weight_flag_1,
-            relationship = "many-to-one")
+#zero lengths
+wi_inland_fishobservations_10Nov2023[length_1 == 0 , len_flag := "length reported as zero"]
 
-flag_check <- sd_merged_ce %>% 
-  filter(!is.na(flag)) %>% 
-  group_by(total_effort_ident, sampling_method_1, species.1, total_effort_1, length.1, weight.1, flag) %>% 
-  count()
-rm(flag_check)
-
-sd_merged_ce %>% 
-  group_by(flag) %>% 
-  count()
-
-sd_merged_ce %>% 
-  filter(str_detect(flag, "unlikely")) %>% 
-  group_by(species.1, length.1, length_unit.1, weight.1, weight_unit.1, flag) %>% 
-  count() %>% 
-  arrange(flag) %>% 
-  print(n = nrow(.))
-
-#sex column clean up
-sd_merged_ce <- sd_merged_ce %>% 
-  mutate(sex = case_when(sex == "Female" ~ "Female",
-                         sex == "M" ~ "Male",
-                         sex == "Male" ~ "Male",
-                         TRUE ~ NA))
-
-#a super large age?
-sd_merged_ce %>% 
-  group_by(age) %>% 
-  count() %>% 
-  arrange(desc(age)) %>% 
-  print(n = nrow(.))
-
-sd_merged_ce %>% 
-  filter(age > 200) %>% 
-  glimpse()
-#looks like we have a 465 year old 12 inch channel cat
-
-sd_merged_ce <- sd_merged_ce %>% 
-  mutate(flag = case_when(age > 200 ~ paste("unlikely age", ";", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = na_if(flag, ""))
-
-sd_merged_ce %>% 
-  filter(age > 200) %>% 
-  glimpse()
+#when your length is >10sd from mean for species, get flagged as unlikely length
+length_stats <- dcast(length_stats, formula = species_1 ~ ...)
+length_stats[ , high_lim := Mean_length_inches + 10*sd_length_inches ,]
+setcolorder(length_stats, neworder= c("species_1", "Mean_length_inches", "high_lim"))
 
 
+wi_inland_fishobservations_10Nov2023[length_stats , on = .(species_1, length_1 > high_lim) , len_flag := "length > 10sd from species mean in state" ]
+wi_inland_fishobservations_10Nov2023[ , .N , len_flag]
+
+rm(length_stats)
+
+#summarize weight based stats
+weight_stats <- wi_inland_fishobservations_10Nov2023[, .(stat = c(names(summary(weight_1)), "sd"),
+            value = c(summary(weight_1), sd(weight_1, na.rm = T)),
+            units = "weight_pounds"), .(species_1) ]
+weight_stats[is.na(value) , .N , species_1 ]
+weight_stats <- weight_stats[!species_1 %in% weight_stats[is.na(value) , unique(species_1) ]]
+
+#zero lengths
+wi_inland_fishobservations_10Nov2023[weight_1 <= 0, .N]
+wi_inland_fishobservations_10Nov2023[weight_1 == 0 , weight_flag := "weight reported as zero"]
+
+#when your wt is >10sd from mean for species, get flagged as unlikely weight
+weight_stats <- dcast(weight_stats, formula = species_1 ~ ...)
+weight_stats[ , high_lim := Mean_weight_pounds + 10*sd_weight_pounds ,]
+setcolorder(weight_stats, neworder= c("species_1", "Mean_weight_pounds", "high_lim"))
+
+
+wi_inland_fishobservations_10Nov2023[weight_stats , on = .(species_1, weight_1 > high_lim) , weight_flag := "length > 10sd from species mean in state" ]
+wi_inland_fishobservations_10Nov2023[ , .N , weight_flag]
+
+rm(weight_stats)
+
+#summarize age based stats
+age_stats <- wi_inland_fishobservations_10Nov2023[, .(stat = c(names(summary(age)), "sd"),
+            value = c(summary(age), sd(age, na.rm = T)),
+            units = "age_years"), .(species_1) ]
+age_stats[is.na(value) , .N , species_1 ]
+age_stats <- age_stats[!species_1 %in% age_stats[is.na(value) , unique(species_1) ]]
+
+#when your age is >10sd from mean for species, get flagged as unlikely age
+age_stats <- dcast(age_stats, formula = species_1 ~ ...)
+age_stats[ , high_lim := Mean_age_years + 10*sd_age_years ,]
+setcolorder(age_stats, neworder= c("species_1", "Mean_age_years", "high_lim"))
+
+
+wi_inland_fishobservations_10Nov2023[age_stats , on = .(species_1, age > high_lim) , age_flag := "age > 10sd from species mean in state" ]
+wi_inland_fishobservations_10Nov2023[ , .N , age_flag]
+
+
+wi_inland_fishobservations_10Nov2023[, flag := do.call(paste, c(replace(.SD, is.na(.SD), ""), sep = "; ")), .SDcols= c("flag", "len_flag", "weight_flag", "age_flag")]
+wi_inland_fishobservations_10Nov2023[, .N , flag ]
+
+# Remove "; " from the beginning or end
+wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^;\\s*|\\s*;$", "", flag)]
+wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^;\\s*|\\s*;$", "", flag)]
+wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^;\\s*|\\s*;$", "", flag)]
+
+wi_inland_fishobservations_10Nov2023[ , c("len_flag", "weight_flag", "age_flag") := NULL , ]
+
+
+
+#check speceis richness seems reasonable
+wi_inland_fishobservations_10Nov2023[!is.na(total_effort_ident) , length(unique(species_1)) , total_effort_ident ][, hist(V1, main = "species richness per survey") , ]
+
+#check fish counts:
+
+wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ident) , length(unique(obs_id)) , total_effort_ident ][, hist(V1, main = "N indiv fish sampled in survey") ,]
+
+wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ident) , length(unique(obs_id)) , .(total_effort_ident,lake_name,date_survey) ][V1>100000 , ,]
 
 
 ```

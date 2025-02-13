@@ -1874,6 +1874,8 @@ wi_inland_fishobservations_10Nov2023[ , young_of_year:= NULL , ]
 #observation ident assignment
 wi_inland_fishobservations_10Nov2023[ , obs_id := .I , ]
 
+
+
   
 ```
 
@@ -2002,6 +2004,12 @@ num_cols <- c("latitude_lake_centroid", "longitude_lake_centroid" , "year", "mon
 wi_inland_fishobservations_10Nov2023[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
 
 
+
+#notes
+wi_inland_fishobservations_10Nov2023[ , .N , notes_1 ]
+wi_inland_fishobservations_10Nov2023[ !is.na(notes_1) , notes_1 := gsub("^\\s*;+|;+\\s*$", "", gsub(";\\s*;+", ";", notes_1)) ]
+# wi_inland_fishobservations_10Nov2023[ , notes := NULL]
+
 ```
 
 
@@ -2073,7 +2081,7 @@ wi_inland_fishobservations_10Nov2023[ , tei_flag := gsub(" ; ", "", tei_flag) , 
 wi_inland_fishobservations_10Nov2023[, flag := do.call(paste, c(replace(.SD, is.na(.SD), ""), sep = "; ")), .SDcols= c("flag", "tei_flag")]
 
 # Remove "; " from the beginning or end
-wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^;\\s*|\\s*;$", "", flag)]
+wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^\\s*;+|;+\\s*$", "", gsub(";\\s*;+", "; ", flag))]
 
 wi_inland_fishobservations_10Nov2023[ , .N , flag]
 
@@ -2146,10 +2154,9 @@ wi_inland_fishobservations_10Nov2023[ , .N , age_flag]
 wi_inland_fishobservations_10Nov2023[, flag := do.call(paste, c(replace(.SD, is.na(.SD), ""), sep = "; ")), .SDcols= c("flag", "len_flag", "weight_flag", "age_flag")]
 wi_inland_fishobservations_10Nov2023[, .N , flag ]
 
-# Remove "; " from the beginning or end
-wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^;\\s*|\\s*;$", "", flag)]
-wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^;\\s*|\\s*;$", "", flag)]
-wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^;\\s*|\\s*;$", "", flag)]
+# Remove "; " from the beginning or end & compress multiples
+wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := gsub("^\\s*;+|;+\\s*$", "", gsub(";\\s*;+", "; ", flag))]
+
 
 wi_inland_fishobservations_10Nov2023[ , c("len_flag", "weight_flag", "age_flag") := NULL , ]
 
@@ -2164,6 +2171,50 @@ wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ide
 
 wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ident) , length(unique(obs_id)) , .(total_effort_ident,lake_name,date_survey) ][V1>100000 , ,]
 
+wi_inland_fishobservations_10Nov2023[total_effort_ident == 56232 , .N , .(species_1) ]
+wi_inland_fishobservations_10Nov2023[total_effort_ident == 56232 & species_1 == "smallmouth_bass" , summary(length_1) ,  ]
+wi_inland_fishobservations_10Nov2023[total_effort_ident == 56232 & species_1 == "smallmouth_bass" & is.na(length_1) , .N ,  ]
+#flag those
+wi_inland_fishobservations_10Nov2023[total_effort_ident == 56232 & species_1 == "smallmouth_bass" & is.na(length_1) , flag := ifelse(is.na(flag), "likely erroneous catch" , paste(flag, "likely erroneous catch", sep = ";" ))  ,  ]
+
+wi_inland_fishobservations_10Nov2023[ , unique(flag)]
+
+# Remove "; " from the beginning or end and compress multiples
+wi_inland_fishobservations_10Nov2023[!is.na(flag), flag := trimws(gsub("^\\s*;+|;+\\s*$", "", gsub(";\\s*;+", "; ", flag)))]
+wi_inland_fishobservations_10Nov2023[flag == "", flag := NA]
+
+wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ident) &is.na(flag) , length(unique(obs_id)) , total_effort_ident ][, hist(V1, main = "N indiv fish sampled in survey") ,]
+
+wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ident) , length(unique(obs_id)) , .(total_effort_ident,lake_name,date_survey) ][V1>20000 , ,]
+
+#review other high catch records
+wi_inland_fishobservations_10Nov2023[ total_effort_ident %in% 
+                                        wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ident) , length(unique(obs_id)) , .(total_effort_ident,lake_name,date_survey) ][V1>20000 , total_effort_ident, ],
+.N, .(total_effort_ident, lake_name, species_1, length_1)]
+
+#flag them
+wi_inland_fishobservations_10Nov2023[ total_effort_ident %in% 
+                                        wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ident) , length(unique(obs_id)) , .(total_effort_ident,lake_name,date_survey) ][V1>20000 , total_effort_ident, ],
+                                      flag := ifelse(is.na(flag), "very high catch is suspected error" , paste(flag, "very high catch is suspected error", sep = ";" ))]
+
+
+
+
+#year
+wi_inland_fishobservations_10Nov2023[ , .N , is.na(year) ]
+wi_inland_fishobservations_10Nov2023[ is.na(year), .N , is.na(date_sample) ]
+  wi_inland_fishobservations_10Nov2023[ is.na(year) & !str_detect(flag, "bad_date"), year := year(date_sample) ]
+#month
+wi_inland_fishobservations_10Nov2023[ , .N , is.na(month) ]
+wi_inland_fishobservations_10Nov2023[ is.na(month), .N , is.na(date_sample) ]
+  wi_inland_fishobservations_10Nov2023[ is.na(month) & !str_detect(flag, "bad_date"), month := month(date_sample) ]
+
+rm(age_stats, a, mw_data, chr_cols, col_name, del_col, i, new, new_colnames, num_cols, old, schema_names)
+
+wi_inland_fishobservations_10Nov2023[ ,notes_1 := trimws(notes_1) , ]
+wi_inland_fishobservations_10Nov2023[notes_1 == "", .N]
+wi_inland_fishobservations_10Nov2023[notes_1 == "" , notes_1 := NA]
+
 
 ```
 
@@ -2175,94 +2226,34 @@ wi_inland_fishobservations_10Nov2023[!is.na(species_1) & !is.na(total_effort_ide
 # setDT(wi_inland_fishobservations_10Nov2023)
 # wi_inland_fishobservations_10Nov2023 <- as_tibble(wi_inland_fishobservations_10Nov2023)
 
-write_dataset(dataset = wi_inland_fishobservations_10Nov2023, path = "wi_raw_disaggregated_data/wi_file_arrow", format = "parquet")
+fwrite(wi_inland_fishobservations_10Nov2023, "Data_and_Scripts/Data/output/wi_data.csv" , na="NA" )
+rm(wi_inland_fishobservations_10Nov2023)
+wi_dat <- fread("Data_and_Scripts/Data/output/wi_data.csv", na.strings = "NA")
 
-wi_data <- open_dataset(sources = "Data_and_Scripts/Data/output/wi_file_arrow2/")
+    # 
+    # arrow::write_dataset(dataset = wi_dat, path = "Data_and_Scripts/Data/output/wi_file_arrow", format = "parquet")
+    # 
+    # wi_data <- open_dataset(file = "Data_and_Scripts/Data/output/wi_file_arrow" )
+    # 
+    # glimpse(wi_data)
 
-glimpse(wi_data)
+write_dataset(dataset = wi_dat, path = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update", "state=Wisconsin"), format = "parquet")
+
+mw_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
+glimpse(mw_data)
+
+mw_data %>% 
+  filter(state == "Wisconsin") %>% 
+  group_by(notes_1) %>% count() %>% 
+  collect()
+
+mw_data %>% 
+   #filter(state == "Wisconsin") %>% 
+   group_by(state, length_unit_1) %>% count() %>% 
+   collect()
 
 
 ```
-
-
-# Priority column tidying 
-```{r}
-
-#print all column names
-wi_data %>%
-  names() %>%
-  sort() %>% make_clean_names()
-
-
-wi_data %>% 
-  group_by(survey_type.1_indivfish) %>% 
-  summarise(n = n()) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-
-
-
-
-
-#see if this file has my QC flag in it
-wi_data %>%
-  select(contains("flag"))
-
-
-````
-
-# Test a filtering approach
-``` {r}
-
-#explain the no fish caught situation in these data:
-# if there was nothing caught in a gear within a survey (aka. nothing that was a species of interest to us--recall that we told them to not send everything but just the species of interest to us)
-#examine the species.1 = NA cases; 
-
-#how many cases of total zero survey efforts: MORE THAN HALF OF THESE!!!
-wi_data %>%
-  filter(!is.na(original_file_name.1_effort)) %>% 
-  group_by(is.na(species.1), survey_id)%>%
-  count() %>% 
-  collect() %>% 
-  group_by(`is.na(species.1)`) %>% 
-  count()
-
-#An important result, given that there are ALL KINDS of crazy survey types in here that may or may-not ever catch the key species we were interested in. 
-wi_data %>% count(sampling_method) %>% collect()
-#how many cases of total zero survey efforts: MORE THAN HALF OF THESE!!!
-
-
-#how many cases of total zero survey efforts: MORE THAN HALF OF THESE!!!
-wi_data %>%
-   filter(!is.na(original_file_name.1_effort), sampling_method == "fyke_net") %>% 
-   group_by(is.na(species.1), survey_id)%>%
-   count() %>% 
-   collect() %>% 
-   group_by(`is.na(species.1)`) %>% 
-   count()
-
-#review the cases where boomshocking was not successful
-wi_data %>%
-  filter(!is.na(original_file_name.1_effort) & sampling_method == "boom_shocker" & is.na(species.1)) %>% 
-  group_by(total.effort.1,total.effort.1.units, survey_type.1_indivfish,survey_type.2_indivfish,survey_type.1_effort,survey_type.2_effort, target_species_effort,target_species_indivfish,secondary_target_species ) %>%
-  summarise(n = n()) %>% 
-  collect() %>% 
-  { . ->> unsucessfulboomshocking}
-
-
-
-
-
-
-
-
-
-
-
-````
-
-
 
 
 

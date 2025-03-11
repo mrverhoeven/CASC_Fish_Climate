@@ -1983,9 +1983,20 @@ mn_dat %>%
 #        ][  ,.N   ,.(lake_id,lake_name, year, date_total_effort_ident,  sampling_method, sampling_method_2, survey_type , total_effort_ident, total_effort_1, total_effort_1_units, total_effort_nothing_caught, original_file_names)][order(lake_id,  sampling_method_2,date_total_effort_ident, total_effort_nothing_caught)]
 # 
 
+#we had a question about the validity of using site IDs as one net-night of effort (assume within a survey each site was only sampled for one net-night). While that pattern does dominate the data, it is not consistent enough to use based on this exploration: 
 
-
-
+# mn_dat %>%
+#   filter(sampling_method_2 %in% c("gill_net_standard_graduated_mesh", "trap_net; 0.75-in-mesh net; double-frame net")) %>% 
+#   group_by(total_effort_ident, lake_name, lake_id, year, total_effort_1, sampling_method_simple) %>% 
+#   summarise( n_sites = length(unique(site_id))) %>%
+#   collect() %>% 
+#   mutate(effort_diff = total_effort_1-n_sites ) %>% 
+#   {effort_assumptions <<- .}
+#   
+# 
+# ggplot(effort_assumptions, aes( effort_diff, group = sampling_method_simple))+
+#   geom_histogram(breaks = c(-30:100))+
+#   scale_y_log10()
 
 
 

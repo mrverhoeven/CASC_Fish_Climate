@@ -360,33 +360,33 @@ Update 15 Sep 2023: We recieved a new data rip from MN DNR in three pieces: effo
   
   
   #fix up dates
-  mn_cpue_21aug2023[ , date_clean :=  as.IDate(date),]
-  mn_cpue_21aug2023[ is.na(date_clean), ]
+  mn_cpue_21aug2023[ , date_survey :=  as.IDate(date),]
+  mn_cpue_21aug2023[ is.na(date_survey), ]
 
-  mn_cpue_21aug2023[ , hist(yday(date_clean)) ,]
-  mn_cpue_21aug2023[ , .N ,.(lake_name,lake_id,year(date_clean))][ , hist(year) ,]
+  mn_cpue_21aug2023[ , hist(yday(date_survey)) ,]
+  mn_cpue_21aug2023[ , .N ,.(lake_name,lake_id,year(date_survey))][ , hist(year) ,]
   
   #compared to the effort file, it's obvious there is overlap in these and that the CPUE stuff has more old data
-  mn_effort_18aug2023[ ,.N ,.(lake_name,lake_id,year(date_clean))][ , hist(year) ,]
+  mn_effort_18aug2023[ ,.N ,.(lake_name,lake_id,year(date_survey))][ , hist(year) ,]
   
   
   #check overlap betweek effort and CPUE:
-  mn_cpue_21aug2023[            , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ]
-  mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ]
+  mn_cpue_21aug2023[            , .N , .(lake_id, date_survey, sampling_method_abbrev, survey_type) ]
+  mn_effort_18aug2023[          , .N , .(lake_id, date_survey, sampling_method_abbrev, survey_type) ]
 
-   mn_cpue_21aug2023[            , .("cpueN" = .N) , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ][
-     mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ], 
-     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type) , effortN := "N" 
+   mn_cpue_21aug2023[            , .("cpueN" = .N) , .(lake_id, date_survey, sampling_method_abbrev, survey_type) ][
+     mn_effort_18aug2023[          , .N , .(lake_id, date_survey, sampling_method_abbrev, survey_type) ], 
+     on = .(lake_id, date_survey, sampling_method_abbrev, survey_type) , effortN := "N" 
    ][ , .N , .("missingCPUE" = is.na(cpueN), "missing_effort" = is.na(effortN))] #
    
 
    
-  mn_cpue_21aug2023[            , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ]
-  mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ]
+  mn_cpue_21aug2023[            , .N , .(lake_id, date_survey, sampling_method_abbrev, survey_type) ]
+  mn_effort_18aug2023[          , .N , .(lake_id, date_survey, sampling_method_abbrev, survey_type) ]
 
-   mn_cpue_21aug2023[            , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ][
-     mn_effort_18aug2023[          , .N , .(lake_id, date_clean, sampling_method_abbrev, survey_type) ], 
-     on = .(lake_id, date_clean, sampling_method_abbrev, survey_type) , 
+   mn_cpue_21aug2023[            , .N , .(lake_id, date_survey, sampling_method_abbrev, survey_type) ][
+     mn_effort_18aug2023[          , .N , .(lake_id, date_survey, sampling_method_abbrev, survey_type) ], 
+     on = .(lake_id, date_survey, sampling_method_abbrev, survey_type) , 
    ]
   
   # Awesome-- the effort data are entirely contained in the cpue file. So here's a plan: 
@@ -508,7 +508,6 @@ mn_indiv_fish_23nov2023[ , .N , .(age=!is.na(age))]
 
 
 # Merge effort and indiv fish
-
 ```{r}
 #merge the effort and indiv fish data
 
@@ -524,7 +523,9 @@ sum(mn_indiv_fish_23nov2023[ , unique(lake_id) , ] %in% mn_effort_18aug2023[ , u
 
 intersect(names(mn_effort_18aug2023), names(mn_indiv_fish_23nov2023))
 
-setnames(mn_effort_18aug2023, old = "date_clean", new = "date_survey")
+setdiff(names(mn_effort_18aug2023), names(mn_indiv_fish_23nov2023))
+
+# setnames(mn_effort_18aug2023, old = "date_clean", new = "date_survey")
 
 #MEMORY HOG PINCH POINT
 #we know that dates are a problem, can we schmooze that join? 
@@ -556,7 +557,7 @@ flatfish[ , length(unique(paste(lake_id, date_survey , sampling_method, survey_t
   
 #now roll the catch CPUE data back to this bigger file:
   
-##Context foir this next operation:
+##Context for this next operation:
 #   3. Historical WAE survey duplications show same gear/lake/date cathing many (from CPUE) and zero (from indivfish)
 # - Consider dropping the effort table info where we have a HISTORICAL cpue record (or at least scope this strategy)
 
@@ -569,7 +570,7 @@ flatfish[ , length(unique(paste(lake_id, date_survey , sampling_method, survey_t
    # consider dropping records from the effort table where we have a cpue in a historical?
    #send this off to Corey Geving to review 
    
-   setnames(mn_cpue_21aug2023, old = "date_clean", new = "date_survey")
+   # setnames(mn_cpue_21aug2023, old = "date_clean", new = "date_survey")
    
   flatfish[mn_cpue_21aug2023[survey_type == "HISTORICAL", , ], on = .(lake_id, date_survey, sampling_method_abbrev) , nomatch = NULL ][ , .(neffcatch = .N, n_cpue = sum(i.total_count), nlen = sum(!is.na(length))) , .(lake_id, date_survey, sampling_method_abbrev, survey_type, i.survey_type) ][order(lake_id,date_survey)] 
   
@@ -580,7 +581,7 @@ flatfish[ , length(unique(paste(lake_id, date_survey , sampling_method, survey_t
   
   flatfish <- flatfish[!badflatfish, on = .(lake_id, date_survey, sampling_method_abbrev,survey_type) ]
   
-  
+  rm(badflatfish)
 
   #subset of MN_cpue where lake/date/method are not matched:
    glimpse(mn_cpue_21aug2023[ 
@@ -646,8 +647,7 @@ flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_su
 ```
 
 
-#Tidy up dataframe
-##Gear codes, species codes, state, county, length age units, target spp
+#Gear codes, species codes, state, county, length age units, target spp
 ```{r}
 #we need to
 # 1. revises the data in a few columns: sampling method, nothing caught, species names, state, units, target species, effort,  
@@ -1447,7 +1447,7 @@ rm(gear_xwalk, gear_table_mn, species_codes_mn, note_revisions, a, cde)
 #NHDids
 ```{r}
 
-#use mwlaxeref to fetch NHDIDs
+  #use mwlaxeref to fetch NHDIDs
   # mwlaxeref::mn_to_nhdhr(mn_dat, from_colname = "lake_id")[,nhdhr.id]
   
   mn_dat[ , nhdhr_id := mwlaxeref::mn_to_nhdhr(mn_dat, from_colname = "lake_id")[,nhdhr.id] , ]
@@ -1521,6 +1521,7 @@ mn_dat[ , date_total_effort_ident := date_survey ]
 
 
 ```
+
 #Column Names
 ```{r}
 rm(usgs, msu_xwalk)
@@ -1533,61 +1534,77 @@ mn_dat <- mn_dat %>%
     lake_name = lake_name,
     lake_id = as.character(lake_id),
     nhdhr_id = nhdhr_id,
+    
     latitude_lake_centroid = latitude_lake_centroid,
     longitude_lake_centroid = longitude_lake_centroid,
+    
     date_survey = date_survey,
     date_total_effort_ident = date_total_effort_ident,
     date_sub_effort_ident = as.IDate(NA),
     date_sample = date_sample,
     year = year(date_survey),
     month = month(date_survey),
+    
     survey_id = as.character(NA),
     survey_type = survey_type,
     survey_type_2 = as.character(NA),
     survey_type_3 = as.character(NA),
     survey_type_4 = as.character(NA),
-    sampling_method_abbrev = sampling_method_abbrev,
+    
+    sampling_method_abbrev = NULL,
     sampling_method_simple = sampling_method_simple,
     sampling_method = sampling_method_1,
     sampling_method_2 = sampling_method_2,
     gear_data_notes = gear_data_notes,
     target_species = target_species,
+    
+    total_effort_ident = total_effort_ident,
     total_effort_1 = total_effort_1,
     total_effort_2 = as.numeric(NA),
     total_effort_1_units = total_effort_unit,
     total_effort_2_units = as.character(NA),
     total_effort_nothing_caught = total_effort_nothing_caught,
+    
     water_temp = water_temp,
-    water_temp_units = case_when(!is.na(water_temp) ~ "fahrenheit",
-                                 TRUE ~ NA),
+    water_temp_units = case_when(!is.na(water_temp) ~ "fahrenheit", TRUE ~ NA),
     water_clarity = as.numeric(NA),
     water_clarity_units = as.character(NA),
+    
     lat_start = as.numeric(NA),
     lon_start = as.numeric(NA),
     lat_end = as.numeric(NA),
     lon_end = as.numeric(NA),
     site_id = site_id,
+    
     sub_effort_ident = as.character(NA),
     sub_effort_1 = as.numeric(NA),
     sub_effort_1_units = as.character(NA),
     sub_effort_2 = as.numeric(NA),
     sub_effort_2_units = as.character(NA),
     sub_effort_nothing_caught = NA,
+    
     species_1 = species,
     length_1 = as.numeric(length),
     length_unit_1 = length_unit, 
     length_bin = as.character(NA),
     length_bin_unit = as.character(NA),
+    
     age = age,
     aging_structure_1 = aging_structure_1,
+    
     weight_1 = weight,
     weight_unit_1 = weight_unit,
     batch_weight = as.character(NA),
     batch_weight_unit = as.character(NA),
+    
     sex = sex,
     age_class = age_class,
+    
     flag = flag,
+    original_file_names = original_file_names,
     ind_fish_ident = as.character(sample_id),
+    # lakesize = as.numeric(NA),
+    # lakesize_units = as.numeric(NA),
     lat_unspec = as.numeric(NA),
     lon_unspec = as.numeric(NA),
     waterbody_type = lake_type,
@@ -1598,28 +1615,47 @@ mn_dat <- mn_dat %>%
                      garbage_bin_notes_2_indivfish,
                      reproductive_condition_notes),
                      remove = T,
-                     na.rm = T) 
+                     na.rm = T) %>% 
+  setDT()
 
-intersect(names(mw_data), names(mn_dat))
-
-setdiff(names(mw_data), names(mn_dat)
-           )
+# intersect(names(mw_data), names(mn_dat))
+# 
+# setdiff(names(mw_data), names(mn_dat)
+#            )
 
 schema_names <- c(
   "state", "county", "lake_name", "lake_id", "nhdhr_id",
-  "latitude_lake_centroid", "longitude_lake_centroid", "date_survey", "date_total_effort_ident",
-  "date_sub_effort_ident", "date_sample", "year", "month", "survey_id", "survey_type",
-  "survey_type_2", "survey_type_3", "survey_type_4", "sampling_method_simple",
-  "sampling_method", "sampling_method_2", "gear_data_notes", "target_species",
-  "total_effort_ident", "total_effort_1", "total_effort_2", "total_effort_1_units",
-  "total_effort_2_units", "total_effort_nothing_caught", "water_temp", "water_temp_units",
-  "water_clarity", "water_clarity_units", "lat_start", "lon_start", "lat_end", "lon_end",
-  "site_id", "sub_effort_ident", "sub_effort_1", "sub_effort_1_units", "sub_effort_2",
-  "sub_effort_2_units", "sub_effort_nothing_caught", "species_1", "length_1",
-  "length_unit_1", "length_bin", "length_bin_unit", "age", "aging_structure_1", "weight_1",
-  "weight_unit_1", "batch_weight", "batch_weight_unit", "sex", "age_class", "flag",
-  "original_file_names", "ind_fish_ident", "lat_unspec",
-  "lon_unspec", "waterbody_type", "location_notes_1", "notes_1", "obs_id"
+
+  "latitude_lake_centroid", "longitude_lake_centroid",
+
+  "date_survey", "date_total_effort_ident", "date_sub_effort_ident", "date_sample", "year", "month",
+
+  "survey_id", "survey_type", "survey_type_2", "survey_type_3", "survey_type_4",
+
+  "sampling_method_simple", "sampling_method", "sampling_method_2", "gear_data_notes","target_species",
+
+  "total_effort_ident", "total_effort_1", "total_effort_2", "total_effort_1_units", "total_effort_2_units", "total_effort_nothing_caught",
+
+  "water_temp", "water_temp_units", "water_clarity", "water_clarity_units",
+
+  "lat_start", "lon_start", "lat_end", "lon_end",
+
+  "site_id", "sub_effort_ident", "sub_effort_1", "sub_effort_1_units", "sub_effort_2","sub_effort_2_units", "sub_effort_nothing_caught",
+
+  "species_1", "length_1", "length_unit_1", "length_bin", "length_bin_unit",
+
+  "age", "aging_structure_1",
+
+  "weight_1", "weight_unit_1", "batch_weight", "batch_weight_unit",
+
+  "sex", "age_class",
+
+  "flag", "original_file_names",
+
+  "ind_fish_ident",
+  "lat_unspec", "lon_unspec",
+  "waterbody_type",
+  "location_notes_1", "notes_1", "obs_id"
 )
 
 setcolorder(mn_dat, neworder = schema_names)
@@ -1651,6 +1687,8 @@ num_cols <- c("latitude_lake_centroid", "longitude_lake_centroid" , "year", "mon
               "length_1", "age", "weight_1",  "lat_unspec", "lon_unspec")
 
 mn_dat[, (num_cols) := lapply(.SD, as.numeric), .SDcols = num_cols]
+
+mn_dat[ , .N , .(sampling_method_simple, sampling_method_2, flag) ]
 
 
 
@@ -1814,7 +1852,6 @@ mn_dat[ , c("len_flag", "weight_flag", "age_flag") := NULL , ]
 mn_dat[!is.na(total_effort_ident) , length(unique(species_1)) , total_effort_ident ][, hist(V1, main = "species richness per survey") , ]
 
 #check fish counts:
-
 mn_dat[!is.na(species_1) & !is.na(total_effort_ident) , length(unique(obs_id)) , total_effort_ident ][, hist(V1, main = "N indiv fish sampled in survey") ,]
 
 mn_dat[!is.na(species_1) & !is.na(total_effort_ident) , length(unique(obs_id)) , .(total_effort_ident,lake_name,date_survey) ][V1>100000 , ,]
@@ -1862,6 +1899,9 @@ mn_dat[ weight_unit_1 == "g" , weight_unit_1 := "grams" ,]
 mn_dat[is.na(total_effort_1) , .N , .(total_effort_1_units, total_effort_2_units) ]
 
 
+#flags
+
+mn_dat[ , .N, flag ]
 
 
 
@@ -1877,12 +1917,19 @@ fwrite(mn_dat, "Data_and_Scripts/Data/output/mn_data.csv" , na="NA" )
 rm(mn_dat)
 mn_dat <- fread("Data_and_Scripts/Data/output/mn_data.csv", na.strings = "NA")
 
+mn_dat[ , date_sub_effort_ident := as.IDate(NA) , ]
+mn_dat %>% 
+  mutate(date_sub_effort_ident = as.IDate(NA)) %>% 
+  {mn_dat <<- .}
 
-write_dataset(dataset = mn_dat, path = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update", "state=Minnesota"), format = "parquet")
+#needs date_sub_effort_ident converted back to date
 
-mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update", "state=Minnesota"))
 
-glimpse(mn_data)
+# write_dataset(dataset = mn_dat, path = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update", "state=Minnesota"), format = "parquet")
+# 
+# mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update", "state=Minnesota"))
+# 
+# glimpse(mn_data)
 
 ```
 

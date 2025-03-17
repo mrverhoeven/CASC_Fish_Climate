@@ -5348,6 +5348,7 @@ ll_effort %>%
 #there are only 12 times within a lake-year that there are not the same number of ids as nets 
 #there are always more ids than nets for those cases
 
+
 ll_effort %>% 
   group_by(SAMP_STA_TYPE_NAME, GEAR_TP) %>% 
   count()
@@ -5381,6 +5382,14 @@ check <- ll_effort %>%
 #the only thing that really varies between the two records is the bottom depth and old id - do we just trust the survey id code? Will have to explore the data more
 rm(check)
 
+##############################################################################
+#reading in total effort reported by agency 
+total_effort <- read_csv("large_lakes_mn/total_nets.csv") %>%
+  mutate(Lake = case_when(Lake == "Red" ~ "Red (Upper Red)",
+                          TRUE ~ Lake)) %>% 
+  mutate(WB_NM = Lake) %>% 
+  rename(ID_total_effort = ID)
+
 #############################################################################
 #fish data
 ll_fish <- read_csv("large_lakes_mn/MN_LL_FISH.csv") %>% 
@@ -5392,9 +5401,6 @@ glimpse(ll_fish)
 
 ll_fish %>% 
   distinct(SURVEY_ID)
-
-ll_fish %>% 
-  group_by(WB_NM, )
 
 ll_fish %>% 
   distinct(SURVEY_ID, STATION_CODE)
@@ -5413,6 +5419,15 @@ ll_fish %>%
 #combined data
 ll_fish_effort <- ll_fish %>% 
   left_join(ll_effort, by = c("SURVEY_ID"), suffix = c("_fish", "_effort"))
+
+ll_fish_effort <- ll_fish_effort %>% 
+  left_join(total_effort, by = c("WB_NM", "Year"))
+
+ll_fish_effort %>% 
+  group_by(Lake, Year, is.na(Number_Nets)) %>% 
+  count() %>% 
+  filter(`is.na(Number_Nets)` == "TRUE")
+
 
 glimpse(ll_fish_effort)
 
@@ -5445,23 +5460,33 @@ ll_effort %>%
   anti_join(ll_fish, by = c("SURVEY_ID", "STATION_CODE")) %>% 
   group_by(original_file) %>% 
   count()
+
+#do the number of unique nets match the the total effort reported?
+ll_fish_effort %>% 
+  group_by(WB_NM, Year, Number_Nets) %>% 
+  summarise(n_stations = n_distinct(STATION_CODE_fish)) %>% 
+  filter(Number_Nets != n_stations) %>% 
+  print(n = nrow(.))
+#not excatly 
+  
 #from above we have 11443 unique survey ids from the effort file and 10756 from the fish file (diff of 687)
 #that is the exact amount from the anti join - meaning all fish found an effort home
 
-nofish <- ll_effort %>% 
-  anti_join(ll_fish, by = c("SURVEY_ID", "STATION_CODE"))
+# nofish <- ll_effort %>% 
+#   anti_join(ll_fish, by = c("SURVEY_ID", "STATION_CODE"))
+#the code above uses the effort file to to fine nets that did not catch fish - the latest version uses the total nets instead 
 
-nofish %>% 
-  group_by(NAME, Year) %>% 
-  count() %>% 
-  arrange(NAME, desc(Year)) %>% 
-  print(n = nrow(.))
+# nofish %>% 
+#   group_by(NAME, Year) %>% 
+#   count() %>% 
+#   arrange(NAME, desc(Year)) %>% 
+#   print(n = nrow(.))
 
 ##creating flag for no fish surveys
-nofish <- nofish %>% 
-  mutate(flag = "no catch reported by agency, 0s could be misleading") %>% 
-  rename(original_file_effort = original_file,
-         STATION_CODE_effort = STATION_CODE)
+# nofish <- nofish %>% 
+#   mutate(flag = "no catch reported by agency, 0s could be misleading") %>% 
+#   rename(original_file_effort = original_file,
+#          STATION_CODE_effort = STATION_CODE)
 
 #now row bind the nothing caught surveys
 
@@ -5478,21 +5503,31 @@ ll_fish_effort %>%
 ll_fish_effort <- ll_fish_effort %>% 
   filter(!is.na(SP))
 
-#now add in no fish efforts and make nothing caught columns 
+#now add in no fish efforts and make nothing caught columns - after discussion of using overall total effort this is commented out
+# ll_fish_effort <- ll_fish_effort %>% 
+#   bind_rows(nofish)
 
-ll_fish_effort <- ll_fish_effort %>% 
-  bind_rows(nofish)
+check <- ll_fish %>% 
+  mutate(FISH_COUNT = case_when(is.na(FISH_COUNT) ~ 1,
+                                TRUE ~ FISH_COUNT)) %>% 
+  group_by(FISH_COUNT) %>% 
+  count() %>%
+  mutate(total = FISH_COUNT * n,
+         left_over = total - n) %>% 
+  print(n = nrow(.))
+sum(check$left_over)
+rm(check)
+#we should uncount 11492 fish 
 
-ll_fish_effort %>% 
-  group_by(is.na(SP),
-           is.na(flag)) %>% 
-  count()
-#bomb - we can now see that we have added 687 rows of nothing caught nets 
-#we also added one column (the flag column)
-
-
-
-
+ll_fish %>% 
+  mutate(FISH_COUNT = case_when(is.na(FISH_COUNT) ~ 1,
+                                TRUE ~ FISH_COUNT)) %>% 
+  filter(FISH_COUNT != 1) %>% 
+  filter(!is.na(WT_G)) %>% 
+  group_by(SP, WT_G) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#sweet, doesn't look like we have any batched weight fish - all fish batch counted do not have a weight
 
 ########################## Let's Hive #####################################
 ll_fish_effort <- ll_fish_effort %>% 
@@ -5502,13 +5537,52 @@ ll_fish_effort <- ll_fish_effort %>%
 
 #lets create a total effort ident - we currently have sub effort idents
 ll_fish_effort <- ll_fish_effort%>% 
-  group_by(NAME, Year, STATION_CODE_effort) %>% 
-  mutate(sub_effort_ident = cur_group_id(),
-         sub_effort_ident = paste0(sub_effort_ident, SURVEY_ID),
-         sub_effort_1 = 1) %>% 
+  # group_by(NAME, Year, STATION_CODE_effort) %>% 
+  # mutate(sub_effort_ident = cur_group_id(),
+  #        sub_effort_ident = paste0(sub_effort_ident, SURVEY_ID),
+  #        sub_effort_1 = 1) %>% 
   group_by(NAME, Year) %>% 
   mutate(total_effort_ident = cur_group_id(),
-         total_effort_1 = sum(n_distinct(sub_effort_ident))) 
+         #total_effort_1 = sum(n_distinct(sub_effort_ident))
+         total_effort_1 = Number_Nets
+         ) %>% 
+  ungroup()
+
+#above I took the reported total effort from the DNR - lets compare this to the unique net ids within a total effort ident to see how they compare
+ll_fish_effort %>% 
+  group_by(total_effort_ident, WB_NM, Year, total_effort_1) %>% 
+  summarise(n_nets = n_distinct(STATION_CODE_effort)) %>% 
+  ungroup() %>% 
+  summarise(n_agree = sum(total_effort_1 == n_nets),
+            n_diff = sum(total_effort_1 != n_nets),
+            total_surveys = n_agree + n_diff,
+            prop_diff = n_diff/total_surveys)
+#roughly 10% of total effort idents different between the number of sub effort nets and the total effort reported by the DNR - lets look at those cases 
+
+ll_fish_effort %>% 
+  group_by(total_effort_ident, WB_NM, Year, total_effort_1) %>% 
+  summarise(n_nets = n_distinct(STATION_CODE_effort)) %>% 
+  filter(total_effort_1 != n_nets) %>% 
+  print(n = nrow(.))
+
+#lets create a flag for these surveys
+effort_flag <- ll_fish_effort %>% 
+  group_by(total_effort_ident, WB_NM, Year, total_effort_1) %>% 
+  summarise(n_nets = n_distinct(STATION_CODE_effort)) %>% 
+  filter(total_effort_1 != n_nets) %>%
+  mutate(flag = "unique # of nets does not match reported total effort, use caution in generating cpue") %>% 
+  select(-n_nets)
+
+ll_fish_effort <- ll_fish_effort %>% 
+  left_join(effort_flag) 
+rm(effort_flag)
+
+ll_fish_effort %>% 
+  group_by(total_effort_ident, flag) %>% 
+  count() %>% 
+  filter(!is.na(flag))
+#we see here that 39 total effort idents pick up a flag - perfect
+
 
 #fish species - this is a long one
 ll_fish_effort <- ll_fish_effort %>% 
@@ -5758,16 +5832,16 @@ length_weight_flag_2 <- length_weight_flag_1 %>%
          flag = na_if(flag, "")) %>% 
   ungroup()
 
-no_effort_flags <- ll_fish_effort %>% 
-  filter(is.na(species_1))
+# no_effort_flags <- ll_fish_effort %>% 
+#   filter(is.na(species_1))
 
 combined_flags <- length_weight_flag_1 %>% 
    filter(!((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
            (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10)))) %>% 
   bind_rows(length_weight_flag_2) %>% 
-  bind_rows(no_effort_flags) %>% 
+  #bind_rows(no_effort_flags) %>% 
   select(total_effort_ident,
-         sub_effort_ident,
+         #sub_effort_ident,
          species_1,
          LEN_MM,
          WT_G,
@@ -5798,6 +5872,11 @@ combined_flags %>%
   filter(str_detect(flag, "unlikely")) %>% 
   select(flag)
 
+combined_flags %>% 
+  filter(str_detect(flag, "#")) %>% 
+  group_by(total_effort_ident) %>% 
+  count()
+
 rm(length_weight_flag_1, length_weight_flag_2, no_effort_flags)
 
 #we can left join these flags to the data 
@@ -5817,7 +5896,7 @@ ll_fish_effort %>%
   select(flag)
 
 ll_fish_effort %>% 
-  filter(str_detect(flag, "misleading")) %>% 
+  filter(str_detect(flag, "#")) %>% 
   select(flag)
 
 ll_fish_effort %>% 
@@ -5832,38 +5911,33 @@ ll_fish_effort <- ll_fish_effort %>%
   ungroup()
 
 #nothing caught columns
-ll_fish_effort<- ll_fish_effort %>% 
-  group_by(sub_effort_ident) %>% 
-  mutate(sub_effort_nothing_caught = is.na(species_1)) %>% 
-  ungroup() %>% 
+ll_fish_effort <- ll_fish_effort %>% 
   group_by(total_effort_ident) %>% 
-  mutate(total_effort_nothing_caught = all(sub_effort_nothing_caught)) %>% 
+  mutate(total_effort_nothing_caught = is.na(species_1)) %>% 
   ungroup()
 
-ll_fish_effort %>% 
-  group_by(total_effort_ident) %>% 
-  summarise(
-    num_sub_efforts = n_distinct(sub_effort_ident),
-    num_nothing_caught = sum(sub_effort_nothing_caught == T),
-    total_flag = first(total_effort_nothing_caught)
-  ) %>% 
-  filter(num_nothing_caught != 0) %>% 
-  print(n = nrow(.))
+# ll_fish_effort %>% 
+#   group_by(total_effort_ident) %>% 
+#   summarise(
+#     num_sub_efforts = n_distinct(sub_effort_ident),
+#     num_nothing_caught = sum(sub_effort_nothing_caught == T),
+#     total_flag = first(total_effort_nothing_caught)
+#   ) %>% 
+#   filter(num_nothing_caught != 0) %>% 
+#   print(n = nrow(.))
 #we can see that when all sub efforts are na within a total effort than total effort nothing caught is T, otherwise it is false 
+
+#as a quick check, our 783323 total fish records make a difference of 11490 from the original file - this is perfect given our uncount and removal of two records with NA species. 
 
 # age and aging structure
 aging_check <- ll_fish_effort %>% 
-  distinct(NAME, Year, sub_effort_ident, LEN_MM, WT_G, species_1, OFF_AGE, AGE_SRC, CALCIFIED_STRUC_TYPE_NAME, SERIAL) %>% 
-  arrange(sub_effort_ident, LEN_MM, WT_G, OFF_AGE, SERIAL)
-#when you arrange by net, length, weight, species, serial - it is pretty clean the serial number is for identifying individual fish
-
-aging_check %>% 
-  group_by(sub_effort_ident, LEN_MM, WT_G, species_1, OFF_AGE, AGE_SRC, CALCIFIED_STRUC_TYPE_NAME) %>% 
-  count()
+  distinct(NAME, Year, STATION_CODE_effort, LEN_MM, WT_G, species_1, OFF_AGE, AGE_SRC, CALCIFIED_STRUC_TYPE_NAME, SERIAL) %>% 
+  arrange(STATION_CODE_effort, LEN_MM, WT_G, OFF_AGE, SERIAL)
+#when you arrange by net, length, weight, species, serial - it is pretty clear the serial number is for identifying individual fish
 #it looks like we have a ton of obs where there is more than one observation of a fish within a sub effort ident (which includes length, weight, and age). This leads me to think there are multiple fish with different aging types 
 
 check <- aging_check %>% 
-  filter(sub_effort_ident == "100001866")
+  filter(STATION_CODE_effort == "GN1" & NAME == "Vermilion" & Year == 2018 & species_1 == "walleye")
 rm(check)
 #in this example of a net, SERIAL looks like a unique fish identifier for when a fish is aged - but is that always the case?
 
@@ -5872,19 +5946,20 @@ rm(check)
 # filters for where there are multiple length values within a net, serial 
 check <- aging_check %>% 
   filter(SERIAL != "null" & !is.na(SERIAL)) %>% 
-  group_by(sub_effort_ident, species_1, SERIAL) %>% 
+  group_by(NAME, Year, STATION_CODE_effort, species_1, SERIAL) %>% 
   filter(n_distinct(LEN_MM) > 1) %>% 
   ungroup() %>% 
-  arrange(sub_effort_ident, species_1, SERIAL, LEN_MM)
-# looks like most could be be the same fish just measured twice with measurement error
+  arrange(NAME, Year, STATION_CODE_effort, species_1, SERIAL, LEN_MM)
+# most of these samples come from cass where it looks like the serial numbers are off by one fish - for example serial 2015 has an excat matching weight of a fish for serial 2016
+#the other cases either look like they could be within measurement error (the fish was measured twice with some variance) or who knows...
 
 #what about cases where the serial is absent? can we just assume 1.) those fish were not aged or 2.) they were aged but not duplicates 
 check <- ll_fish_effort %>% 
   mutate(check= case_when(is.na(SERIAL) | SERIAL == "null" ~ "absent",
                           TRUE ~ "present")) %>% 
   filter(check == "absent" & !is.na(OFF_AGE)) %>% 
-  select(sub_effort_ident, NAME, Year, SERIAL, species_1, LEN_MM, WT_G, AGE_SRC, OFF_AGE) %>% 
-  group_by(sub_effort_ident, species_1, LEN_MM, WT_G) %>% 
+  select(NAME, Year, STATION_CODE_effort, SERIAL, species_1, LEN_MM, WT_G, AGE_SRC, OFF_AGE) %>% 
+  group_by(NAME, Year, STATION_CODE_effort, species_1, LEN_MM, WT_G) %>% 
   count() %>% 
   filter(n > 1)
 
@@ -5893,8 +5968,8 @@ check<- ll_fish_effort %>%
                           TRUE ~ "present")) %>% 
   filter(check == "absent" & !is.na(OFF_AGE)) %>% 
   filter(!is.na(AGE_SRC)) %>% 
-  select(sub_effort_ident, NAME, Year, SERIAL, species_1, LEN_MM, WT_G, AGE_SRC, OFF_AGE) %>% 
-  arrange(sub_effort_ident, species_1, LEN_MM, WT_G) 
+  select(STATION_CODE_effort, NAME, Year, SERIAL, species_1, LEN_MM, WT_G, AGE_SRC, OFF_AGE) %>% 
+  arrange(STATION_CODE_effort, species_1, LEN_MM, WT_G) 
 rm(check, aging_check)
 #this shows a ton of records where a serial is absent and there appears to be a fish aged in different ways
 #long story short, I'm going to have to make a decision here
@@ -5914,6 +5989,46 @@ ll_fish_effort %>%
 aging_rank <- c("otolith" = 1, "cleithrum" = 2, "opercle" = 3, 
                 "pectoral_spine" = 4, "dorsal_spine" = 5, "fin_ray" = 6, "scale" = 7)
 
+
+
+check <- ll_fish_effort %>% 
+  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
+                             TRUE ~ SERIAL),
+         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
+                             TRUE ~ fish_id)) %>% 
+  group_by(NAME, Year, STATION_CODE_effort, fish_id) %>% 
+  count() %>% 
+  group_by(n) %>% 
+  count() %>%  
+  mutate(total_obs = n * nn,
+         remaining_fish = nn) 
+#it is valid that a fish might be aged 3+ times... or 17 times?
+sum(check$remaining_fish)
+#after the slice we should have 690277 fish left
+
+#here we see an example of a serial number that repeats 17 times 
+#was it really aged 17 times, mostly all by a scale? we will just have to roll with it
+ll_fish_effort %>% 
+  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
+                             TRUE ~ SERIAL),
+         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
+                             TRUE ~ fish_id)) %>% 
+  group_by(NAME, Year, STATION_CODE_effort, fish_id, LEN_MM, WT_G) %>% 
+  count() %>% 
+  filter(n == 17)
+#every fish aged 17 times comes from Mille Lacs in 2019, lets look at just one example
+
+ll_fish_effort %>% 
+  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
+                             TRUE ~ SERIAL),
+         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
+                             TRUE ~ fish_id)) %>% 
+  filter(fish_id == "10030" & STATION_CODE_effort == "GN18" & Year == "2019") %>% 
+  select(NAME, Year, STATION_CODE_effort, fish_id, LEN_MM, WT_G, SX, OFF_AGE, AGE_SRC, CALCIFIED_STRUC_TYPE_NAME) %>% 
+  print(n = nrow(.))
+
+  
+
 #clean up serial, structure, and slice for only one unique fish obs
 ll_fish_effort <- ll_fish_effort %>% 
   #make fish id column NA where it is null, make sure there is a unique id for those that are NA
@@ -5932,32 +6047,83 @@ ll_fish_effort <- ll_fish_effort %>%
   #group by sub effort - the net the fish was caught in - and the serial number
   #order by the aging structure rank
   #this will take the best aging structure for serial numbers that repeat in a net
-  group_by(sub_effort_ident, fish_id) %>% 
+  group_by(NAME, Year, STATION_CODE_effort, fish_id) %>% 
   arrange(aging_rank, .by_group = TRUE) %>% 
   slice(1) %>% 
   ungroup()
+#the obs in here match the above calc for remaining fish, lets see how this handled a fish aged 17 times
 
 ll_fish_effort %>% 
-  group_by(sub_effort_ident, fish_id) %>% 
-  count() %>% 
-  group_by(n) %>% 
-  count() %>% 
-  mutate(total_obs = n * nn,
-         remaining_fish = nn)
-#the sum of the "remaining fish" matches to the number of records from the slice above which is perfect
-#however, it is valid that a fish might be aged 3+ times... or 17 times?
-
-#here we see an example of a serial number that repeats 17 times 
-#was it really aged 17 times, mostly all by a scale? we will just have to roll with it
-ll_fish_effort %>% 
-  filter(sub_effort_ident == "67056900" & SERIAL == "10029") %>% 
-  glimpse()
+  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
+                             TRUE ~ SERIAL),
+         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
+                             TRUE ~ fish_id)) %>% 
+  filter(fish_id == "10030" & STATION_CODE_effort == "GN18" & Year == "2019") %>% 
+  select(NAME, Year, STATION_CODE_effort, fish_id, LEN_MM, WT_G, SX, OFF_AGE, AGE_SRC, CALCIFIED_STRUC_TYPE_NAME) %>% 
+  print(n = nrow(.))
+#perfect we can see it just grabbed one record and it was the highest ranking structure 
 
 ll_fish_effort %>% 
   group_by(aging_structure_1) %>% 
   count() %>% 
   arrange(desc(n))
 #we can see that most fish are not aged, but the ranking looks correct here in cases where they are
+
+#Kristin tipped us off to a few data anomalies that we should explore
+#1. 1986-1989 in Mille Lacs only has WAE, NOP, MUE
+ll_fish_effort %>% 
+  filter(NAME == "Mille Lacs" & Year %in% c("1986", "1987", "1988", "1989")) %>% 
+  group_by(Year, species_1) %>% 
+  count()
+#that is correct - lets make a flag for this 
+
+#2. bulk weighted fish 1983-2001 for yep and tlc
+ll_fish_effort %>% 
+  filter(species_1 %in% c("yellow_perch", "cisco") & !is.na(LEN_MM) & !is.na(WT_G)) %>% 
+  ggplot() +
+  geom_point(aes(LEN_MM, WT_G, color = species_1)) +
+  geom_smooth(aes(LEN_MM, WT_G, color = species_1)) +
+  facet_wrap(~NAME, scales = "free")
+#most of these look pretty good - there are certainly a few outliers - large weights for a length
+
+ll_fish_effort %>%
+  filter(species_1 %in% c("yellow_perch", "cisco") & !is.na(LEN_MM) & !is.na(WT_G) & !(LEN_MM == 0 | WT_G == 0)) %>% 
+  mutate(lw_ratio = WT_G/LEN_MM) %>% 
+  ggplot() +
+  geom_histogram(aes(lw_ratio, fill = species_1)) +
+  facet_wrap(~NAME, scale = "free")
+
+check <- ll_fish_effort %>% 
+ filter(species_1 %in% c("yellow_perch", "cisco") & !is.na(LEN_MM) & !is.na(WT_G) & !(LEN_MM == 0 | WT_G == 0)) %>% 
+  mutate(lw_ratio = WT_G/LEN_MM) %>%
+  filter(lw_ratio > 3) %>%
+  arrange(NAME, Year, STATION_CODE_effort ,species_1, LEN_MM, WT_G) %>% 
+  select(NAME, Year, STATION_CODE_effort ,species_1, LEN_MM, WT_G, lw_ratio, flag)
+#there are some clear outliers, the most egregious seem to already pick up a flag - lets just move on
+rm(check)
+
+additional_flags <- ll_fish_effort %>% 
+  mutate(flag = case_when(WB_NM == "Mille Lacs" & 
+                     Year %in% c("1986", "1987", "1988", "1989") ~ paste0("only walleye, pike and muskie collected - all other species should not be considered", "; ", coalesce(flag, "")),
+                     TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")) %>% 
+  filter(!is.na(flag))
+
+additional_flags %>% 
+  group_by(flag) %>% 
+  count()
+
+ll_fish_effort <- ll_fish_effort %>% 
+  ungroup() %>% 
+  select(-flag) %>% 
+  left_join(additional_flags, relationship = "many-to-one") 
+
+ll_fish_effort %>% 
+  group_by(flag) %>% 
+  count()
+
+rm(additional_flags)
+
 
 #making sure we have all the hived columns
 ll_fish_effort <- ll_fish_effort %>% 
@@ -5979,11 +6145,11 @@ ll_fish_effort <- ll_fish_effort %>%
          date_total_effort_ident = case_when(!is.na(START_DATE) ~ first(START_DATE),
                                              is.na(START_DATE) & !is.na(END_DATE) ~ (END_DATE),
                                              TRUE ~ NA),
-         date_sub_effort_ident = case_when(!is.na(START_DATE) ~ START_DATE,
-                                           is.na(START_DATE) & !is.na(END_DATE) ~ END_DATE,
-                                           TRUE ~ NA),
-         date_sample = case_when(!is.na(END_DATE) ~ END_DATE,
-                                 TRUE ~ NA),
+         # date_sub_effort_ident = case_when(!is.na(START_DATE) ~ START_DATE,
+         #                                   is.na(START_DATE) & !is.na(END_DATE) ~ END_DATE,
+         #                                   TRUE ~ NA),
+         # date_sample = case_when(!is.na(END_DATE) ~ END_DATE,
+         #                         TRUE ~ NA),
          year = case_when(!is.na(date_survey) ~ year(date_survey),
                           TRUE ~ Year),
          month = case_when(!is.na(date_total_effort_ident) ~ month(date_total_effort_ident),
@@ -6004,7 +6170,7 @@ ll_fish_effort <- ll_fish_effort %>%
   #site id - making it the net number 
   mutate(site_id = STATION_CODE_fish) %>% 
   #sub effort units
-  mutate(sub_effort_1_units = "net_nets") %>% 
+  #mutate(sub_effort_1_units = "net_nets") %>% 
   #length
   mutate(length_1 = LEN_MM,
          length_unit_1 = "mm") %>% 
@@ -6036,8 +6202,8 @@ ll_fish_effort <- ll_fish_effort %>%
          #longitude_lake_centroid,
          date_survey,
          date_total_effort_ident,
-         date_sub_effort_ident,
-         date_sample,
+         #date_sub_effort_ident,
+         #date_sample,
          year,
          month,
          survey_id,
@@ -6062,12 +6228,12 @@ ll_fish_effort <- ll_fish_effort %>%
          #lat_end,
          #lon_end,
          site_id,
-         sub_effort_ident,
-         sub_effort_1,
-         sub_effort_1_units,
+         #sub_effort_ident,
+         #sub_effort_1,
+         #sub_effort_1_units,
          #sub_effort_2,
          #sub_effort_2_units,
-         sub_effort_nothing_caught,
+         #sub_effort_nothing_caught,
          species_1,
          length_1,
          length_unit_1,
@@ -6094,27 +6260,23 @@ ll_fish_effort <- ll_fish_effort %>%
          )
 
 glimpse(ll_fish_effort)
-```
 
+```
 Notes:
 These columns - county, nhdhr_id, latitude_lake_centroid, longitude_lake_centriod, lakesize, lakesize_units, lat_unspec, lon_unspec, waterbody_type - will exist in the MN DB and can pull directly from there 
 
 # Pepin Data
-
-########################update from 3/7###################################
-everything is jamming well - I still need to update there columns:
-1. Flag
-2. Original_file_names
-3. notes_1 - includes mesh size and maturity 
 ```{r}
 #read in Pepin effort and fish data
-pep_fish <- read_csv("large_lakes_mn/pepin_fish_65_05.csv")
+pep_fish <- read_csv("large_lakes_mn/pepin_fish_65_05.csv") %>% 
+  mutate(original_file_name = "pepin_fish_65_05.csv")
 
 total_effort <- read_csv("large_lakes_mn/total_nets.csv") %>% 
   mutate(Lake = case_when(Lake == "pepin" ~ "Pepin",
                           TRUE ~ Lake)) %>% 
   filter(Lake == "Pepin" & 
-           (Year >=1965 & Year <= 2005))
+           (Year >=1965 & Year <= 2005)) %>% 
+  mutate(original_file_name = "total_nets.csv")
 
 
 ################ effort data ###############################
@@ -6133,9 +6295,9 @@ pep_fish <- pep_fish %>%
          species_1 = str_replace(species_1, " ", "_")) %>% 
   #clean length and weight 
   mutate(length_1 = `LEN (mm)`,
-         length_1_units = "mm",
+         length_unit_1 = "mm",
          weight_1 = `WEIGHT (g)`,
-         weight_1_units = "g") %>% 
+         weight_unit_1 = "g") %>% 
   #clean date
   mutate(date = mdy(Date)) %>% 
   #rename some columns 
@@ -6148,26 +6310,70 @@ pep_fish <- pep_fish %>%
   select(`Mesh Size (in)`,
          species_1,
          length_1,
-         length_1_units,
+         length_unit_1,
          weight_1,
-         weight_1_units,
+         weight_unit_1,
          sex,
          Maturity,
          date,
          year,
          month,
          station,
+         original_file_name,
          fish_count)
+
+
+pep_fish %>% 
+  filter(year== 1999 & species_1 ==  "freshwater_drum" & weight_1 >2000) %>% 
+  select(date, species_1, length_1, weight_1, fish_count)
+
+pep_fish %>% 
+  filter(fish_count > 1 & !is.na(weight_1)) %>% 
+  select(date, species_1, length_1, weight_1, fish_count) %>% 
+  print(n = nrow(.))
+#it looks like fish that were counted have a batch weight 
+
+pep_fish %>% 
+  filter(!is.na(length_1) & !is.na(weight_1) & fish_count > 1) %>% 
+  glimpse()
+#I'm moving forward assuming that all fish with a weight but not length and count grater an 1 are batch weighted
+#fish that a length and weight but have multipule fish I will note as individual fish 
+
+
+#this code below creates a grouping id for fish that were batched weighted together
+#I then add those weights to a batch weight column, making the weight column na
+#all other fish will be treated as individual fish measures 
+pep_fish <- pep_fish %>% 
+  group_by(year, species_1, fish_count) %>% 
+  mutate(batch_weight_id = cur_group_id(),
+         batch_weight_id = case_when(is.na(length_1) & !is.na(weight_1) & fish_count > 1 ~ batch_weight_id,
+                                     TRUE ~ NA)) %>%
+  mutate(batch_weight = case_when(is.na(length_1) & !is.na(weight_1) & fish_count > 1 ~ weight_1,
+                                  TRUE ~ NA),
+         batch_weight_unit = "g",
+         weight_1 = case_when(!is.na(batch_weight_id) ~ NA,
+                              TRUE ~ weight_1)) %>% 
+  ungroup()
+
+#check it
+pep_fish %>% 
+  filter((!is.na(length_1) & is.na(batch_weight) & fish_count >1) |
+           (is.na(length_1) & !is.na(batch_weight) & fish_count > 1)) %>% 
+  select(batch_weight_id, date, species_1, length_1, weight_1, fish_count, batch_weight) %>% 
+  print(n = nrow(.))
+#this shows that in cases where a weight was reported without length and the fish count was greater than 1, the weight was moved to a batch weight 
+#call other cases retain individual fish level 
+
 
 ################ combining year with effort ############################
 pep_fish_effort <- pep_fish %>% 
-  left_join(total_effort)
+  left_join(total_effort, by = "year", suffix = c("_fish", "_effort"))
 
 pep_fish_effort %>% 
   filter(is.na(Number_Nets)) %>% 
   group_by(year) %>% 
   count()
-#call fish records have effort - sweet
+#all fish records have effort - sweet
 
 #now lets see if the number of unique stations in a year is the same as the total effort
 pep_fish_effort %>% 
@@ -6177,11 +6383,17 @@ pep_fish_effort %>%
   filter(Number_Nets != n_stations)
 #we have one case where there are more nets than total effort reported - 1991
 #we have two cases where the total effort is more than the number of stations - a potential nothing caught - 1993 and 1996
+#given we did not get a sub-effort level effort, i am just going to roll with the total effort given by the number of nets 
 
 glimpse(pep_fish_effort)
 
 pep_fish_effort <- pep_fish_effort %>% 
   uncount(fish_count)
+
+pep_fish_effort %>% 
+  group_by(is.na(weight_1), is.na(batch_weight), is.na(batch_weight_id)) %>% 
+  count()
+#this shows that all batch weight fish have been uncounted and do not have a weight_1. All fish that have a weight but are individual fish do not have a batch weight 
 
 #total_effort_ident
 pep_fish_effort <- pep_fish_effort %>% 
@@ -6192,17 +6404,88 @@ pep_fish_effort %>%
   group_by(total_effort_ident) %>% 
   summarise(n_distinct(date)) %>% 
   filter(`n_distinct(date)` >1)
-  
+
+#auto flags for length and weight
+length_weight_flag_1 <- pep_fish_effort %>% 
+  #filter out surveys that have no catch
+  filter(!is.na(species_1)) %>% 
+  #group by species to create z score for weight and length
+  #flag created for fish more or less than 10 sd 
+  #add this flag to the flag column with coalesce
+  group_by(species_1) %>% 
+  mutate(mean_length = mean(length_1, na.rm = TRUE),
+         mean_weight = mean(weight_1, na.rm = TRUE),
+         sd_length = sd(length_1, na.rm = TRUE),
+         sd_weight = sd(weight_1, na.rm = TRUE),
+         z_score_length = (length_1 - mean_length) / sd_length,
+         z_score_weight = (weight_1 - mean_weight) / sd_weight,
+         #we have not created a flag for this the pepin data yet, so here we cannot refer a previously made column like we do in other ag scripts - removed the coalesce fuction in the case when for length and w
+         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", ";"),
+                          TRUE ~ NA),
+         flag = case_when(z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = case_when(length_1 == 0 | weight_1 == 0 ~ paste("length or weight reported as 0", "; ", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")) %>% 
+  ungroup()
+
+length_weight_flag_1 %>% 
+  group_by(flag) %>% 
+  count()
+
+length_weight_flag_2 <- length_weight_flag_1 %>% 
+  filter((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
+           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10))) %>% 
+  group_by(species_1) %>% 
+  mutate(mean_length = mean(length_1, na.rm = TRUE),
+         mean_weight = mean(weight_1, na.rm = TRUE),
+         sd_length = sd(length_1, na.rm = TRUE),
+         sd_weight = sd(weight_1, na.rm = TRUE),
+         z_score_length = (length_1 - mean_length) / sd_length,
+         z_score_weight = (weight_1 - mean_weight) / sd_weight,
+         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", "; ", coalesce(flag, "")),
+                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")) %>% 
+  ungroup()
+
+length_weight_flag_2 %>% 
+  group_by(flag) %>% 
+  count()
+
+no_effort_flags <- pep_fish_effort %>% 
+  filter(is.na(species_1))
+#no no effort surveys
+rm(no_effort_flags)
+
+combined_flags <- length_weight_flag_1 %>% 
+   filter(!((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
+           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10)))) %>% 
+  bind_rows(length_weight_flag_2) %>% 
+  select(total_effort_ident,
+         species_1,
+         length_1,
+         weight_1,
+         flag) %>% 
+  distinct()
+
+pep_fish_effort <- pep_fish_effort %>% 
+  left_join(combined_flags) 
+
+pep_fish_effort %>% 
+  group_by(flag) %>% 
+  count()
 
 pep_fish_effort.trial <- pep_fish_effort %>%
+  ungroup() %>% 
   mutate(state = "Minnesota",
          lake_name = "Pepin",
          lake_id = "25000100") %>% 
   #dates
   mutate(date_survey = first(date),
          date_total_effort_ident = first(date),
-         date_sub_effort_ident = date,
-         date_sample = date,
+         # date_sub_effort_ident = date,
+         # date_sample = date,
          month = month(date_total_effort_ident)) %>% 
   #sampling method 
   mutate(sampling_method_simple = "gill_net",
@@ -6215,9 +6498,84 @@ pep_fish_effort.trial <- pep_fish_effort %>%
   group_by(total_effort_ident) %>% 
   mutate(total_effort_nothing_caught = case_when(is.na(species_1) ~ TRUE,
                                                  TRUE ~ FALSE)) %>% 
+  ungroup() %>% 
   # site id 
   mutate(site_id = station)  %>% 
-  observation
+  #original file name
+  mutate(original_file_names = paste0(original_file_name_fish, "; ", original_file_name_effort)) %>%
+  #notes_1
+  mutate(notes_1 = paste0(ifelse(!is.na(`Mesh Size (in)`), paste0("mesh_fish_capture: ", `Mesh Size (in)`, "; "), ""),
+                          ifelse(!is.na(Maturity), paste0("fish_maturity: ", Maturity, "; "), ""),
+                          ifelse(!is.na(batch_weight_id), paste0("batch_weight_id: ", batch_weight_id, "; "), "")),
+         notes_1 = str_remove(notes_1, "; $"),
+         notes_1 = na_if(notes_1, "")) %>% 
+    select(state, 
+         #county, 
+         lake_name,
+         lake_id,
+         #nhdhr_id,
+         #latitude_lake_centroid,
+         #longitude_lake_centroid,
+         date_survey,
+         date_total_effort_ident,
+         #date_sub_effort_ident,
+         #date_sample,
+         year,
+         month,
+         #survey_id,
+         #survey_type,
+         sampling_method_simple,
+         sampling_method,
+         sampling_method_2,
+         #gear_data_notes,
+         #target_species,
+         total_effort_ident,
+         total_effort_1, 
+         #total_effort_2,
+         total_effort_1_units,
+         #total_effort_2_units,
+         total_effort_nothing_caught,
+         #water_temp,
+         #water_temp_units,
+         #water_clarity,
+         #water_clarity_units,
+         #lat_start,
+         #lon_start,
+         #lat_end,
+         #lon_end,
+         site_id,
+         #sub_effort_ident,
+         #sub_effort_1,
+         #sub_effort_1_units,
+         #sub_effort_2,
+         #sub_effort_2_units,
+         #sub_effort_nothing_caught,
+         species_1,
+         length_1,
+         length_unit_1,
+         #length_bin,
+         #length_bin_unit,
+         #age,
+         #aging_structure_1,
+         weight_1,
+         weight_unit_1,
+         batch_weight,
+         batch_weight_unit,
+         sex,
+         #age_class,
+         flag,
+         original_file_names,
+         #ind_fish_ident,
+         #lakesize,
+         #lakesize_units,
+         #lat_unspec,
+         #lon_unspec,
+         #waterbody_type,
+         #location_notes_1,
+         notes_1
+         )
+
+glimpse(pep_fish_effort.trial)
 ```
 columns not included:
 survey_id
@@ -6231,7 +6589,7 @@ total_effort_2,
 total_effort_2_units,
 water_temp,
 water_temp_units,
- water_clarity,
+water_clarity,
 Water_clarity_units,
 lat_start,
 lon_start,
@@ -6244,14 +6602,10 @@ sub_effort_2,
 sub_effort_2_units,
 sub_effort_nothing_caught,
 species.1,
-length.1,
-length_unit.1,
 length_bin,
 length_bin_unit,
 age,
 aging_structure.1,
-batch_weight,
-batch_weight_unit,
 age_class,
 ind_fish_ident,
 lakesize,
@@ -6260,3 +6614,200 @@ lat_unspec,
 lon_unspec,
 waterbody_type,
 location_notes_1
+
+#aggregating these two files
+```{r}
+rm(combined_flags, 
+   length_weight_flag_1, 
+   length_weight_flag_2,
+   ll_effort, 
+   ll_fish, pep_fish,
+   pep_fish_effort, 
+   total_effort,
+   aging_rank)
+
+large_lakes <- bind_rows(ll_fish_effort, pep_fish_effort.trial) %>% 
+  mutate(length_unit_1 = case_when(is.na(length_1) ~ NA,
+                                   TRUE ~ length_unit_1),
+         weight_unit_1 = case_when(is.na(weight_1) ~ NA,
+                                   TRUE ~ weight_unit_1),
+         total_effort_1_units = case_when(is.na(total_effort_1) ~ NA,
+                                   TRUE ~ total_effort_1_units),
+         water_temp_units = case_when(is.na(water_temp) ~ NA,
+                                   TRUE ~ water_temp_units),
+         batch_weight_unit = case_when(is.na(batch_weight) ~ NA,
+                                   TRUE ~ batch_weight_unit))
+glimpse(large_lakes)
+
+#checking cpue
+cpue <- large_lakes %>% 
+  group_by(total_effort_ident, lake_name, year, total_effort_1) %>% 
+  summarise(n_walleye = sum(species_1 == "walleye"),
+            n_pike = sum(species_1 == "northern_pike"),
+            n_perch = sum(species_1 == "yellow_perch"),
+            cpue_walleye = n_walleye/total_effort_1,
+            cpue_pike = n_pike/total_effort_1,
+            cpue_perch = n_perch/total_effort_1) %>% 
+  distinct(total_effort_ident, .keep_all = T)
+
+cpue %>% 
+  filter(lake_name == "Lake of the Woods" &
+           year %in% c("1990",
+                       "1991",
+                       "1993",
+                       "1994",
+                       "1995",
+                       "2002",
+                       "2003",
+                       "2005"))
+large_lakes %>% 
+  group_by(survey_type) %>% 
+  count()
+
+large_lakes %>% 
+  filter(lake_name == "Lake of the Woods") %>% 
+  group_by(year) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+ll_fish %>% 
+  mutate(date = mdy(SRVY_DT),
+         year = year(date)) %>% 
+  filter(WB_NM == "Lake of the Woods" & 
+           year %in% c("1991",
+                       "2002",
+                       "2003") &
+           STATION_CODE == "GN0")
+
+ll_fish %>% 
+  mutate(date = mdy(SRVY_DT),
+         year = year(date)) %>% 
+  filter(WB_NM == "Lake of the Woods" & 
+           year %in% c("1991",
+                       "2002",
+                       "2003")) %>% 
+  group_by(STATION_CODE, year) %>% 
+  count() %>% 
+  arrange(desc(year)) %>% 
+  print(n = nrow(.))
+```
+
+
+# QC
+The first chunk strictly looks at the effort data. The second chunk looks at the combined data to compare effors
+```{r}
+
+total_effort <- read_csv("large_lakes_mn/total_nets.csv") %>% 
+  mutate(Lake = case_when(Lake == "Red" ~ "Red (Upper Red)",
+                          TRUE ~ Lake))
+###############this section of code compares total efforts#####################
+#lets compare these efforts to what is reported by MN DNR in aggregated tab
+ll_effort %>% 
+  mutate(Lake = NAME) %>% 
+  left_join(total_effort, by = c("Lake", "Year")) %>% 
+  group_by(Lake, Year) %>% 
+  summarise(nets = n_distinct(STATION_CODE),
+            n_ids = n_distinct(SURVEY_ID),
+            total_effort = mean(Number_Nets, na.rm = T)) %>% 
+  filter(nets != total_effort) %>% 
+  print(n = nrow(.))
+#lake finder shows kab 1990 at 20 effort units, pepin 1984 at 20, verilion 2016 at 20, mille lacs 1998 at 32 (effort listed on on seperate effort tab)
+#i do not even see fish for kab 1990, pepin 84, mille lacs 1998
+#Vermilion 2016 i see 22 unique survey ids in the fish data - the effort tab would suggest there should be 20?
+#could it be that each row is a net neight and they have repeat nets in here?
+
+ll_fish %>% 
+  mutate(date = mdy(SRVY_DT)) %>% 
+  filter(WB_NM == "Mille Lacs") %>% 
+  group_by(date) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+ll_fish %>% 
+  mutate(date = mdy(SRVY_DT)) %>% 
+  filter(WB_NM == "Vermilion" & year(date) == "2016") %>% 
+  group_by(SURVEY_ID, date) %>% 
+  count() 
+###################################################
+
+
+#################checking if efforts are consistent##########################
+ll_fish_effort %>% 
+  mutate(Lake = lake_name,
+         Year = year) %>% 
+  left_join(total_effort, by = c("Lake", "Year")) %>% 
+  group_by(Lake, Year) %>% 
+  summarise(n_ids = n_distinct(site_id),
+            total_effort = mean(Number_Nets, na.rm = T)) %>% 
+  print(n = nrow(.))
+
+ll_fish_effort %>% 
+  mutate(Lake = lake_name,
+         Year = year) %>% 
+  left_join(total_effort, by = c("Lake", "Year")) %>% 
+  group_by(Lake, Year) %>% 
+  summarise(n_ids = n_distinct(site_id),
+            total_effort = mean(Number_Nets, na.rm = T)) %>% 
+  filter(n_ids != total_effort) %>% 
+  print(n = nrow(.))
+
+#why does mille lacs have more effort in both fish and effort than what is reported on lake finder?
+ll_fish_effort %>% 
+  filter(lake_name == "Mille Lacs" & year == "2003") %>% 
+  group_by(total_effort_ident, site_id, survey_type, date_survey, date_total_effort_ident, date_sample) %>% 
+  count() %>% 
+  arrange(site_id) %>% 
+  print(n = nrow(.))
+
+ll_fish_effort %>% 
+  filter(lake_name == "Mille Lacs" & year == "2003") %>% 
+  summarise(n = n(),
+            n_stations = n_distinct(site_id),
+            n_walleye = sum(species_1 == "walleye"))
+#################################################################################
+#cpue check 
+weird_years <- ll_fish_effort %>% 
+  mutate(Lake = lake_name,
+         Year = year) %>% 
+  left_join(total_effort, by = c("Lake", "Year")) %>% 
+  group_by(Lake, Year) %>% 
+  summarise(n_ids = n_distinct(site_id),
+            total_effort = mean(Number_Nets, na.rm = T)) %>% 
+  filter(n_ids != total_effort)  %>% 
+  select(Lake, Year) %>% 
+  rename(lake_name = Lake,
+         year = Year)
+
+ll_fish_effort %>% 
+  inner_join(weird_years) %>% 
+  group_by(total_effort_ident, lake_name, year) %>% 
+  summarise(n_wae = sum(species_1 == "walleye", na.rm = T),
+            n_nop = sum(species_1 == "northern_pike", na.rm = T),
+            n_yep = sum(species_1 == "yellow_perch", na.rm = T),
+            wae_cpe = n_wae/total_effort_1,
+            nop_cpe = n_nop/total_effort_1,
+            yep_cpe = n_yep/total_effort_1) %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  select(lake_name, year, wae_cpe, nop_cpe, yep_cpe, n_wae, n_nop, n_yep) %>% 
+  print(n = nrow(.))
+
+#random sample check 
+random <- ll_fish_effort %>% 
+  distinct(total_effort_ident) %>% 
+  pull(total_effort_ident) %>% 
+  sample(10)
+
+ll_fish_effort %>% 
+  filter(total_effort_ident %in% random) %>% 
+  group_by(total_effort_ident, lake_name, year) %>% 
+  summarise(n_wae = sum(species_1 == "walleye", na.rm = T),
+            n_nop = sum(species_1 == "northern_pike", na.rm = T),
+            n_yep = sum(species_1 == "yellow_perch", na.rm = T),
+            wae_cpe = n_wae/total_effort_1,
+            nop_cpe = n_nop/total_effort_1,
+            yep_cpe = n_yep/total_effort_1) %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  select(lake_name, year, wae_cpe, nop_cpe, yep_cpe) %>% 
+  print(n = nrow(.))
+rm(random)
+```

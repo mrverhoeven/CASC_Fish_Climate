@@ -20,6 +20,15 @@ in_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab",
 glimpse(in_data)
 ```
 
+#checking for effort flags
+```{r}
+in_data %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect()
+```
+Looks like we have some effort flags, some noting missing effort and some noting high effort. We will not have to worry about the missing effort as it will get weeded out naturally, but we will have to filter out the high effort case. We will create a y/n column that notes if there is an effort flag for filtering or not and then filter on this - similar to what we do with targeted species. 
+
 #filtering walleye
 ```{r}
 filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 

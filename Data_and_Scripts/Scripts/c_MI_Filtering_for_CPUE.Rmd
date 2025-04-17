@@ -7,6 +7,24 @@ editor_options:
   chunk_output_type: console
 ---
 
+General Overview of the Script:
+1. load packages
+2. Load fish data from Michigan 
+3. Check for any effort flags
+4. Load in inclusion table
+     -this has survey characteristics that surveys must have to remain 
+5. join the inclusion table based to fish data based on sampling method and survey type for representative cpe
+6. filter based on numeric inclusion parameters (effort max and min)
+7. join our the fish data to our good surveys so that we collect the fish from those surveys 
+8. count species of interest from the good surveys and calculate cpe
+   -if specific individual fish level cpes (length bins) are desired they can be counted here
+9. check filters and the cpe generated 
+    -no na cpes
+    -did our nothing caught surveys remain in with 0 counts?
+    -do we have the same number of cpe obs as we do good surveys
+    -are they there any cpe surveys outside of the bound of our incusion table?
+
+
 #Library
 ```{r}
 library(tidyverse)
@@ -15,18 +33,23 @@ library(arrow)
 
 #data
 ```{r}
-mi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+mi_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Michigan")
 glimpse(mi_data)
 ```
 
-Filtering steps within Michigan:
-1. load in the filter table with parameters of interest
-2. join the filter table based on sampling method and survey type for representative cpe
-3. collect fish from the good surveys
-4. count species of interest from the good surveys and calculate cpe
-   -if specific individual fish level cpes (length bins) are desired they can be counted here
-5. check filters and the cpe generated 
+#check for effort flags
+```{r}
+mi_data %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect()
+
+mi_data %>% 
+  filter(flag == "no effort data") %>% 
+  glimpse()
+```
+There are no effort flags outside of there being no effort data in a survey. We will not have to worry about filtering those out because they do not have total effort idents and will not show up in our good surveys generation 
 
 #walleye filtering 
 ```{r}
@@ -111,6 +134,11 @@ good_surveys %>%
 
 
 #checking filters after collecting fish
+adult_walleye %>% 
+  group_by(flag) %>% 
+  count()
+#no effort flags in the fish doc - we are good
+
 adult_walleye %>% 
   group_by(species_1) %>% 
   count()
@@ -1132,52 +1160,4 @@ mi_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                  adult_yellow_perch_cpue %>% 
                                    mutate(species_1 = "yellow_perch"))
 write_csv(mi_filtered_species, "MI_all_cpue_filtered.csv")
-```
-
-#data exploration
-```{r}
-mi_filtered_species %>% 
-  ggplot() +
-  geom_density(aes(cpue, fill = species_1)) +
-  facet_wrap(~species_1, scales = "free")
-
-#effort with sampling types
-mi_data %>% 
-  collect() %>% 
-  distinct(lake_id, year, sampling_method, .keep_all = T) %>% 
-  group_by(sampling_method, effort_units.1, month(date.1)) %>% 
-  summarise(n = n()) %>% 
-  print(n = nrow(.))
-
-mi_filtered_species %>% 
-  ggplot() +
-  geom_histogram(aes(cpue)) +
-  facet_grid(sampling_method~species_1, scales = "free")
-
-
-mi_data %>% 
-  collect() %>% 
-  group_by(sampling_method) %>% 
-  summarise(walleye = sum(species.1 == "walleye"))
-
-mi_data %>% 
-  filter(species.1 == "taxon_NA") %>% 
-  glimpse()
-
-mi_data %>% 
-  collect() %>% 
-  distinct(effort_ident, .keep_all = T) %>%
-  ggplot() +
-  geom_histogram(aes(total_effort_1.1_effort)) + 
-  geom_vline(xintercept = c(2, 30)) +
-  facet_wrap(~sampling_method, scales = "free")
-
-mi_data %>% 
-  collect() %>% 
-  distinct(effort_ident, .keep_all = T) %>%
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date.1), na.rm = T),
-            max.month = max(month(date.1), na.rm = T),
-            avg.month = mean(month(date.1), na.rm = T),
-            n = n())
 ```

@@ -6,15 +6,6 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
-# Preamble
-
-
-
-# Issues to deal with last updated 1/30/2024
-
-- Get age data from Matthew Linn for the IN glacial lakes
-
-
 
 
 ##Libraries
@@ -475,6 +466,7 @@ glimpse(in_reservoir_targeted_fish_1Sep2022)
 #effort
 glimpse(in_reservoir_targeted_effort_1Sep2022)
 
+
 #community data set has the most fish so i will start there
 
 #collapse fish into survey level - doesn't look like I need to uncount
@@ -766,6 +758,8 @@ in_targeted_species <- in.targeted %>%
   select(survey_id, sampling_method, species.1, target_species) #list of what species each survey is targeting to join
 
 in_res_targeted <- in.targeted %>%
+  mutate(species.1 = str_to_lower(species.1))%>% #make species name lowercase
+  mutate(species.1 = str_replace(species.1, " ", "_"))%>%
   left_join(in_targeted_species, by = c("survey_id", "sampling_method", "species.1"))
 
 rm(in_targeted_species)
@@ -1087,7 +1081,6 @@ in_reservoir_data %>%
            weight_unit_1) %>% 
   count()
 
-
 # prep data for row bind with glacial lakes
 in_reservoir_tidy <- in_reservoir_data %>%
   #makes original file games - can track aged fish that have matched survey info here
@@ -1095,15 +1088,13 @@ in_reservoir_tidy <- in_reservoir_data %>%
                                     original_file_name_age_effort, 
                                     original_file_name.1_age, sep = ", ")) %>% 
   #make sure the date columns matched for res and age fish
-  mutate(date_1 = as.Date(date_1, "%m/%d/%y"), 
-         date_1 = as.IDate(date_1),
+  mutate(date_1 = as.Date(date_1, "%m/%d/%y"), #converts character in aged to date 
+         date = as.Date(date, "%m/%d/%y"), # converts Idate from normal to date
          date = case_when(is.na(date) ~ date_1,
-                          TRUE ~ date)) %>% 
-  mutate(date_1 = as.Date(date, "%m/%d/%y"))%>%
-  mutate(date_1 = as.IDate(date)) %>% 
-  #creating month column
-  mutate(month = month(date_1),
-         year = year(date_1))%>%
+                          TRUE ~ date), # there are some aged fish not in normal surveys where I need to fill 
+         month = month(date),
+         year = year(date)) %>% 
+  mutate(date = as.IDate(date))  %>% 
   rename(aging_structure_1 = aging_structure.1)%>%
   #the next steps are makings important columns are retained and filled if the info is present from the age fish join
   #this is important for aged fish that were not matched to a survey 
@@ -1143,6 +1134,8 @@ in_reservoir_tidy <- in_reservoir_data %>%
          age,
          aging_structure_1,
          flag)
+
+glimpse(in_reservoir_tidy)
 ```
 
 
@@ -1582,7 +1575,7 @@ in_data_prep %>%
   count() %>% 
   print(n = nrow(.))
 
-in_reservior_tidy %>% 
+in_reservoir_tidy %>% 
   group_by(flag) %>% 
   count()
 
@@ -1628,6 +1621,7 @@ in_data <- in_data_prep %>%
                                TRUE ~ species_1),
          species_1 = str_to_lower(species_1))%>%
   mutate(species_1 = str_replace(species_1, " ", "_"))%>%
+  mutate(date = as.Date(date)) %>% 
   #this is probs already done, but making sure all records have a year and month
   mutate(month = case_when(!is.na(date) ~ month(date),
                            TRUE ~ month),
@@ -1639,8 +1633,8 @@ in_data <- in_data_prep %>%
   mutate(lakesize_units = case_when(c_lakesize_units == "col_name_SurfaceAcres" ~ "acres",
                                     TRUE ~ c_lakesize_units)) %>% 
   #making sure we have created all columns for the hive
-  mutate(date_survey = as.IDate(date),
-         date_total_effort_ident = as.IDate(date),
+  mutate(date_survey = date,
+         date_total_effort_ident = date,
          date_sub_effort_ident = as.Date(NA),
          date_sample = as.Date(NA),
          survey_id = as.character(survey_id),
@@ -1898,6 +1892,13 @@ in_glaciallakes_fish_6Oct2021 %>%
   glimpse()
 #only two fish caught in Flint lake via electrofishing - just a gut check on our total effort nothing caught 
 
+in_data %>% 
+  group_by(target_species, waterbody_type) %>%
+  count()
+  
+in_data %>% 
+  group_by(is.na(date_survey), is.na(date_total_effort_ident), is.na(month), is.na(year), is.na(flag)) %>% 
+  count()
 ```
 
 Based on the exploratory code above, there are a few things to point out:

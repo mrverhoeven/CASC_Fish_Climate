@@ -15,10 +15,48 @@ library(arrow)
 
 #data
 ```{r}
-ia_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+ia_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Iowa")
 glimpse(ia_data)
 ```
+
+#target species
+```{r}
+ia_data %>% 
+  group_by(target_species) %>% 
+  count() %>% 
+  collect()
+
+ia_data %>% 
+  mutate(species_included = case_when(str_detect(target_species, "walleye") | is.na(target_species) ~ "y",
+                                      TRUE ~ "n")) %>% 
+  group_by(target_species, species_included) %>% 
+  count() %>% 
+  arrange(species_included) %>% 
+  collect()
+```
+We will make to make sure that we filter for surveys were there is no target species or the species of interest is the target. See above how we make a y or n for filtering when the species of interest should be included in the good surveys. This will be undergone for each species within their section of code. 
+
+#effort flag check
+```{r}
+ia_data %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect() %>%
+  arrange(flag) %>% 
+  print(n = nrow(.))
+
+ia_data %>% 
+  mutate(effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "Agency flagged") ~ "y",
+                                            TRUE ~ "n")) %>% 
+  group_by(flag, effort_flag) %>% 
+  count() %>% 
+  arrange(flag) %>%
+  collect() %>% 
+  print(n = nrow(.))
+```
+There are several flags in Iowa that we will want to weed out for relative abundance. Any fish level flag is fine because we are just counting. Here are two flags that are concerning - high effort and agency flagged surveys. We will make a y or n record when filtering and make sure that there are no effort flags in the remaining observations. 
 
 #filtering walleye
 ```{r}
@@ -34,13 +72,17 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("walleye", target_species, ignore.case = T) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  #creating a y or n for if there is flag for the effort associated with the catch
+  mutate(species_included = case_when(str_detect(target_species, "walleye") | is.na(target_species) ~ "y",
+                                      TRUE ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "Agency flagged") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
                                                            "Trend") ~ "y", 
-                              TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   right_join(filter_table_effort, by = c("state",
                                          "sampling_method_2")) %>% 
   distinct(total_effort_ident,
@@ -52,12 +94,15 @@ good_surveys <- ia_data %>%
            month_min,
            month_max,
            species_included,
-           survey_type_filter) %>% 
+           survey_type_filter,
+           effort_flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        (species_included == "y" & survey_type_filter == "y")) %>% 
+        species_included == "y",
+        survey_type_filter == "y",
+        effort_flag == "n") %>% 
   collect()
 
 #collecting fish from good surveys
@@ -69,7 +114,8 @@ adult_walleye <- ia_data %>%
   filter(n_distinct(target_species) == 1) %>% 
   #remove sub sample surveys that caught nothing but total effort did - generates NAs in cpe calc
   #the effort is still accounted for in the total effort
-  filter(!(total_effort_nothing_caught == "FALSE" & sub_effort_nothing_caught == "TRUE"))
+  filter(!(total_effort_nothing_caught == "FALSE" & sub_effort_nothing_caught == "TRUE")) %>% 
+  ungroup()
 
 #creating cpue for species of interest
 adult_walleye_cpue <- adult_walleye %>% 
@@ -85,7 +131,6 @@ adult_walleye_cpue <- adult_walleye %>%
   #collapse data into survey level cpue (also works as a select function)
   distinct(total_effort_ident, .keep_all = T) 
 
-
 #checking filtering
 #month range
 good_surveys %>% 
@@ -97,7 +142,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included) %>% 
+  group_by(survey_type_filter, species_included, effort_flag) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -110,8 +155,8 @@ adult_walleye %>%
             n = n())
 
 adult_walleye %>% 
-  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter) %>%
-  group_by(target_species, species_included,survey_type, survey_type_filter) %>% 
+  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, effort_flag) %>%
+  group_by(target_species, species_included,survey_type, survey_type_filter, effort_flag) %>% 
    collect() %>% 
    count() 
 
@@ -165,13 +210,16 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("black crappie", target_species, ignore.case = T) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(species_included = case_when(str_detect(target_species, "black crappie") | is.na(target_species) ~ "y",
+                                      TRUE ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "Agency flagged") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
-                                                           "Trend") ~ "y", 
-                              TRUE ~ "n")) %>%
+                                                           "Trend") ~ "y",
+                                        TRUE ~ "n")) %>%
   right_join(filter_table_effort, by = c("state",
                                          "sampling_method_2")) %>% 
   distinct(total_effort_ident,
@@ -183,12 +231,15 @@ good_surveys <- ia_data %>%
            month_min,
            month_max,
            species_included,
-           survey_type_filter) %>% 
+           survey_type_filter,
+           effort_flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        (species_included == "y" & survey_type_filter == "y")) %>% 
+        species_included == "y",
+        survey_type_filter == "y",
+        effort_flag == "n") %>% 
   collect()
 
 #collecting fish from good surveys
@@ -225,7 +276,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included) %>% 
+  group_by(survey_type_filter, species_included, effort_flag) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -238,8 +289,8 @@ adult_black_crappie %>%
             n = n())
 
 adult_black_crappie %>% 
-  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter) %>%
-  group_by(target_species, species_included,survey_type, survey_type_filter) %>% 
+  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, flag) %>%
+  group_by(target_species, species_included,survey_type, survey_type_filter, flag) %>% 
    collect() %>% 
    count() 
 
@@ -293,8 +344,11 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("bluegill", target_species, ignore.case = T) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(species_included = case_when(str_detect(target_species, "bluegill") | is.na(target_species) ~ "y",
+                                      TRUE ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "Agency flagged") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -311,12 +365,15 @@ good_surveys <- ia_data %>%
            month_min,
            month_max,
            species_included,
-           survey_type_filter) %>% 
+           survey_type_filter,
+           effort_flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        (species_included == "y" & survey_type_filter == "y")) %>% 
+        species_included == "y",
+        survey_type_filter == "y",
+        effort_flag == "n") %>% 
   collect()
 
 #collecting fish from good surveys
@@ -353,7 +410,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included) %>% 
+  group_by(survey_type_filter, species_included, effort_flag) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -366,8 +423,8 @@ adult_bluegill %>%
             n = n())
 
 adult_bluegill %>% 
-  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter) %>%
-  group_by(target_species, species_included,survey_type, survey_type_filter) %>% 
+  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, flag) %>%
+  group_by(target_species, species_included,survey_type, survey_type_filter, flag) %>% 
    collect() %>% 
    count() 
 
@@ -422,8 +479,11 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("largemouth", target_species, ignore.case = T) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(species_included = case_when(str_detect(target_species, "largemouth") | is.na(target_species) ~ "y",
+                                      TRUE ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "Agency flagged") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -440,12 +500,15 @@ good_surveys <- ia_data %>%
            month_min,
            month_max,
            species_included,
-           survey_type_filter) %>% 
+           survey_type_filter,
+           effort_flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        (species_included == "y" & survey_type_filter == "y")) %>% 
+        species_included == "y",
+        survey_type_filter == "y",
+        effort_flag == "n") %>% 
   collect()
 
 #collecting fish from good surveys
@@ -495,8 +558,8 @@ adult_largemouth_bass %>%
             n = n())
 
 adult_largemouth_bass %>% 
-  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter) %>%
-  group_by(target_species, species_included,survey_type, survey_type_filter) %>% 
+  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, flag) %>%
+  group_by(target_species, species_included,survey_type, survey_type_filter, flag) %>% 
    collect() %>% 
    count() 
 
@@ -550,13 +613,16 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("smallmouth", target_species, ignore.case = T) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(species_included = case_when(str_detect(target_species, "smallmouth") | is.na(target_species) ~ "y",
+                                      TRUE ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "Agency flagged") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
-                                                           "Trend") ~ "y", 
-                              TRUE ~ "n")) %>%
+                                                           "Trend") ~ "y",
+                                        TRUE ~ "n")) %>%
   right_join(filter_table_effort, by = c("state",
                                          "sampling_method_2")) %>% 
   distinct(total_effort_ident,
@@ -568,12 +634,15 @@ good_surveys <- ia_data %>%
            month_min,
            month_max,
            species_included,
-           survey_type_filter) %>% 
+           survey_type_filter,
+           effort_flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        (species_included == "y" & survey_type_filter == "y")) %>% 
+        species_included == "y",
+        survey_type_filter == "y",
+        effort_flag == "n") %>% 
   collect()
 
 #collecting fish from good surveys
@@ -610,7 +679,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included) %>% 
+  group_by(survey_type_filter, species_included, effort_flag) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -623,8 +692,8 @@ adult_smallmouth_bass %>%
             n = n())
 
 adult_smallmouth_bass %>% 
-  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter) %>%
-  group_by(target_species, species_included,survey_type, survey_type_filter) %>% 
+  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, flag) %>%
+  group_by(target_species, species_included,survey_type, survey_type_filter, flag) %>% 
    collect() %>% 
    count() 
 
@@ -678,8 +747,11 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("pike", target_species, ignore.case = T) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(species_included = case_when(str_detect(target_species, "pike") | is.na(target_species) ~ "y",
+                                      TRUE ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "Agency flagged") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -696,12 +768,15 @@ good_surveys <- ia_data %>%
            month_min,
            month_max,
            species_included,
-           survey_type_filter) %>% 
+           survey_type_filter,
+           effort_flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        (species_included == "y" & survey_type_filter == "y")) %>% 
+        species_included == "y",
+        survey_type_filter == "y",
+        effort_flag == "n") %>% 
   collect()
 
 #collecting fish from good surveys
@@ -738,7 +813,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included) %>% 
+  group_by(survey_type_filter, species_included, effort_flag) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -751,8 +826,8 @@ adult_northern_pike %>%
             n = n())
 
 adult_northern_pike %>% 
-  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter) %>%
-  group_by(target_species, species_included,survey_type, survey_type_filter) %>% 
+  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, flag) %>%
+  group_by(target_species, species_included,survey_type, survey_type_filter, flag) %>% 
    collect() %>% 
    count() 
 
@@ -807,8 +882,11 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("perch", target_species, ignore.case = T) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(species_included = case_when(str_detect(target_species, "perch") | is.na(target_species) ~ "y",
+                                      TRUE ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "Agency flagged") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -825,12 +903,15 @@ good_surveys <- ia_data %>%
            month_min,
            month_max,
            species_included,
-           survey_type_filter) %>% 
+           survey_type_filter,
+           effort_flag) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        (species_included == "y" & survey_type_filter == "y")) %>% 
+        species_included == "y",
+        survey_type_filter == "y",
+        effort_flag == "n") %>% 
   collect()
 
 #collecting fish from good surveys
@@ -867,7 +948,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included) %>% 
+  group_by(survey_type_filter, species_included, effort_flag) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -880,8 +961,8 @@ adult_yellow_perch %>%
             n = n())
 
 adult_yellow_perch %>% 
-  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter) %>%
-  group_by(target_species, species_included,survey_type, survey_type_filter) %>% 
+  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, flag) %>%
+  group_by(target_species, species_included,survey_type, survey_type_filter, flag) %>% 
    collect() %>% 
    count() 
 
@@ -938,73 +1019,5 @@ ia_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                  adult_yellow_perch_cpue %>% 
                                    mutate(species_1 = "yellow_perch"))
 write_csv(ia_filtered_species, "IA_all_cpue_filtered.csv")
-```
-
-#data exploration
-```{r}
-ia_data %>% 
-  group_by(sampling_method, total_effort_1_units) %>% 
-  count() %>% 
-  collect() %>% 
-  print( n = nrow(.))
-
-ia_data %>%
-  filter(!is.na(total_effort_1)) %>% 
-  group_by(sampling_method, total_effort_1_units) %>%
-  summarise(min = min(total_effort_1), max = max(total_effort_1), mean = mean(total_effort_1)) %>% 
-  collect() %>% 
-  print( n = nrow(.))
-
-ia_data %>% 
-  filter(is.na(total_effort_1)) %>% 
-  group_by(sampling_method) %>% 
-  count() %>% 
-  collect()
-
-
-ia_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
-  filter(total_effort_1 < 500) %>% 
-  collect() %>% 
-  ggplot() +
-  geom_histogram(aes(total_effort_1)) + 
-  geom_vline(xintercept = c(24, .5)) +
-  facet_wrap(~sampling_method, scales = "free")
-
-ia_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1_units) %>% 
-  group_by(sampling_method, total_effort_1_units) %>% 
-  count() %>% 
-  collect() %>%
-  arrange(n) %>% 
-  print(n = nrow(.))
-
-ia_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
-  group_by(sampling_method) %>%
-  collect() %>% 
-  summarise(n = sum(total_effort_1 < 500 & total_effort_1 > .5, na.rm = T)) 
-#roughly 1045 efishing, 427 fyke netting, 70 gill netting
-
-ia_data %>% 
-  distinct(total_effort_ident, survey_type, sampling_method) %>% 
-  group_by(survey_type, sampling_method) %>% 
-  count() %>% 
-  arrange(n) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-ia_data %>% 
-  distinct(total_effort_ident, target_species, survey_type, sampling_method) %>% 
-  group_by(target_species, survey_type, sampling_method) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-ia_data %>% 
-  filter(total_effort_ident == "5748") %>% 
-  collect() %>% 
-  distinct(total_effort_ident, target_species, .keep_all = T) %>% 
-  glimpse()
 ```
 

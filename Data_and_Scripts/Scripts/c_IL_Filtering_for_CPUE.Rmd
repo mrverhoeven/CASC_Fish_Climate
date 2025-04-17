@@ -15,10 +15,54 @@ library(arrow)
 
 #data
 ```{r}
-il_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive"), partitioning = c("state")) %>% 
+il_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Illinois")
 glimpse(il_data)
+
+il_data %>% 
+  group_by(target_species) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(target_species) %>% 
+  print(n = nrow(.))
 ```
+
+#targeted species check
+```{r}
+il_data %>% 
+  group_by(target_species) %>% 
+  count() %>% 
+  collect()
+
+il_data %>% 
+  mutate(bluegill_relevant =case_when(is.na(target_species) ~ "y",
+                                      str_detect(target_species, "bluegillY") ~ "y",
+                                      str_detect(target_species, "N") & !str_detect(target_species, "bluegillN") ~ "y",
+                                      T ~ "n")) %>% 
+  group_by(target_species, bluegill_relevant) %>% 
+  count() %>% 
+  arrange(bluegill_relevant) %>% 
+  collect()
+```
+We can see here that Illinois structures efishing surveys differently than other states, in that they do "sub sampling" where in the first amount of time they specifically DO NOT target a particular species and then in the 2nd part of the survey they ONLY target that species. We have aggregated this data so that each "sub sampling" event is its own total effort ident. Each total effort ident then has a target species where a species is either targeted "[insert species]Y" or it is not targeted "[insert species]N". We have to do a little clever coding so that we only include total efforts where a species is targeted OR not excluded 
+
+#effort flag check
+```{r}
+il_data %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect()
+
+il_data %>% 
+  mutate(effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                            TRUE ~ "n")) %>% 
+  group_by(flag, effort_flag) %>% 
+  count() %>% 
+  collect()
+```
+Looks like we have surveys with effort reported as 0 - those will be taken care of with the min effort filter.
+We also have some flags for high effort - those could be taken care of with the max effort filter - but lets make another filter to be certain.
+The no zero catches flag is just warning no confirmed surveys with effort but no catch - a niche thing for Illinois 
 
 #walleye filtering 
 ```{r}
@@ -29,37 +73,45 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -species_1,
          -water_temp_min,
          -water_temp_max,
-         -area_group)
+         -area_group) %>% 
+  rename(sampling_method_2 = sampling_method)
 
 #selecting good surveys
 good_surveys <- il_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("walleyeY", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(walleye_relevant = case_when(is.na(target_species) ~ "y",
+                                      str_detect(target_species, "walleyeY") ~ "y",
+                                      str_detect(target_species, "N") & !str_detect(target_species, "walleyeN") ~ "y",
+                                      T ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
-                                         "sampling_method")) %>% 
+                                         "sampling_method_2")) %>% 
   #collapse data to survey level while keeping important information for filtering below (.keep_all = T not supported in arrow)
   #date must be retained here so that all fish are brought in later, this will show surveys with sub surveys
   distinct(lake_id,
            survey_type,
            date_total_effort_ident, 
            total_effort_ident,
-           sampling_method,
+           sampling_method_2,
            total_effort_1,
            effort_min,
            effort_max,
            month_min,
            month_max,
            target_species, 
-           species_included) %>%
+           walleye_relevant,
+           effort_flag) %>% 
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
-         species_included == "y") %>% 
+         walleye_relevant == "y",
+         effort_flag == "n"
+         ) %>% 
     collect() 
 
 #grabbing the fish data
@@ -87,12 +139,12 @@ good_surveys %>%
   ggplot() +
   geom_histogram(aes(total_effort_1)) +
   geom_vline(xintercept = c(30, 1440, 2880), color = "red") +
-  facet_wrap(~sampling_method, scales = "free") 
+  facet_wrap(~sampling_method_2, scales = "free") 
 
 #checking filtering
 #sampling method
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   count()
 
 #survey purpose
@@ -101,19 +153,18 @@ good_surveys %>%
   count()
 
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 good_surveys %>% 
-  group_by(target_species, species_included) %>% 
+  group_by(target_species, walleye_relevant) %>% 
   count()
 
 #all walleye targeted surveys have month or effort weeding them out
 il_data %>% 
   filter(target_species == "walleyeY") %>% 
-  distinct(total_effort_ident, date_total_effort_ident, total_effort_1) %>% 
-  compute() %>% 
-  glimpse()
+  distinct(total_effort_ident, date_total_effort_ident, total_effort_1, flag, sampling_method) %>% 
+  collect() 
 
 il_data %>% 
   filter(total_effort_nothing_caught == TRUE) %>% 
@@ -147,16 +198,31 @@ adult_walleye %>%
 #do I retain all of the good surveys? - rows here should match good surveys
 adult_walleye %>% 
   distinct(lake_id,
-           lake_name,
            survey_type,
-           survey_id,
-           date_total_effort_ident,
-           sampling_method,
+           date_total_effort_ident, 
            total_effort_ident,
-           total_effort_1) %>% 
+           sampling_method_2,
+           total_effort_1,
+           effort_min,
+           effort_max,
+           month_min,
+           month_max,
+           target_species, 
+           walleye_relevant,
+           effort_flag) %>% 
   glimpse()
 
-#sub surveys happen across multipule days so there are many sub surveys within a total effort ident
+adult_walleye %>% 
+  distinct(lake_id,
+           survey_type,
+           date_total_effort_ident, 
+           total_effort_ident,
+           #sampling_method_2
+           ) %>% 
+  glimpse()
+#here we see that removing the sampling method 2 gets us to the same number of obs as the cpe file, this is because there are some surveys that have _Wisconsin applied to the end of the value and some records do within a total effort ident. These stay around in the good surveys and adult species column in order to retain the fish records for calculation, but the cpe is made at the total effort ident level and then only the first record of the sampling method appears when they are collapsed
+
+#sub surveys happen across multiple days so there are many sub surveys within a total effort ident
 adult_walleye %>% 
   distinct(total_effort_ident, date_total_effort_ident) %>% 
   glimpse()
@@ -197,37 +263,44 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -species_1,
          -water_temp_min,
          -water_temp_max,
-         -area_group)
+         -area_group) %>% 
+  rename(sampling_method_2 = sampling_method)
 
 #selecting good surveys
 good_surveys <- il_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("black_crappieY", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(crappie_relevant = case_when(is.na(target_species) ~ "y",
+                                      str_detect(target_species, "black_crappieY") ~ "y",
+                                      str_detect(target_species, "N") & !str_detect(target_species, "black_crappieN") ~ "y",
+                                      T ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
-                                         "sampling_method")) %>% 
+                                         "sampling_method_2")) %>% 
   #collapse data to survey level while keeping important information for filtering below (.keep_all = T not supported in arrow)
   #date must be retained here so that all fish are brought in later, this will show surveys with sub surveys
   distinct(lake_id,
            survey_type,
            date_total_effort_ident, 
            total_effort_ident,
-           sampling_method,
+           sampling_method_2,
            total_effort_1,
            effort_min,
            effort_max,
            month_min,
            month_max,
            target_species, 
-           species_included) %>%
+           crappie_relevant,
+           effort_flag) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
-         species_included == "y") %>% 
+         crappie_relevant == "y",
+         effort_flag == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -255,12 +328,12 @@ good_surveys %>%
   ggplot() +
   geom_histogram(aes(total_effort_1)) +
   geom_vline(xintercept = c(30, 1440, 2880), color = "red") +
-  facet_wrap(~sampling_method, scales = "free") 
+  facet_wrap(~sampling_method_2, scales = "free") 
 
 #checking filtering
 #sampling method
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   count()
 
 #survey purpose
@@ -269,17 +342,17 @@ good_surveys %>%
   count()
 
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 good_surveys %>% 
-  group_by(target_species, species_included) %>% 
+  group_by(target_species, crappie_relevant) %>% 
   count()
 
 
 il_data %>% 
   filter(total_effort_nothing_caught == TRUE) %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2, month, total_effort_1) %>% 
   count() %>% 
   collect()
 #nothing caught surveys are filtered out by month or min effort
@@ -319,6 +392,18 @@ adult_black_crappie %>%
            total_effort_ident,
            total_effort_1) %>% 
   glimpse()
+
+adult_black_crappie %>% 
+  distinct(lake_id,
+           lake_name,
+           survey_type,
+           survey_id,
+           date_total_effort_ident,
+           sampling_method_2,
+           total_effort_ident,
+           total_effort_1) %>% 
+  glimpse()
+#the additional records in good_surveys relative to the cpe file is due to some records within a total effort ident containing _wisconsin while some records don't - this is fine becuase we retain all records from the total effort ident and then we generate cpe at the total effort ident level across all gear types
 
 #sub surveys happen across multipule days so there are many sub surveys within a total effort ident
 adult_black_crappie %>% 
@@ -361,37 +446,44 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -species_1,
          -water_temp_min,
          -water_temp_max,
-         -area_group)
+         -area_group) %>% 
+  rename(sampling_method_2 = sampling_method)
 
 #selecting good surveys
 good_surveys <- il_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("bluegillY", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(bluegill_relevant =case_when(is.na(target_species) ~ "y",
+                                      str_detect(target_species, "bluegillY") ~ "y",
+                                      str_detect(target_species, "N") & !str_detect(target_species, "bluegillN") ~ "y",
+                                      T ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
-                                         "sampling_method")) %>% 
+                                         "sampling_method_2")) %>% 
   #collapse data to survey level while keeping important information for filtering below (.keep_all = T not supported in arrow)
   #date must be retained here so that all fish are brought in later, this will show surveys with sub surveys
   distinct(lake_id,
            survey_type,
            date_total_effort_ident, 
            total_effort_ident,
-           sampling_method,
+           sampling_method_2,
            total_effort_1,
            effort_min,
            effort_max,
            month_min,
            month_max,
            target_species,
-           species_included) %>%
+           bluegill_relevant,
+           effort_flag) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
-         species_included == "y") %>% 
+         bluegill_relevant == "y",
+         effort_flag == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -419,12 +511,12 @@ good_surveys %>%
   ggplot() +
   geom_histogram(aes(total_effort_1)) +
   geom_vline(xintercept = c(30, 1440, 2880), color = "red") +
-  facet_wrap(~sampling_method, scales = "free") 
+  facet_wrap(~sampling_method_2, scales = "free") 
 
 #checking filtering
 #sampling method
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   count()
 
 #survey purpose
@@ -433,16 +525,16 @@ good_surveys %>%
   count()
 
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 good_surveys %>% 
-  group_by(target_species, species_included) %>% 
+  group_by(target_species, bluegill_relevant) %>% 
   count()
 
 il_data %>% 
   filter(total_effort_nothing_caught == TRUE) %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method, month, total_effort_1) %>% 
   count() %>% 
   collect()
 #nothing caught surveys are filtered out by month or min effort
@@ -468,7 +560,7 @@ adult_bluegill %>%
 
 #how does the minimum effort look?
 adult_bluegill %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 #do I retain all of the good surveys? - rows here should match good surveys
@@ -482,6 +574,18 @@ adult_bluegill %>%
            total_effort_ident,
            total_effort_1) %>% 
   glimpse()
+
+adult_bluegill %>% 
+  distinct(lake_id,
+           lake_name,
+           survey_type,
+           survey_id,
+           date_total_effort_ident,
+           sampling_method_2,
+           total_effort_ident,
+           total_effort_1) %>% 
+  glimpse()
+#see notes in walleye and black crappie section - the difference in obs when including sampling method 2 vs just sampling method is inconsequential to the cpe calculation 
 
 #sub surveys happen across multipule days so there are many sub surveys within a total effort ident
 adult_bluegill %>% 
@@ -504,7 +608,7 @@ adult_bluegill_cpue %>%
 adult_bluegill_cpue %>% 
   ggplot() +
   geom_histogram(aes(cpue)) +
-  facet_wrap(~sampling_method, scales = "free") 
+  facet_wrap(~sampling_method_2, scales = "free") 
 
 adult_bluegill_cpue %>% 
   ggplot() +
@@ -524,37 +628,44 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -species_1,
          -water_temp_min,
          -water_temp_max,
-         -area_group)
+         -area_group) %>% 
+  rename(sampling_method_2 = sampling_method)
 
 #selecting good surveys
 good_surveys <- il_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("largemouth_bassY", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(largemouth_relevant =case_when(is.na(target_species) ~ "y",
+                                      str_detect(target_species, "largemouth_bassY") ~ "y",
+                                      str_detect(target_species, "N") & !str_detect(target_species, "largemouth_bassN") ~ "y",
+                                      T ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
-                                         "sampling_method")) %>% 
+                                         "sampling_method_2")) %>% 
   #collapse data to survey level while keeping important information for filtering below (.keep_all = T not supported in arrow)
   #date must be retained here so that all fish are brought in later, this will show surveys with sub surveys
   distinct(lake_id,
            survey_type,
            date_total_effort_ident, 
            total_effort_ident,
-           sampling_method,
+           sampling_method_2,
            total_effort_1,
            effort_min,
            effort_max,
            month_min,
            month_max,
            target_species, 
-           species_included) %>%
+           largemouth_relevant,
+           effort_flag) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
-         species_included == "y"
+         largemouth_relevant == "y",
+         effort_flag == "n"
          ) %>% 
     collect() 
 
@@ -583,12 +694,12 @@ good_surveys %>%
   ggplot() +
   geom_histogram(aes(total_effort_1)) +
   geom_vline(xintercept = c(30, 1440, 2880), color = "red") +
-  facet_wrap(~sampling_method, scales = "free") 
+  facet_wrap(~sampling_method_2, scales = "free") 
 
 #checking filtering
 #sampling method
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   count()
 
 #survey purpose
@@ -597,7 +708,7 @@ good_surveys %>%
   count()
 
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 good_surveys %>% 
@@ -606,7 +717,7 @@ good_surveys %>%
 
 il_data %>% 
   filter(total_effort_nothing_caught == TRUE) %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   count() %>% 
   collect()
 #nothing caught surveys are filtered out by month or min effort
@@ -627,7 +738,7 @@ adult_largemouth_bass %>%
 
 #is each sampling method correct for the filter?
 adult_largemouth_bass %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
   summarise(min.month = min(month(date_total_effort_ident)), max.month = max(month(date_total_effort_ident)))
 
 #how does the minimum effort look?
@@ -642,10 +753,22 @@ adult_largemouth_bass %>%
            survey_type,
            survey_id,
            date_total_effort_ident,
+           sampling_method_2,
+           total_effort_ident,
+           total_effort_1) %>% 
+  glimpse()
+
+adult_largemouth_bass %>% 
+  distinct(lake_id,
+           lake_name,
+           survey_type,
+           survey_id,
+           date_total_effort_ident,
            sampling_method,
            total_effort_ident,
            total_effort_1) %>% 
   glimpse()
+#see notes in above species about the difference between good surves and cpe obs
 
 #sub surveys happen across multipule days so there are many sub surveys within a total effort ident
 adult_largemouth_bass %>% 
@@ -688,37 +811,44 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -species_1,
          -water_temp_min,
          -water_temp_max,
-         -area_group)
+         -area_group) %>% 
+  rename(sampling_method_2 = sampling_method)
 
 #selecting good surveys
 good_surveys <- il_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("smallmouth_bassY", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(smallmouth_relevant =case_when(is.na(target_species) ~ "y",
+                                      str_detect(target_species, "smallmouth_bassY") ~ "y",
+                                      str_detect(target_species, "N") & !str_detect(target_species, "smallmouth_bassN") ~ "y",
+                                      T ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
-                                         "sampling_method")) %>% 
+                                         "sampling_method_2")) %>% 
   #collapse data to survey level while keeping important information for filtering below (.keep_all = T not supported in arrow)
   #date must be retained here so that all fish are brought in later, this will show surveys with sub surveys
   distinct(lake_id,
            survey_type,
            date_total_effort_ident, 
            total_effort_ident,
-           sampling_method,
+           sampling_method_2,
            total_effort_1,
            effort_min,
            effort_max,
            month_min,
            month_max,
            target_species, 
-           species_included) %>%
+           smallmouth_relevant,
+           effort_flag) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
-         species_included == "y") %>% 
+         smallmouth_relevant == "y",
+         effort_flag == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -746,12 +876,12 @@ good_surveys %>%
   ggplot() +
   geom_histogram(aes(total_effort_1)) +
   geom_vline(xintercept = c(30, 1440, 2880), color = "red") +
-  facet_wrap(~sampling_method, scales = "free") 
+  facet_wrap(~sampling_method_2, scales = "free") 
 
 #checking filtering
 #sampling method
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   count()
 
 #survey purpose
@@ -760,17 +890,16 @@ good_surveys %>%
   count()
 
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 good_surveys %>% 
-  group_by(target_species, species_included) %>% 
+  group_by(target_species, smallmouth_relevant) %>% 
   count()
-
 
 il_data %>% 
   filter(total_effort_nothing_caught == TRUE) %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method, month, total_effort_1) %>% 
   count() %>% 
   collect()
 #nothing caught surveys are filtered out by month or min effort
@@ -791,7 +920,7 @@ adult_smallmouth_bass %>%
 
 #is each sampling method correct for the filter?
 adult_smallmouth_bass %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
   summarise(min.month = min(month(date_total_effort_ident)), max.month = max(month(date_total_effort_ident)))
 
 #how does the minimum effort look?
@@ -807,6 +936,17 @@ adult_smallmouth_bass %>%
            survey_id,
            date_total_effort_ident,
            sampling_method,
+           total_effort_ident,
+           total_effort_1) %>% 
+  glimpse()
+
+adult_smallmouth_bass %>% 
+  distinct(lake_id,
+           lake_name,
+           survey_type,
+           survey_id,
+           date_total_effort_ident,
+           sampling_method_2,
            total_effort_ident,
            total_effort_1) %>% 
   glimpse()
@@ -852,37 +992,44 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -species_1,
          -water_temp_min,
          -water_temp_max,
-         -area_group)
+         -area_group) %>% 
+  rename(sampling_method_2 = sampling_method)
 
 #selecting good surveys
 good_surveys <- il_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("northern_pikeY", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(pike_relevant =case_when(is.na(target_species) ~ "y",
+                                      str_detect(target_species, "northern_pikeY") ~ "y",
+                                      str_detect(target_species, "N") & !str_detect(target_species, "northern_pikeN") ~ "y",
+                                      T ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
-                                         "sampling_method")) %>% 
+                                         "sampling_method_2")) %>% 
   #collapse data to survey level while keeping important information for filtering below (.keep_all = T not supported in arrow)
   #date must be retained here so that all fish are brought in later, this will show surveys with sub surveys
   distinct(lake_id,
            survey_type,
            date_total_effort_ident, 
            total_effort_ident,
-           sampling_method,
+           sampling_method_2,
            total_effort_1,
            effort_min,
            effort_max,
            month_min,
            month_max,
            target_species, 
-           species_included) %>%
+           pike_relevant,
+           effort_flag) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
-         species_included == "y") %>% 
+         pike_relevant == "y",
+         effort_flag == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -910,12 +1057,12 @@ good_surveys %>%
   ggplot() +
   geom_histogram(aes(total_effort_1)) +
   geom_vline(xintercept = c(30, 1440, 2880), color = "red") +
-  facet_wrap(~sampling_method, scales = "free") 
+  facet_wrap(~sampling_method_2, scales = "free") 
 
 #checking filtering
 #sampling method
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   count()
 
 #survey purpose
@@ -924,16 +1071,16 @@ good_surveys %>%
   count()
 
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 good_surveys %>% 
-  group_by(target_species, species_included) %>% 
+  group_by(target_species, pike_relevant) %>% 
   count()
 
 il_data %>% 
   filter(total_effort_nothing_caught == TRUE) %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method, month, total_effort_1) %>% 
   count() %>% 
   collect()
 
@@ -953,7 +1100,7 @@ adult_northern_pike %>%
 
 #is each sampling method correct for the filter?
 adult_northern_pike %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
   summarise(min.month = min(month(date_total_effort_ident)), max.month = max(month(date_total_effort_ident)))
 
 #how does the minimum effort look?
@@ -969,6 +1116,17 @@ adult_northern_pike %>%
            survey_id,
            date_total_effort_ident,
            sampling_method,
+           total_effort_ident,
+           total_effort_1) %>% 
+  glimpse()
+
+adult_northern_pike %>% 
+  distinct(lake_id,
+           lake_name,
+           survey_type,
+           survey_id,
+           date_total_effort_ident,
+           sampling_method_2,
            total_effort_ident,
            total_effort_1) %>% 
   glimpse()
@@ -1021,37 +1179,44 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -species_1,
          -water_temp_min,
          -water_temp_max,
-         -area_group)
+         -area_group) %>% 
+  rename(sampling_method_2 = sampling_method)
 
 #selecting good surveys
 good_surveys <- il_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  mutate(species_included = case_when(grepl("yellow_perchY", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n")) %>% 
+  mutate(perch_relevant =case_when(is.na(target_species) ~ "y",
+                                      str_detect(target_species, "yellow_perchY") ~ "y",
+                                      str_detect(target_species, "N") & !str_detect(target_species, "yellow_percheN") ~ "y",
+                                      T ~ "n"),
+         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
+                                            TRUE ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
-                                         "sampling_method")) %>% 
+                                         "sampling_method_2")) %>% 
   #collapse data to survey level while keeping important information for filtering below (.keep_all = T not supported in arrow)
   #date must be retained here so that all fish are brought in later, this will show surveys with sub surveys
   distinct(lake_id,
            survey_type,
            date_total_effort_ident, 
            total_effort_ident,
-           sampling_method,
+           sampling_method_2,
            total_effort_1,
            effort_min,
            effort_max,
            month_min,
            month_max,
            target_species, 
-           species_included) %>%
+           perch_relevant,
+           effort_flag) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
-         species_included == "y") %>% 
+         perch_relevant == "y",
+         effort_flag == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -1079,12 +1244,12 @@ good_surveys %>%
   ggplot() +
   geom_histogram(aes(total_effort_1)) +
   geom_vline(xintercept = c(30, 1440, 2880), color = "red") +
-  facet_wrap(~sampling_method, scales = "free") 
+  facet_wrap(~sampling_method_2, scales = "free") 
 
 #checking filtering
 #sampling method
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   count()
 
 #survey purpose
@@ -1093,11 +1258,11 @@ good_surveys %>%
   count()
 
 good_surveys %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method_2) %>% 
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 good_surveys %>% 
-  group_by(target_species, species_included) %>% 
+  group_by(target_species, perch_relevant) %>% 
   count()
 
 il_data %>% 
@@ -1108,7 +1273,7 @@ il_data %>%
 
 il_data %>% 
   filter(total_effort_nothing_caught == TRUE) %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method, month, total_effort_1) %>% 
   count() %>% 
   collect()
 #nothing caught surveys are filtered out by month or min effort
@@ -1129,7 +1294,7 @@ adult_yellow_perch %>%
 
 #is each sampling method correct for the filter?
 adult_yellow_perch %>% 
-  group_by(sampling_method) %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
   summarise(min.month = min(month(date_total_effort_ident)), max.month = max(month(date_total_effort_ident)))
 
 #how does the minimum effort look?
@@ -1145,6 +1310,17 @@ adult_yellow_perch %>%
            survey_id,
            date_total_effort_ident,
            sampling_method,
+           total_effort_ident,
+           total_effort_1) %>% 
+  glimpse()
+
+adult_yellow_perch %>% 
+  distinct(lake_id,
+           lake_name,
+           survey_type,
+           survey_id,
+           date_total_effort_ident,
+           sampling_method_2,
            total_effort_ident,
            total_effort_1) %>% 
   glimpse()
@@ -1199,140 +1375,3 @@ il_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "yellow_perch"))
 write_csv(il_filtered_species, "IL_all_cpue_filtered.csv")
 ```
-
-
-#Data exploration
-```{r}
-il_data %>% 
-  collect() %>% 
-  mutate(species_included = case_when(grepl("Walleye", target_species) & is.na(no_target) ~ "y",
-                                      is.na(target_species) & is.na(no_target) ~ "y", 
-                                      is.na(target_species) & !grepl("Walleye", no_target) ~ "y",
-                                      TRUE ~ "n")) %>% 
-  group_by(target_species, no_target, species_included) %>% 
-  count()
-
-il_data %>% 
-  group_by(no_target) %>% 
-  count() %>% 
-  collect()
-
-il_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  collect()
-
-il_data %>% 
-  filter(is.na(species_1)) %>% 
-  collect()
-
-#targeted surveys?
-il_data %>% 
-  group_by(survey_type_1) %>% 
-  count() %>% 
-  collect()
-
-il_data %>% 
-  filter(survey_type_1 == "Targeted Species") %>% 
-  group_by(total_effort_ident, species_1) %>%
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.)) %>% 
-  group_by(total_effort_ident) %>% 
-  count() %>% 
-  filter(n >1)
-#some surveys report more than one species in the targeted surveys but it doesn't look universal
-
-il_data %>% 
-  filter(survey_type_1 == "Targeted Species") %>% 
-  group_by(total_effort_ident, species_1) %>%
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-il_data %>% 
-  group_by(survey_type_1 ,sub_sample_effort) %>% 
-  filter(sub_sample_effort != "Subsample Time:0") %>% 
-  count() %>% 
-  collect() %>% 
-  print(n= nrow(.))
-#all sub sampling appears to come from community samples
-
-#minimum effort 
-il_data %>% 
-  group_by(total_effort_1_units) %>% 
-  count() %>% 
-  collect()
-
-il_data %>% 
-  group_by(sampling_method_1, total_effort_1_units) %>% 
-  count() %>% 
-  collect()
-
-il_data %>% 
-  group_by(sampling_method_1) %>% 
-  summarise(min = min(total_effort_1), max = max(total_effort_1), mean = mean(total_effort_1)) %>% 
-  collect()
-
-high_total <- il_data %>% 
-  filter(total_effort_1 == 115200) %>% 
-  collect() %>% 
-  glimpse()
-rm(high_total)
-
-#making net nights for nets
-il_data %>% 
-  group_by(sampling_method_1, total_effort_1_units) %>% 
-  summarise(min = min(total_effort_1), max = max(total_effort_1), mean = mean(total_effort_1)) %>% 
-  collect()
-
-il_filtered_species %>%
-  ggplot() +
-  geom_point(aes(total_effort_1, cpue)) + 
-  facet_grid(species_1~sampling_method, scales = "free")
-
-il_filtered_species %>%
-  ggplot() +
-  geom_histogram(aes(cpue)) + 
-  facet_grid(species_1~sampling_method, scales = "free")
-ggsave()
-
-il_filtered_species %>%
-  filter(str_detect("Trap net",sampling_method)) %>% 
-  ggplot() +
-  geom_histogram(aes(cpue)) + 
-  facet_grid(species_1~sampling_method, scales = "free")
-
-
-il_filtered_species %>% 
-  group_by(sampling_method, species_1) %>% 
-  arrange(species_1) %>% 
-  count() %>% 
-  print(n = nrow(.))
-
-il_filtered_species %>% 
-  filter(species_1 == "yellow_perch") %>% 
-  ggplot() +
-  geom_histogram(aes(cpue)) + 
-  facet_grid(~sampling_method, scales = "free")
-
-il_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.)) 
-
-il_data %>% 
-  filter(sampling_method == "Boat electrofishing AC (Day)" | sampling_method == "Boat electrofishing DC (Day)") %>% 
-  collect() %>% 
-  ggplot() + 
-  geom_histogram(aes(length_1, fill = sampling_method), alpha = .5) + 
-  facet_wrap(~species_1, scales = "free")
-
-il_filtered_species %>% 
-  ggplot() + 
-  geom_point(aes(total_effort_1, cpue)) + 
-  facet_grid(species_1~sampling_method, scales = "free")
-
-```
-

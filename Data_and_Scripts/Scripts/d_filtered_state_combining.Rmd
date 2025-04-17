@@ -22,6 +22,14 @@ library(gganimate)
 ```
 
 
+#checking hive
+```{r}
+mw_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
+
+glimpse(mw_data)
+```
+
+
 # Jan 6, 2024 - Cam issue reading in data
 ```{r}
 mw_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state"))  %>% 
@@ -179,6 +187,8 @@ iso_data_final <- iso_data %>%
   left_join(xwalk_trim)
 
 write_csv(iso_data_final, "LAKE_IDs_Samples_All_2025_FEB.csv")
+
+mw_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
 ```
 
 

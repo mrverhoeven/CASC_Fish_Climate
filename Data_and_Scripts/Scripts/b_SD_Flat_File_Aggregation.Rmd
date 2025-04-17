@@ -37,7 +37,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -50,7 +50,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data/",
+          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data/",
                                           files_list[i]),
          drop = c("V1")))
   
@@ -463,7 +463,7 @@ sd_merged_ce <- sd_merged_ce %>%
 
 sd_merged_ce %>% 
   filter(total_effort_1_units == "unspecified") %>% 
-  group_by(sampling_method_1, total_effort_1) %>% 
+  group_by(sampling_method.1, total_effort_1) %>% 
   count() %>% 
   print(n = nrow(.))
 #seems like unspecified units for total effort is handeled okay here
@@ -673,8 +673,8 @@ sd_merged_ce[ , original_file_name := paste(original_file_name_1indivfish, origi
 sd_merged_ce_trial <- sd_merged_ce %>% 
   mutate(state = "South Dakota",
          lake_name = lake_name_1,
-         year = year(date_1),
-         month = month(date_1),
+         year = year(date_total_effort_ident),
+         month = month(date_total_effort_ident),
          survey_id = as.character(NA),
          survey_type = as.character(NA),
          survey_type_2 = as.character(NA),
@@ -832,6 +832,11 @@ sd_merged_ce_trial %>%
   group_by(total_effort_ident, species_1, length_1, length_unit_1, weight_1, weight_unit_1, flag) %>% 
   count() %>% 
   print(n = nrow(.))
+
+sd_merged_ce_trial %>% 
+  group_by(total_effort_ident) %>% 
+  summarise(n_months = n_distinct(month)) %>% 
+  filter(n_months > 1)
 ```
 
 

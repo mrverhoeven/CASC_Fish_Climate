@@ -15,10 +15,144 @@ library(arrow)
 
 #Data
 ```{r}
+#fish data
 mn_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Minnesota")
 glimpse(mn_data)
+
+#area data for filtering
+area <- read_csv("Data_and_Scripts/Data/input/mn_lake_list.csv") %>%
+  select(DOW, LAKE_AREA_DOW_ACRES) %>%
+  mutate(DOW = as.integer(DOW)) %>% 
+  rename(lake_id = DOW,
+         lake_area = LAKE_AREA_DOW_ACRES)
+
+#adding a few lakes that don't show
+#data pulled from lake finder
+adds <- data.frame(
+  lake_id = as.integer(c("56038800", 
+                         "55006400", 
+                         "76014601", 
+                         "76014602",
+                         "73076800",
+                         "69148100",
+                         "69096700",
+                         "69027300",
+                         "7016600")),
+  lake_area = c(1288, 20, 467, 218, 9, 1, 2, 15, 0)
+)
+area <- bind_rows(area, adds) %>% 
+  mutate(lake_id = as.character(lake_id))
+rm(adds)  
 ```
+
+In Minnesota, we are only interested in the standard surveys, passive gears where species are not "targeted" so we will not worry about the target species column
+
+```{r}
+mn_data %>% 
+  distinct(flag) %>%
+  collect() %>% 
+  arrange(flag) %>% 
+  print(n = nrow(.))
+
+mn_data %>% 
+  mutate(effort_flag = case_when(str_detect(flag, "Do not use in CPUE") ~ "y",
+                                 str_detect(flag, "Not representative sampling") ~ "y",
+                                 str_detect(flag, "Questionable total effort") ~ "y",
+                                 str_detect(flag, "database issue") ~ "y",
+                                 str_detect(flag, "effort value error") ~ "y",
+                                 str_detect(flag, "gear issue") ~ "y",
+                                 str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "very high catch") ~ "y",
+                                 TRUE ~ "n")) %>% 
+  distinct(effort_flag, flag) %>% 
+  arrange(effort_flag, flag) %>%
+  collect() %>% 
+  print(n = nrow(.))
+```
+
+#data filters for MN
+working with mn data directly to select sampling methods, survey types, area filters, etc.
+```{r}
+#1.) picking the standard sampling methods
+mn_data %>% 
+  distinct(sampling_method_simple,
+           sampling_method,
+           sampling_method_2) %>%
+  collect() %>% 
+  arrange(sampling_method_simple, sampling_method) %>% 
+  print(n = nrow(.))
+#we have standard gill nets but there does not appear to be a standard trap net listed
+
+mn_data %>% 
+  distinct(total_effort_ident, sampling_method, sampling_method_2) %>% 
+  filter(sampling_method == "trap_net") %>% 
+  group_by(sampling_method_2) %>%
+  count() %>% 
+  collect()
+#we see here that the most used and standard trap net is the 0.75 inch doubel frame
+
+#lets create a call so that this trap net gets called standard for the inclusion table
+mn_data %>% 
+  mutate(sampling_method = case_when(sampling_method_2 == "trap_net; 0.75-in-mesh net; double-frame net" ~ "trap_net_standard",
+         TRUE ~ sampling_method)) %>% 
+  filter(sampling_method_simple == "frame_net") %>% 
+  distinct(sampling_method, sampling_method_2) %>% 
+  collect()
+
+#2.) Picking the survey types 
+mn_data %>% 
+  distinct(survey_type) %>% 
+  collect()
+
+mn_data %>% 
+  mutate(survey_type_filter = case_when(survey_type %in% c("HISTORICAL",
+                                                 "Large Lake Survey", 
+                                                 "Population Assessment",
+                                                 "Standard Survey",
+                                                 "Initial Survey",
+                                                 "Re-Survey") ~ "y", 
+                              TRUE ~ "n")) %>% 
+  distinct(survey_type, survey_type_filter) %>% 
+  arrange(survey_type_filter, survey_type) %>% 
+  collect()
+
+#3.) lake area - first we need to grab the lake areas
+mn_data %>% 
+  left_join(area) %>% 
+  mutate(area_group = case_when(lake_area < 100 ~ "<100",
+                                lake_area >= 100 & lake_area <= 300 ~ "100-300",
+                                lake_area >= 301 & lake_area <= 600 ~ "301-600",
+                                lake_area >= 601 & lake_area <= 1500 ~ "601-1500",
+                                lake_area >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) %>% 
+  group_by(area_group) %>% 
+  count() %>% 
+  collect()
+
+#4.) dates
+mn_data %>% 
+  distinct(total_effort_ident, date_survey, date_total_effort_ident) %>% 
+  collect()
+
+mn_data %>% 
+  filter(sampling_method == "angling_ice_fishing") %>% 
+  distinct(lake_name, year, date_survey, date_total_effort_ident) %>% 
+  collect()
+
+mn_data %>% 
+  filter(lake_name == "Leech" & year %in% c(2015, 2018)) %>% 
+  distinct(year, sampling_method, date_survey, date_total_effort_ident) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+mn_data %>% 
+  filter(lake_name == "Leech" & year %in% c(2021, 2022)) %>% 
+  distinct(year, sampling_method, date_survey, date_total_effort_ident) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+```
+
 
 General structure for each filtering chunks:
 1. gather the filter tables (survey level and fish level)
@@ -42,12 +176,11 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -water_temp_max,
          -survey_type)
 
-#filters for surveys that are good measures of abundance for given fish species
-#first, merge the filter table with the data - selects for non-numeric parameters important for abundance 
-#second, collapse the data into survey level
-#third, filter the surveys based on numeric values 
 good_surveys <- mn_data %>%
-  #filter for correct survey_type
+  #picking standard trap net gear - this is already done for gill nets but we need to make sure we grad standard trap nets
+  mutate(sampling_method = case_when(sampling_method_2 == "trap_net; 0.75-in-mesh net; double-frame net" ~ "trap_net_standard",
+         TRUE ~ sampling_method)) %>% 
+  #filter for correct survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("HISTORICAL",
                                                  "Large Lake Survey", 
                                                  "Population Assessment",
@@ -55,8 +188,29 @@ good_surveys <- mn_data %>%
                                                  "Initial Survey",
                                                  "Re-Survey") ~ "y", 
                               TRUE ~ "n")) %>% 
-  mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
-                                             TRUE ~ date_total_effort_ident)) %>% 
+  #adding a lake area for filtering here 
+  left_join(area) %>% 
+  mutate(area_group = case_when(lake_area < 100 ~ "<100",
+                                lake_area >= 100 & lake_area <= 300 ~ "100-300",
+                                lake_area >= 301 & lake_area <= 600 ~ "301-600",
+                                lake_area >= 601 & lake_area <= 1500 ~ "601-1500",
+                                lake_area >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) %>% 
+  #flagged for effort?
+  mutate(effort_flag = case_when(str_detect(flag, "Do not use in CPUE") ~ "y",
+                                 str_detect(flag, "Not representative sampling") ~ "y",
+                                 str_detect(flag, "Questionable total effort") ~ "y",
+                                 str_detect(flag, "database issue") ~ "y",
+                                 str_detect(flag, "effort value error") ~ "y",
+                                 str_detect(flag, "gear issue") ~ "y",
+                                 str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "very high catch") ~ "y",
+                                 TRUE ~ "n")) %>% 
+  #####stopped right here on 4/22#######################
+  
+  
+  # mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
+  #                                            TRUE ~ date_total_effort_ident)) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -71,18 +225,14 @@ good_surveys <- mn_data %>%
            month_min,
            month_max,
            survey_type_filter,
-           flag)  %>%
+           effort_flag)  %>%
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
-         survey_type_filter == "y") %>% 
-  collect() %>% 
-  #removing surveys that have a flag
-  group_by(total_effort_ident) %>% 
-  filter(all(is.na(flag))) %>% 
-  ungroup()  %>% 
-  select(-flag)
+         survey_type_filter == "y",
+         effort_flag == "n") %>% 
+  collect() 
 
 #gather fish from the surveys deemed good for abundance of the given species
 adult_walleye <- mn_data %>% 

@@ -46,35 +46,51 @@ area <- bind_rows(area, adds) %>%
 rm(adds)  
 ```
 
-In Minnesota, we are only interested in the standard surveys, passive gears where species are not "targeted" so we will not worry about the target species column
-
+#data filters for MN
+This chunk must be run before filtering as it applied necessary data manipulations prior to filtering. Working with mn data directly to select sampling methods, survey types, area filters, effort filters etc. In Minnesota, we are only interested in the standard surveys, passive gears where species are not "targeted" so we will not worry about the target species column
 ```{r}
+#1.) effort flags - lets just applied an all encompassing effort flag to any survey flagged within the data base for effort. Effort flags appear to have been applied at the obs level, with a small subset of TEIs where some fish have an effort flag but some do not. That doesn't really make sense, so we will apply a flag to all records in a tei that have at least one record with an effort level flag
 mn_data %>% 
   distinct(flag) %>%
   collect() %>% 
   arrange(flag) %>% 
   print(n = nrow(.))
 
-mn_data %>% 
-  mutate(effort_flag = case_when(str_detect(flag, "Do not use in CPUE") ~ "y",
-                                 str_detect(flag, "Not representative sampling") ~ "y",
-                                 str_detect(flag, "Questionable total effort") ~ "y",
-                                 str_detect(flag, "database issue") ~ "y",
-                                 str_detect(flag, "effort value error") ~ "y",
-                                 str_detect(flag, "gear issue") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 TRUE ~ "n")) %>% 
-  distinct(effort_flag, flag) %>% 
-  arrange(effort_flag, flag) %>%
-  collect() %>% 
-  print(n = nrow(.))
-```
+flagged_rows <- mn_data %>% 
+  filter(
+    str_detect(flag, "Do not use in CPUE") |
+    str_detect(flag, "Not representative sampling") |
+    str_detect(flag, "Questionable total effort") |
+    str_detect(flag, "database issue") |
+    str_detect(flag, "effort value error") |
+    str_detect(flag, "gear issue") |
+    str_detect(flag, "high effort") |
+    str_detect(flag, "very high catch")
+  ) %>%
+  distinct(total_effort_ident) %>%
+  mutate(effort_flag = "y")
 
-#data filters for MN
-working with mn data directly to select sampling methods, survey types, area filters, etc.
-```{r}
-#1.) picking the standard sampling methods
+mn_data <- mn_data %>%
+  left_join(flagged_rows, by = "total_effort_ident") %>%
+  mutate(effort_flag = coalesce(effort_flag, "n"))
+
+mn_data %>% 
+  filter(total_effort_ident %in% c("25")) %>% 
+  distinct(total_effort_ident, effort_flag, flag) %>% 
+  collect() %>% 
+  arrange(effort_flag, flag) %>% 
+  print(n = nrow(.))
+
+mn_data %>% 
+  filter(effort_flag == "n") %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  collect()
+rm(flagged_rows)
+#this shows that there could be some obs from a total effort ident that do not show a effort flag in the flag column at a fish level but they do at a tei level. However, all fish from surveys without an effort flag remain in 
+
+
+#2.) picking the standard sampling methods
 mn_data %>% 
   distinct(sampling_method_simple,
            sampling_method,
@@ -90,7 +106,7 @@ mn_data %>%
   group_by(sampling_method_2) %>%
   count() %>% 
   collect()
-#we see here that the most used and standard trap net is the 0.75 inch doubel frame
+#we see here that the most used and standard trap net is the 0.75 inch double frame
 
 #lets create a call so that this trap net gets called standard for the inclusion table
 mn_data %>% 
@@ -100,7 +116,17 @@ mn_data %>%
   distinct(sampling_method, sampling_method_2) %>% 
   collect()
 
-#2.) Picking the survey types 
+mn_data <- mn_data %>% 
+  mutate(sampling_method = case_when(sampling_method_2 == "trap_net; 0.75-in-mesh net; double-frame net" ~ "trap_net_standard",
+         TRUE ~ sampling_method))
+
+mn_data %>% 
+  filter(sampling_method_simple == "frame_net") %>% 
+  group_by(sampling_method, sampling_method_2) %>% 
+  count() %>% 
+  collect()
+
+#3.) Picking the survey types 
 mn_data %>% 
   distinct(survey_type) %>% 
   collect()
@@ -117,7 +143,7 @@ mn_data %>%
   arrange(survey_type_filter, survey_type) %>% 
   collect()
 
-#3.) lake area - first we need to grab the lake areas
+#4.) lake area - first we need to grab the lake areas
 mn_data %>% 
   left_join(area) %>% 
   mutate(area_group = case_when(lake_area < 100 ~ "<100",
@@ -130,7 +156,23 @@ mn_data %>%
   count() %>% 
   collect()
 
-#4.) dates
+mn_data <- mn_data %>% 
+  #adding a lake area for filtering here 
+  left_join(area) %>% 
+  mutate(area_group = case_when(lake_area < 100 ~ "<100",
+                                lake_area >= 100 & lake_area <= 300 ~ "100-300",
+                                lake_area >= 301 & lake_area <= 600 ~ "301-600",
+                                lake_area >= 601 & lake_area <= 1500 ~ "601-1500",
+                                lake_area >= 1501 ~ "1501+",
+                                TRUE ~ "NA")) 
+mn_data %>% 
+  group_by(is.na(area_group)) %>% 
+  count() %>% 
+  collect()
+rm(area)
+
+
+#5.) dates
 mn_data %>% 
   distinct(total_effort_ident, date_survey, date_total_effort_ident) %>% 
   collect()
@@ -150,6 +192,13 @@ mn_data %>%
   filter(lake_name == "Leech" & year %in% c(2021, 2022)) %>% 
   distinct(year, sampling_method, date_survey, date_total_effort_ident) %>% 
   collect() %>% 
+  print(n = nrow(.))
+
+mn_data %>% 
+  filter(lake_name == "Leech") %>% 
+  distinct(total_effort_ident, survey_type, date_survey, date_total_effort_ident, year, month) %>% 
+  collect() %>% 
+  arrange(year) %>% 
   print(n = nrow(.))
 ```
 
@@ -177,40 +226,27 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
          -survey_type)
 
 good_surveys <- mn_data %>%
-  #picking standard trap net gear - this is already done for gill nets but we need to make sure we grad standard trap nets
-  mutate(sampling_method = case_when(sampling_method_2 == "trap_net; 0.75-in-mesh net; double-frame net" ~ "trap_net_standard",
-         TRUE ~ sampling_method)) %>% 
-  #filter for correct survey type
+  # #picking standard trap net gear - this is already done for gill nets but we need to make sure we grad standard trap nets
+  # mutate(sampling_method = case_when(sampling_method_2 == "trap_net; 0.75-in-mesh net; double-frame net" ~ "trap_net_standard",
+  #        TRUE ~ sampling_method)) %>% 
+  # #filter for correct survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("HISTORICAL",
-                                                 "Large Lake Survey", 
+                                                 "Large Lake Survey",
                                                  "Population Assessment",
                                                  "Standard Survey",
                                                  "Initial Survey",
-                                                 "Re-Survey") ~ "y", 
-                              TRUE ~ "n")) %>% 
-  #adding a lake area for filtering here 
-  left_join(area) %>% 
-  mutate(area_group = case_when(lake_area < 100 ~ "<100",
-                                lake_area >= 100 & lake_area <= 300 ~ "100-300",
-                                lake_area >= 301 & lake_area <= 600 ~ "301-600",
-                                lake_area >= 601 & lake_area <= 1500 ~ "601-1500",
-                                lake_area >= 1501 ~ "1501+",
-                                TRUE ~ "NA")) %>% 
-  #flagged for effort?
-  mutate(effort_flag = case_when(str_detect(flag, "Do not use in CPUE") ~ "y",
-                                 str_detect(flag, "Not representative sampling") ~ "y",
-                                 str_detect(flag, "Questionable total effort") ~ "y",
-                                 str_detect(flag, "database issue") ~ "y",
-                                 str_detect(flag, "effort value error") ~ "y",
-                                 str_detect(flag, "gear issue") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 TRUE ~ "n")) %>% 
-  #####stopped right here on 4/22#######################
-  
-  
-  # mutate(date_total_effort_ident = case_when(survey_type == "HISTORICAL" ~ date_survey,
-  #                                            TRUE ~ date_total_effort_ident)) %>% 
+                                                 "Re-Survey") ~ "y",
+                              TRUE ~ "n")) %>%
+  # #flagged for effort? - tags may not be applied to all within a total effort ident?
+  # mutate(effort_flag = case_when(str_detect(flag, "Do not use in CPUE") ~ "y",
+  #                                str_detect(flag, "Not representative sampling") ~ "y",
+  #                                str_detect(flag, "Questionable total effort") ~ "y",
+  #                                str_detect(flag, "database issue") ~ "y",
+  #                                str_detect(flag, "effort value error") ~ "y",
+  #                                str_detect(flag, "gear issue") ~ "y",
+  #                                str_detect(flag, "high effort") ~ "y",
+  #                                str_detect(flag, "very high catch") ~ "y",
+  #                                TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "area_group")) %>% 
@@ -231,7 +267,7 @@ good_surveys <- mn_data %>%
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
          survey_type_filter == "y",
-         effort_flag == "n") %>% 
+         effort_flag == "n") %>%
   collect() 
 
 #gather fish from the surveys deemed good for abundance of the given species
@@ -254,25 +290,14 @@ adult_walleye_cpue <- adult_walleye %>%
   #collapse data into survey level cpue (also works as a select function)
   distinct(total_effort_ident,
            total_effort_1,
-           .keep_all = T) %>% 
-  filter(is.na(total_effort_nothing_caught)) %>% 
-  group_by(total_effort_ident) %>% 
-  filter(n_distinct(total_effort_1) == 1)
+           .keep_all = T) 
 
 
 #checking filtering
-
 #survey level checks
-#month range
-good_surveys %>% 
-  group_by(sampling_method) %>% 
-  summarise(min.month = min(month(date_total_effort_ident)), 
-            max.month = max(month(date_total_effort_ident)),
-            n = n())
-
 #min effort by grouping
 good_surveys %>% 
-  group_by(area_group, sampling_method) %>% 
+  group_by(area_group) %>% 
   summarise(min_effort = min(total_effort_1),
             n = n())
 
@@ -311,22 +336,12 @@ adult_walleye %>%
   glimpse()
 
 adult_walleye %>% 
-  filter(is.na(total_effort_ident)) %>% 
-  distinct(total_effort_ident) %>% 
-  glimpse()
-
-adult_walleye %>% 
   group_by(total_effort_ident,
            total_effort_1) %>% 
   count() %>% 
   group_by(total_effort_ident) %>% 
   count() %>% 
   filter(n > 1)
-
-adult_walleye %>% 
-  distinct(total_effort_ident, total_effort_nothing_caught) %>% 
-  group_by(is.na(total_effort_nothing_caught)) %>% 
-  count()
 
 adult_walleye %>% 
   distinct(lake_id,
@@ -360,13 +375,11 @@ adult_walleye %>%
 #this survey has multiple effort idents?
 #more exploration leads to this survey having a record of nothing caught but also fish records with associated effort.
 
-#the difference between good surveys and cpue surveys are:
-#88 nothing caught is true - removed due to unlikely they caught nothing
-
-no_catch <- adult_walleye %>% 
+#85 nothing caught surveys
+adult_walleye %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
-  filter(!is.na(total_effort_nothing_caught)) 
-rm(no_catch)
+  group_by(total_effort_nothing_caught) %>% 
+  count()
 
 #checks after calculating cpue
 #range of cpues?

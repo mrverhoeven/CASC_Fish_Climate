@@ -35,6 +35,7 @@ indy <- mw_data %>%
   group_by(lake_id) %>% 
   sample_n(size = 34, replace = F)
 write_csv(indy, "metadata_example.csv")
+rm(indy)
 ```
 
 # Producing meta data information
@@ -50,56 +51,66 @@ mw_data %>%
 county <- mw_data %>% 
   group_by(county, state) %>% 
   count() %>% 
-  collect() 
+  collect() %>% 
+  group_by(state) %>% 
+  sample_n(10)
 rm(county)
 
 #lake name
 lake_names <- mw_data %>% 
   group_by(lake_name, state) %>% 
   count() %>% 
-  collect()
+  collect()%>% 
+  group_by(state) %>% 
+  sample_n(10)
 rm(lake_names)
 
 #lake_ids
 lake_ids <-  mw_data %>% 
   distinct(lake_id, state) %>% 
-  collect() 
+  collect() %>% 
+  group_by(state) %>% 
+  sample_n(10)
 rm(lake_ids)
 
 #nhdhr_id
 nhdhr_id <- mw_data %>% 
   distinct(nhdhr_id, lake_id, state) %>% 
-  collect()
+  collect() %>% 
+  group_by(state) %>% 
+  sample_n(10)
 rm(nhdhr_id)
 
 #lake centroid lat
 lat <- mw_data %>% 
   distinct(latitude_lake_centroid, state) %>% 
-  collect()
+  collect() %>% 
+  group_by(state) %>% 
+  sample_n(10)
 rm(lat)
 
 mw_data %>% 
-  filter(latitude_lake_centroid > 0) %>% 
-  summarise(min = as.character(min(latitude_lake_centroid)),
-            max = as.character(max(latitude_lake_centroid))) %>% 
+  summarise(min = as.character(min(latitude_lake_centroid, na.rm = T)),
+            max = as.character(max(latitude_lake_centroid, na.rm = T))) %>% 
   collect()
 
 #lake centroid lon
 lon <- mw_data %>% 
   distinct(longitude_lake_centroid, state) %>% 
-  collect() 
+  collect() %>% 
+  group_by(state) %>% 
+  sample_n(10)
 rm(lon)
 
 mw_data %>% 
-  filter(longitude_lake_centroid < 0) %>% 
-  summarise(min = as.character(min(longitude_lake_centroid)),
-            max = as.character(max(longitude_lake_centroid))) %>% 
+  summarise(min = as.character(min(longitude_lake_centroid, na.rm = T)),
+            max = as.character(max(longitude_lake_centroid, na.rm = T))) %>% 
   collect()
 
 #date survey
 survey_date <- mw_data %>% 
   distinct(date_survey) %>% 
-  collect()
+  collect() 
 rm(survey_date)
 
 mw_data %>% 
@@ -178,6 +189,20 @@ mw_data %>%
             na_no = sum(!is.na(date_sample))) %>% 
   collect()
 
+
+#so our earliest year is 1940 based off total effort ident but we have sub and sample dates prior?
+mw_data %>% 
+  filter(year(date_sub_effort_ident) < 1940) %>% 
+  group_by(is.na(total_effort_ident), state) %>% 
+  count() %>% 
+  collect()
+
+mw_data %>% 
+  filter(year(date_sample) < 1940) %>% 
+  group_by(is.na(total_effort_ident), state) %>% 
+  count() %>% 
+  collect()
+
 # year
 mw_data %>% 
   group_by(year) %>% 
@@ -208,18 +233,17 @@ mw_data %>%
 
 #survey id
 survey_id <- mw_data %>% 
-  group_by(survey_id) %>% 
+  group_by(survey_id, state) %>% 
   count() %>% 
-  collect()
+  collect() %>% 
+  group_by(state) %>% 
+  sample_n(10, replace = T)
 rm(survey_id)
 
 #survey type
 survey_type <- mw_data %>% 
   distinct(state,
-           survey_type,
-           survey_type_2,
-           survey_type_3,
-           survey_type_4) %>% 
+           survey_type) %>% 
   collect()
 rm(survey_type)
 
@@ -233,9 +257,15 @@ mw_data %>%
 sampling_methods <- mw_data %>% 
   group_by(sampling_method_simple,
            sampling_method,
-           sampling_method_2) %>% 
+           sampling_method_2,
+           state) %>% 
   count() %>% 
   collect()
+
+sampling_methods %>%
+  group_by(state) %>% 
+  sample_n(5) %>% 
+  print(n = nrow(.))
 rm(sampling_methods)
 
 #gear data notes
@@ -248,8 +278,7 @@ rm(gear_data_notes)
 #targeted species 
 mw_data %>% 
   distinct(state,
-           target_species,
-           target_species_2) %>% 
+           target_species) %>% 
   collect() %>% 
   arrange(state) %>% 
   print(n = nrow(.))
@@ -288,19 +317,6 @@ mw_data %>%
   filter(total_effort_2 > 2000) %>% 
   collect()
 
-#total effort 3
-total_effort_3 <- mw_data %>% 
-  distinct(total_effort_3, state) %>% 
-  collect()
-rm(total_effort_3)
-
-mw_data %>% 
-  distinct(total_effort_3) %>% 
-  filter(!is.na(total_effort_3)) %>% 
-  summarise(max = max(total_effort_3),
-            min = min(total_effort_3)) %>% 
-  collect()
-
 #total effort units
 mw_data %>% 
   distinct(total_effort_1_units, state) %>% 
@@ -312,12 +328,6 @@ mw_data %>%
   distinct(total_effort_2_units, state) %>% 
   collect() %>% 
   arrange(total_effort_2_units) %>% 
-  print(n = nrow(.))
-
-mw_data %>% 
-  distinct(total_effort_3_units, state) %>% 
-  collect() %>% 
-  arrange(total_effort_3_units) %>% 
   print(n = nrow(.))
 
 mw_data %>% 
@@ -352,7 +362,6 @@ mw_data %>%
 mw_data %>% 
   distinct(water_temp_units, state) %>% 
   collect()
-
 
 #water clarity
 mw_data %>% 
@@ -421,6 +430,7 @@ mw_data %>%
 #sub effort 1 units
 mw_data %>% 
   distinct(state, sub_effort_1_units) %>% 
+  arrange(sub_effort_1_units) %>% 
   collect()
 
 mw_data %>% 
@@ -455,9 +465,9 @@ mw_data %>%
 
 #aging structure 
 mw_data %>% 
-  distinct(state, aging_structure_1, aging_structure_2) %>% 
+  distinct(state, aging_structure_1) %>% 
   collect() %>% 
-  arrange(state) %>% 
+  arrange(aging_structure_1) %>% 
   print(n = nrow(.))
 
 #weight_1
@@ -483,6 +493,7 @@ mw_data %>%
 mw_data %>% 
   distinct(state, sex) %>% 
   collect() %>% 
+  arrange(sex) %>% 
   print(n = nrow(.))
 
 #age-class
@@ -501,6 +512,7 @@ mw_data %>%
 
 #lake size 
 mw_data %>% 
+  group_by(state) %>% 
   summarise(min = min(lakesize, na.rm = T),
             max = max(lakesize, na.rm = T)) %>% 
   collect()
@@ -535,11 +547,11 @@ mw_data %>%
   print(n = nrow(.))
 
 #location notes 1
-mw_data %>% 
+loc_notes <- mw_data %>% 
   distinct(state, location_notes_1) %>% 
   collect() %>% 
-  arrange(state) %>% 
-  print(n = nrow(.))
+  arrange(state)
+rm(loc_notes)
 
 mw_data %>% 
   distinct(state, location_notes_1) %>% 
@@ -549,11 +561,11 @@ mw_data %>%
   print(n = nrow(.))
 
 #notes_1
-mw_data %>% 
+notes <- mw_data %>% 
   distinct(state, notes_1) %>% 
   collect() %>% 
-  arrange(state) %>% 
-  print(n = nrow(.))
+  arrange(state)
+rm(notes)
 
 mw_data %>% 
   distinct(state, notes_1) %>% 
@@ -572,6 +584,7 @@ mw_data %>%
             n_distinct(obs_id)) %>% 
   collect()
 ```
+
 
 ```{r}
 mw_data <- mw_data %>% 

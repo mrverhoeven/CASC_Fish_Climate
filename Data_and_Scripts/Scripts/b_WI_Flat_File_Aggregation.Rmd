@@ -7,85 +7,9 @@ editor_options:
   chunk_output_type: console
 ---
 
-
-
-# Outstanding work
-
-DONE  1. Fix data import to squash warnings and add ticker
-DONE  2. Button up the column name cleaning section of the file
-DONE  2b. consider a reformat to Arrow (sooner) for speed -- currently implemented at end, consider implementing this step earlier. 
-DONE  3. Add section for (minimal acceptable) data proofing
-DONE  4. Lake winnebago data are not yet "uncount" ed
-DUP2  5. Need to tidy up as many colnames as possible at each merge phase to prevent huge buildup of shit at the end (see current section at line 550ish)
-DONE  6.Crosscheck to CPUE file provided to us to check calcs/agreement
-DONE  6a. Flag abunds affected by this mismatch
-DONE  7. Winnebago data included all species, want to constrain to be same as the main WI dataset.
-DONE  8. add an effort_ident to each trawl haul from Winnebago-- note the weirdness of this (one lake, many cpues in a single day)
-DONE  8a. add effort_ident to each surveyXgear?
-DONE  9. Connect ages back to the fish observations (Diagnostics ideas -- check some unpaired age data and see if you can find the obs that should match it)
-DONE  11. Add a nothing_caught tag
-DONE  13. cleannames() to colnames
-DONE  14. Update the total effort ident grouping to be at the surveyXgearXdate level
-DONE  17. Ensure nothing_caught is assigned at the total_effort_ident level
-            - could do this with a sub_effort_nothing_caught, and a total_effort_nothing_caught
-DONE  27. Add weigh to the aged fish join key.
-DONE  10. Flag crazy dates
-DONE  16. Why are no cisco showing up in WI?
-            Currently we do have about 30 ish surveys in there  
-            Add in the new VGN surveys and recheck Cisco numbers headed to Chris for WI
-            See b_WI_cisco.Rmd file
-DONE  48. Should Cisco data be in the data explainer? They are, but to rerun from that route would nix all our work, so not doing that
-DONE  15. Update the WI data to include all species sent by Paul F in November 2023
-DONE  39. Do the lengths we have from WI get generated? Do they use a plus bin? (this would be a size of fish that was longer than X) (check for grepex of "+" in the data that are imported): NO. Not sure why this was thought up
-DONE  40. There are several survey type columns - some rows are NA for the first survey type but have some values for 2, 3, 4 (This probably stems from specific types of surveys within wisconsin (primary.survey.purpose, secondary.survey.purpose;  Suggested change is to fill WI survey types from 1 (if any), then survey type 2 (if any secondary after filling slot 1) ))
-DONE  25. Set all to state == Wisconsin
-DONE  26. The total effort idents restructure now results in bad splitting over the targeted species column. Add targeted species info to the TEI assignment.
-DONE  49. TEIs for aged fish that were not matched to fish obs should be assigned TEI == NA
-DONE  36. Review for problems: TEIs sometimes contain multiple water temps straddling the temp cutoffs (prework 47. Clean water temp units column.)
-DONE  38. There are two target species cols–collapse and comma separate
-DONE  46. Collapse targeted sp to one column
-          Nix total effort 3 and targeted species 2 
-DONE  29. Check date munging (Look like years are either 4 numbers or 2 numbers (see GH dat sleuthing/ QC probs) )
-DONE  31. Make sure all gear details are retained (likely this funnels into gear data notes)
-DONE  48. Sexes to Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
-DONE  22. Many lengthed fish do not have a unit on their length
-DONE  21. Convert length units to mm (decided not to convert based on discussion of sig. digits)
-      
-      
-      #NHDs and locs
-DONE  23. Throw out rivers and streams
-DONE  41. WI - missing NHDids on Cisco
-DONE  12. Check coverage of NHDids, Lat, Lon
-DONE  33. County check to make sure I pulled the correct column
-DONE  37. Counties and lake names are all lower case with _ instead of spaces - all other states are capital first letter with spaces
-      
-      #schema and hive match
-DONE  45. Add sampling method simple column to hive
-DONE  28. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
-DONE  42. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
-      
-OUTSTANDING FIXES
-DONE  35. Schema matched to overall hive (column names and column inclusions)
-DONE  30. Check N species in a survey (is 44 spp a reasonable finding?)
-
-
-      #flags
-DONE  43. Check that our flagging is spelling out implications
-DONE  32. Add flags for 0 efforts and high efforts
-DONE  44. Auto Flagging: (build a flagging template from the MW Hive then apply it state-by-state)
-          0 and negative efforts
-          10SDs above mean effort? (by gear/state?)
-          Lengths (prob group by age/survey/something) - big and small
-          Weights (prob group by age/survey/something)
-          Counts (by TEI)
-      
-
-      
-      
-
 # Preamble
 
-libraries
+# libraries
 ```{r}
 library(arrow)
 library(readr)
@@ -2222,13 +2146,144 @@ wi_inland_fishobservations_10Nov2023[notes_1 == "" , notes_1 := NA]
 
 #export as parquet file
 ```{r}
+#save dataframe as a csv
+fwrite(wi_inland_fishobservations_10Nov2023, "Data_and_Scripts/Data/output/wi_data.csv" , na="NA" )
+
+#remove the object
+rm(wi_inland_fishobservations_10Nov2023)
+
+#read in the object
+wi_dat <- fread("Data_and_Scripts/Data/output/wi_data.csv", na.strings = "NA")
+glimpse(wi_dat)
+
+#####################still needs work 5/19 @ 1:14###################
+#make sure column are correct and in the correct form
+wi_dat <- wi_dat %>% 
+  mutate(
+    lake_id = as.character(lake_id),
+    date_sub_effort_ident = as.IDate(NA),
+    survey_id = as.character(NA),
+    survey_type_2 = as.character(NA),
+    survey_type_3 = as.character(NA),
+    survey_type_4 = as.character(NA),
+    total_effort_ident = as.character(total_effort_ident),
+    total_effort_2 = as.numeric(NA),
+    total_effort_2_units = as.character(NA),
+    water_clarity = as.numeric(NA),
+    water_clarity_units = as.character(NA),
+    lat_start = as.numeric(NA),
+    lon_start = as.numeric(NA),
+    lat_end = as.numeric(NA),
+    lon_end = as.numeric(NA),
+    sub_effort_ident = as.character(NA),
+    sub_effort_1 = as.numeric(NA),
+    sub_effort_1_units = as.character(NA),
+    sub_effort_2 = as.numeric(NA),
+    sub_effort_2_units = as.character(NA),
+    sub_effort_nothing_caught = NA,
+    length_bin = as.character(NA),
+    length_bin_unit = as.character(NA),
+    batch_weight = as.character(NA),
+    batch_weight_unit = as.character(NA),
+    ind_fish_ident = as.character(ind_fish_ident),
+    # lakesize = as.numeric(NA),
+    # lakesize_units = as.numeric(NA),
+    lat_unspec = as.numeric(NA),
+    lon_unspec = as.numeric(NA),
+    lakesize = as.numeric(NA),
+    lakesize_units = as.character(NA)) %>% 
+    select(state,
+         county,
+         lake_name,
+         lake_id,
+         nhdhr_id,
+         latitude_lake_centroid,
+         longitude_lake_centroid,
+         date_survey,
+         date_total_effort_ident,
+         date_sub_effort_ident,
+         date_sample,
+         year,
+         month,
+         survey_id,
+         survey_type,
+         survey_type_2,
+         survey_type_3,
+         survey_type_4,
+         sampling_method_simple,
+         sampling_method,
+         sampling_method_2,
+         gear_data_notes,
+         target_species,
+         #target_species_2,
+         total_effort_ident,
+         total_effort_1,
+         total_effort_2,
+         #total_effort_3,
+         total_effort_1_units,
+         total_effort_2_units,
+         #total_effort_3_units,
+         total_effort_nothing_caught,
+         water_temp,
+         water_temp_units,
+         water_clarity,
+         water_clarity_units,
+         lat_start,
+         lon_start,
+         lat_end,
+         lon_end,
+         site_id,
+         sub_effort_ident,
+         sub_effort_1,
+         sub_effort_1_units,
+         sub_effort_2,
+         sub_effort_2_units,
+         sub_effort_nothing_caught,
+         species_1,
+         length_1,
+         length_unit_1,
+         length_bin,
+         length_bin_unit,
+         age,
+         aging_structure_1,
+         #aging_structure_2,
+         weight_1,
+         weight_unit_1,
+         batch_weight,
+         batch_weight_unit,
+         sex,
+         age_class,
+         flag,
+         original_file_names,
+         ind_fish_ident,
+         lakesize,
+         lakesize_units,
+         #area_group,
+         lat_unspec,
+         lon_unspec,
+         waterbody_type,
+         location_notes_1,
+         notes_1,
+         obs_id)
+
+glimpse(wi_dat)
+
+write_dataset(dataset = wi_dat, 
+              path = "Data_and_Scripts/Data/output/wi_file_arrow", 
+              format = "parquet")
+mn_data <- open_dataset("Data_and_Scripts/Data/output/wi_file_arrow")
+glimpse(wi_data)
+
+
+
+
 
 # setDT(wi_inland_fishobservations_10Nov2023)
 # wi_inland_fishobservations_10Nov2023 <- as_tibble(wi_inland_fishobservations_10Nov2023)
 
-fwrite(wi_inland_fishobservations_10Nov2023, "Data_and_Scripts/Data/output/wi_data.csv" , na="NA" )
-rm(wi_inland_fishobservations_10Nov2023)
-wi_dat <- fread("Data_and_Scripts/Data/output/wi_data.csv", na.strings = "NA")
+
+
+
 
     # 
     # arrow::write_dataset(dataset = wi_dat, path = "Data_and_Scripts/Data/output/wi_file_arrow", format = "parquet")

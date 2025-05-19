@@ -13,15 +13,6 @@ The answer is yes, and the idea was that within a state, the suffixes could be d
 2. Build in something to strip ; or, after the last word in a string from the data explainer file. 
     - currently getting baked into the data import in each file
 
-
-
-
-
-
-
-
-3/2/23
-Preps data explainer
 ## Load libraries
 ```{r}
 library(readr)
@@ -43,9 +34,6 @@ library(tidyr)
 ```{r}
 
 cde <- fread("https://docs.google.com/spreadsheets/d/e/2PACX-1vSE1oFKS5o65kqIkeeY5ISKx7oOHk5tBROE_g95JCaqcsLuxnmwwHvDhOPnFO0Okw/pub?gid=1011323178&single=true&output=csv", na.strings="")
-# 
-# cde <- data.table(read_excel("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/CASC_Data_Explainer_for_R_Data_Manipulation.xlsx")) #set as DT on the fly
-
 ```
 
 ### Prep 

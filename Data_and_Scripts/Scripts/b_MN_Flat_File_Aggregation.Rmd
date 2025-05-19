@@ -7,61 +7,20 @@ editor_options:
   chunk_output_type: console
 ---
 # Preamble
-updated 11/29
-To Do:
-
-DONE 4. Line 229 might offer a key to the large lakes missing data issue. Had a "total.count" val for those-- doubtful, but recheck this. 
-
-DONE 1. where gear notes marked with dippers, bring back dipper # into end of gear desc.
-DONE 2. Consider grabbing the mesh var?
-DONE 3. Daylight EFing (gear data notes 2 - keep it around for filtering)
-DONE 9. Move DL's hiving code up into the actual data agg scripts
-
-DONE 11.We have numerous TEIs with multiple total efforts. That's not how total effort works. Fix.
 DONE 10.Chris Rounds is finding Fall EF dates that are actually reporting the lakefinder date for this survey rather than the actual observation date.
         How are we currently handling date, are we using the “survey_date” and dumping the “observation_date” and losing info?
         See hive date setups
-DONE 13. MOve lake area data over to the agg script (trims lots of NAs in other states)
-DONE 15. Clean up sex column Male, Female, Unknown, NA (not reported, not sexed, data lost, all those things)
-DONE 16. QC on age column
-DONE 17. negative vals on sample ids (whats that mean and should they be removed?)
-DONE 18. Add sampling method simple column to hive
-DONE 24. Add flags for 0 efforts and high efforts
-DONE 19. Fix units to match hive structure, make sure anything with na values are also na for the unit (e.g., units like net-nights -> net_nights)
-DONE 25. Auto Flagging: (build a flagging template from the MW Hive then apply it state-by-state)
-          0 and negative efforts
-          10SDs above mean effort? (by gear/state?)
-          Lengths (prob group by age/survey/something) - big and small
-          Weights (prob group by age/survey/something)
-          Counts (by TEI)
-DONE 20. Where values are NA, units should also be NA (efforts, lengths, weights, others?)
-DONE 22. Check N species in a survey (is 44 spp a reasonable finding?)
-DONE 23. Check that our flagging is spelling out implications
-DONE 7. Lake 28003200|1996|Trap has 2 idents one TEInothing caught=T and TEInothingcaught=F
-        
-        
+
 NOT COMPLETELY RESOLVED:        
 12.We have many TEIs tagged with nothing caught)
           Large Lakes data R/R with Kristen [somethings]'s data that she agg'd 
           Built a script in the project that lays out a few other cases of weirdness (white bear lake 2022 trap nets, Willard Lake, Cougar Lake) 
           Corey sees the same un-entered data we do in their data entry dashboard
+          
 ACTION    Send all Nothing caught = True total efforts off to Jon Hansen
+
 CHECK:    Historical WAE survey duplication
           - check on outcome of fixes (section name: sleuth out the MN duplicated data issues)
-
-5. In 13 Aug cpue export, State ==NA, total effort ident = NA, Note that in the filtered cpe data file these records are NA-laden
-    Pulled example: feather lake, 06/10/1992, gill net, total effort ident = 44170. Only one observation, species is “no particular species”, survey type is historical
-
-14. Grace found whole surveys-lake-year that were excluded from chris custer cpe output but were present in lake finder 
-    Examples sent to denver to explore what might be happening
-      LOW 2013, 1997, and 1996 not showing up in CPE
-        2013 has a flag
-        96 and 97 have NA dates - all historical surveys?
-      Artichoke 2021 gillnet not showing up in CPE
-        Total effort of 3 with an area of 1501+ (effort is confirmed on lake finder)
-
-
-
 
 
 libraries
@@ -81,13 +40,15 @@ library(mwlaxeref)
 options(scipen = 999)
 ```
 
-
-
+#Overview
+We recieved a new data rip from MN DNR in three pieces: effort, catch, and cpue. Why catch and CPUE you ask? Because the DNR tells me that there are historical surveys (pre ~1985) that have CPUEs but no data for the indiv fish caught in those surveys. We proceed by:
+  1. we use the fish obs and effort to set up our obs level file
+  2a. Identify CPUE rows unmatched in the obs level surveys (for which we have nothing in effort or indiv fish). 
+  2b. expand those rows into obs level format (but no weights or lengths)
+  2c. bring them back to that main obs level file
 
 # Load Data
-
 * note depending on your local settings, file paths need correction to match local GDrive letter
-
 ```{r}
 ##build functions  
 remove_unnecessary_suffixes <- function(dt) {
@@ -225,9 +186,8 @@ if (outer_break) {print("Data import issue");rm(outer_break)
   
 ```
 
-
 # Effort
-
+Exploratory and clean up code from the effort file that accompanies individual fish records
 ```{r}
 
 # effort dataset has a unique key in the combo of (lake_id, date.2(survey date), gear, survey type)
@@ -270,7 +230,7 @@ mn_effort_18aug2023[is.na(total_effort_1)]
 mn_effort_18aug2023[ , total_effort_2 := NULL , ]
 
 #the DNR sent along two values for counts, one where they count only cases where CPUE was marked yes in the indiv fish data and one count including only where cpue was marked no in the indiv fish data
-#in the effort data thius is the number of units of gear that were used (and thus number of units marked us/don't use for cpues)
+#in the effort data this is the number of units of gear that were used (and thus number of units marked us/don't use for cpues)
 
 mn_effort_18aug2023[total_count.2>0 , .(total_count.1,total_count.2) , ]
 mn_effort_18aug2023[ , plot(total_count.1~total_count.2) , ]
@@ -312,7 +272,7 @@ sort(names(mn_effort_18aug2023))
 #year
 mn_effort_18aug2023[ , unique(year) , ]
 mn_effort_18aug2023[ is.na(year),]
- sum(mn_effort_18aug2023[ ,year != year(date_survey)])
+sum(mn_effort_18aug2023[ ,year != year(date_survey)])
 #non-issue, delete year column
 mn_effort_18aug2023[ , year := NULL] 
 
@@ -330,20 +290,10 @@ ggplot( mn_effort_18aug2023[!total_effort_1 < 0 ], aes(total_effort_1, group = s
 
 # we can get units for these effort data from here (p45ish):
 # https://files.dnr.state.mn.us/publications/fisheries/special_reports/180.pdf
-
-
-
-
 ```
 
-
-
 # CPUE 2(3) ways
-We have CPUE directly form the DNR, we can generate our own cpue using the individual fish data (both including and excluding the fish marked for CPUE inclusion)
-Update 15 Sep 2023: We recieved a new data rip from MN DNR in three pieces: effort, catch, and cpue. Why catch and CPUE you ask? Because the DNR tells me that there are historical surveys (pre ~1985) that have CPUEs but no data for the indiv fish caught in those surveys. 
-
 ```{r}
-
   #cpue data
   mn_cpue_21aug2023[  , .N , .(lake_id, date, sampling_method_abbrev, survey_type, species) ]
   sum(duplicated(mn_cpue_21aug2023))
@@ -354,7 +304,7 @@ Update 15 Sep 2023: We recieved a new data rip from MN DNR in three pieces: effo
   mn_cpue_21aug2023[ ,mean(total_effort), .(sampling_method_abbrev) ]
   mn_cpue_21aug2023[ , .N, .(lake_name, lake_id, date, species, sampling_method_abbrev) ][N>1, ]
 
-  #not likely a problem. I think sometimes multiple rows are reported for a given gear on a survey, when the catch is == between two of them you get an aparrent "duplicate". This would be mitigated by a sub_effort_ident coming from the db. 
+  #not likely a problem. I think sometimes multiple rows are reported for a given gear in a survey, when the catch is == between two of them you get an apparent "duplicate". This would be mitigated by a sub_effort_ident coming from the db. 
   
   #we'll be circling back to this dataset as a way to get the historical un-lengthed fish data into our fish-obs-as-rows format
   
@@ -397,11 +347,8 @@ Update 15 Sep 2023: We recieved a new data rip from MN DNR in three pieces: effo
   
 ```
 
-
 # Prep & Scope Indiv Fish Data
-
 ```{r}
-
 #inspect data
 colnames(mn_indiv_fish_23nov2023)
 sort(colnames(mn_indiv_fish_23nov2023))
@@ -462,10 +409,42 @@ mn_indiv_fish_23nov2023[ , .N , survey_type ][ ,survey_type, ]
 
 # generate a type table (these codes can be found in MN_Data folder)
 # Assuming you have the data in a vector or a data frame column named 'codes'
-codes <- c("IS", "RS", "PA", "SA", "CR", "WK", "DO", "GM", "CP", "LL", "SS", "NR", "OT", "RE", "XM", "XR", "SD", "TS")
-full_names <- c("Initial Survey", "Re-Survey", "Population Assessment", "Special Assessment", "Creel Survey", "Winter Kill Assessment", 
-                "Dissolved Oxygen Check", "Game Survey", "Collectors Permit", "Large Lake Survey", "Subsurvey", "Natural Reproduction Check", 
-                "Investigational Survey", "Research Survey", "External Management Survey", "External Research Survey", "Standard Survey", "Targeted Survey")
+codes <- c("IS",
+           "RS",
+           "PA",
+           "SA",
+           "CR",
+           "WK",
+           "DO",
+           "GM",
+           "CP",
+           "LL",
+           "SS",
+           "NR",
+           "OT",
+           "RE",
+           "XM",
+           "XR",
+           "SD",
+           "TS")
+full_names <- c("Initial Survey",
+                "Re-Survey",
+                "Population Assessment",
+                "Special Assessment",
+                "Creel Survey",
+                "Winter Kill Assessment", 
+                "Dissolved Oxygen Check",
+                "Game Survey",
+                "Collectors Permit",
+                "Large Lake Survey",
+                "Subsurvey",
+                "Natural Reproduction Check", 
+                "Investigational Survey",
+                "Research Survey",
+                "External Management Survey",
+                "External Research Survey",
+                "Standard Survey",
+                "Targeted Survey")
 
 # Create a data.table
 survey_type_key <- data.table(code = codes, fullname = full_names)
@@ -505,15 +484,13 @@ mn_indiv_fish_23nov2023[ , .N , .(age=!is.na(age))]
 
 ```
 
-
-
 # Merge effort and indiv fish
 ```{r}
 #merge the effort and indiv fish data
 
 
 #scope the merge:
-#99% of the wb in the effort data are represneted in indiv fish data
+#99% of the wb in the effort data are represented in indiv fish data
 sum(mn_indiv_fish_23nov2023[ , unique(lake_id) , ] %in% mn_effort_18aug2023[ , unique(lake_id)])/mn_effort_18aug2023[, length(unique(lake_id)) ,] 
 
 #100% of the wb in the indiv fish data are represneted in  effort data
@@ -527,7 +504,7 @@ setdiff(names(mn_effort_18aug2023), names(mn_indiv_fish_23nov2023))
 
 # setnames(mn_effort_18aug2023, old = "date_clean", new = "date_survey")
 
-#MEMORY HOG PINCH POINT
+###########MEMORY HOG PINCH POINT########################
 #we know that dates are a problem, can we schmooze that join? 
 #we leave many column names out of this merge key to avoid disconnecting things where one dataset has empty info
 flatfish <- merge(mn_effort_18aug2023,mn_indiv_fish_23nov2023, by = c("lake_id", "date_survey" , "sampling_method_abbrev", "survey_type"), suffixes = c("_effort", "_indivfish"), all = T)
@@ -540,10 +517,9 @@ flatfish[ , .N, species]
 
 #check on the annual #s of aged, lengthed, both, and neither numbers
 a <- setnames(
-  dcast(flatfish[ (species == "WAE" & sampling_method %in% c("Standard gill net sets")), .N, .(year = year(date_survey), age = !is.na(age), length = !is.na(length))][order(year, -N)],
+  dcast(flatfish[ (species == "WAE" & sampling_method %in% c("Standard gill net sets")), .N, .(year = lubridate::year(date_survey), age = !is.na(age), length = !is.na(length))][order(year, -N)],
         formula = year ~ age + length, fill = 0 ),
   old = c("FALSE_FALSE", "FALSE_TRUE", "TRUE_TRUE"), new = c("neither", "length_only", "both" ))
-
 
 names(flatfish)
 
@@ -553,12 +529,10 @@ flatfish[ , length(unique(paste(lake_id, date_survey , sampling_method, survey_t
 #sum of all
   flatfish[ , length(unique(paste(lake_id, date_survey , sampling_method, survey_type))) , .(effort = !is.na(state_effort), indiv_fish_dat = !is.na(state_indivfish)) ][ , sum(V1) , ]
 
-  
-  
 #now roll the catch CPUE data back to this bigger file:
   
 ##Context for this next operation:
-#   3. Historical WAE survey duplications show same gear/lake/date cathing many (from CPUE) and zero (from indivfish)
+# Historical WAE survey duplications show same gear/lake/date cathing many (from CPUE) and zero (from indivfish)
 # - Consider dropping the effort table info where we have a HISTORICAL cpue record (or at least scope this strategy)
 
 
@@ -572,7 +546,7 @@ flatfish[ , length(unique(paste(lake_id, date_survey , sampling_method, survey_t
    
    # setnames(mn_cpue_21aug2023, old = "date_clean", new = "date_survey")
    
-  flatfish[mn_cpue_21aug2023[survey_type == "HISTORICAL", , ], on = .(lake_id, date_survey, sampling_method_abbrev) , nomatch = NULL ][ , .(neffcatch = .N, n_cpue = sum(i.total_count), nlen = sum(!is.na(length))) , .(lake_id, date_survey, sampling_method_abbrev, survey_type, i.survey_type) ][order(lake_id,date_survey)] 
+  flatfish[mn_cpue_21aug2023[survey_type == "HISTORICAL", , ], on = .(lake_id, date_survey, sampling_method_abbrev) , nomatch = NULL ][ , .(neffcatch = .N, n_cpue = sum(i.total_count), nlen = sum(!is.na(length))) , .(lake_id, date_survey, sampling_method_abbrev, survey_type, i.survey_type) ][order(lake_id,date_survey)]
   
   
   #for these records we want to push the flatfish record out completely. 
@@ -610,7 +584,7 @@ rbind(
 names(flatfish)
 
 
-  #MEMORY HOG STEP
+  ############MEMORY HOG STEP###############################
   #now bring that together with the flatfish data:
   flatfish <- rbindlist(list(flatfish, mn_cpue_21aug2023 ),
                                fill = TRUE,
@@ -620,29 +594,17 @@ names(flatfish)
   
   #for each of those with both effort and fish data, summarize catch by species (bring effort along too!)   
 flatfish[ !is.na(state_effort)&!is.na(state_indivfish) , .N , .(lake_id, date_survey , sampling_method, survey_type, species, total_effort_1) ]
-
-
-  
 ```
 
-
 # Save an rds to work from 
+This step is not essential, serves as a checkpoint 
 ```{r}
-
-
-
-
 
 # saveRDS(flatfish, file = "Data_and_Scripts\\Data\\output\\mn_flat_effort_indivfish_merge.rds")
 
 
 #this flatfish file is big AF and will slow down Mike's Hansen Lab Computer (32gb RAM)
 # flatfish <- readRDS("Data_and_Scripts/Data/output/mn_flat_effort_indivfish_merge.rds")
-
-
-
-
-
 
 ```
 
@@ -970,11 +932,10 @@ mn_dat[ sex == "U", sex := "Unknown"]
 mn_dat[ sex == "M", sex := "Male"]
 mn_dat[ sex == "F", sex := "Female"]
 mn_dat[ sex == "N" | sex == "" | is.na(sex), sex := NA]
-    
-    
 ```
 
 # Efforts
+The total effort ident is generated in this chunk
 ```{r}
 # effort needs attention. Currently we have a negative effort and no units (nab code to add units from Holly based on gear type)
     #effort
@@ -1011,10 +972,121 @@ mn_dat[ sex == "N" | sex == "" | is.na(sex), sex := NA]
     #                     effort_unit = c(rep("no_unit", 10), rep("hours", 6), rep("haul", 4), rep("set", 23)))
     
     effort_table <- data.table(
-  Code = c("GN", "GDE", "GSH", "GSM", "GST", "GSU", "GNP", "FCI", "TML", "SGN", "GNA", "VGN", "TN", "LTN", "DTN", "TQU", "T38", "THA", "T34", "T1", "STN", "EF", "EW", "EFB", "SEF", "S58", "S18", "SE", "SSE", "AIF", "AOW", "TOU", "ATL", "STL", "TR", "STR", "EXT", "XXX", "MT", "SA", "ZO"),
-  Method = c("Gill net Standard graduated-mesh gill net", "Gill net Deep GN net, in waters colder than 12 o C", "Gill net Shallow GN net, in waters warmer than 12 o C", "Gill net Small-mesh (0.375 and 0.5-in-bar) net", "Gill net Short-term sets, monofilament net", "Gill net Suspended set, any gill net type", "Gill net Large-mesh (1.5, 2.0, 2.5-in bar) net", "Gill net Fish Community Index nets (Ontario)", "Gill net Trammel net", "Gill net Other (special) gill net", "Gill net Standard North American gill net", "Gill net Vertical gill net", "Trap net Standard 0.75-in-mesh double-frame net", "Trap net Large-frame (5x6 ft) net", "Trap net Pair of TN nets, set in double-pot configuration", "Trap net 0.25-in-mesh net", "Trap net 0.375-in-mesh net", "Trap net 0.5-in-mesh net", "Trap net 0.75-in-mesh single-frame net", "Trap net 1.0-in-mesh net", "Trap net Other (special) trap net", "Electrofishing Standard Boat electrofishing", "Electrofishing Fall electrofishing targeting Walleye", "Electrofishing Backpack electrofishing", "Electrofishing Other (special) electrofishing", "Seine 50-ft bag seine, 0.125-in mesh", "Seine 15-ft seine, 0.125-in mesh", "Seine 50-ft bag seine, 0.25-in mesh", "Seine Other (special) seining", "Angling Ice fishing", "Angling Open-water angling", "Angling Tournament angling", "Trot line Normal trot-line configuration", "Trot line Other (special) trot line", "Trawl Large lake trawl", "Trawl Other (special) trawl", "Miscellaneous Fish collected from or by an external source", "Miscellaneous Fish taken by miscellaneous means", "Miscellaneous 0.25-in-mesh minnow trap", "Miscellaneous Fish spawning trap", "Zooplankton Zooplankton sampling gear"),
-  effort_unit = c("net_night", "net_night", "net_night", "net_night", "sets", "net_night", "net_night", "net_night", "net_night", "sets", "net_night", "net_night", "net_night", "net_night", "net_night", "net_night", "net_night", "net_night", "net_night", "net_night","sets", "hours", "hours", "hours", "hours", "hauls", "hauls", "hauls", "hauls", "none", "none", "none", "none", "none", "hours", "hours", "none", "none", "none", "none", "none")
-)
+  Code = c("GN",
+           "GDE",
+           "GSH",
+           "GSM",
+           "GST",
+           "GSU",
+           "GNP",
+           "FCI",
+           "TML",
+           "SGN",
+           "GNA",
+           "VGN",
+           "TN",
+           "LTN",
+           "DTN",
+           "TQU",
+           "T38",
+           "THA",
+           "T34",
+           "T1",
+           "STN",
+           "EF",
+           "EW",
+           "EFB",
+           "SEF",
+           "S58",
+           "S18",
+           "SE",
+           "SSE",
+           "AIF",
+           "AOW",
+           "TOU",
+           "ATL",
+           "STL",
+           "TR",
+           "STR",
+           "EXT",
+           "XXX",
+           "MT",
+           "SA",
+           "ZO"),
+  Method = c("Gill net Standard graduated-mesh gill net",
+             "Gill net Deep GN net, in waters colder than 12 o C",
+             "Gill net Shallow GN net, in waters warmer than 12 o C",
+             "Gill net Small-mesh (0.375 and 0.5-in-bar) net",
+             "Gill net Short-term sets, monofilament net",
+             "Gill net Suspended set, any gill net type",
+             "Gill net Large-mesh (1.5, 2.0, 2.5-in bar) net",
+             "Gill net Fish Community Index nets (Ontario)",
+             "Gill net Trammel net", "Gill net Other (special) gill net",
+             "Gill net Standard North American gill net",
+             "Gill net Vertical gill net", "Trap net Standard 0.75-in-mesh double-frame net",
+             "Trap net Large-frame (5x6 ft) net", "Trap net Pair of TN nets, set in double-pot configuration",
+             "Trap net 0.25-in-mesh net",
+             "Trap net 0.375-in-mesh net",
+             "Trap net 0.5-in-mesh net",
+             "Trap net 0.75-in-mesh single-frame net",
+             "Trap net 1.0-in-mesh net",
+             "Trap net Other (special) trap net",
+             "Electrofishing Standard Boat electrofishing",
+             "Electrofishing Fall electrofishing targeting Walleye",
+             "Electrofishing Backpack electrofishing", "Electrofishing Other (special) electrofishing", "Seine 50-ft bag seine, 0.125-in mesh",
+             "Seine 15-ft seine, 0.125-in mesh",
+             "Seine 50-ft bag seine, 0.25-in mesh",
+             "Seine Other (special) seining",
+             "Angling Ice fishing", "Angling Open-water angling",
+             "Angling Tournament angling", "Trot line Normal trot-line configuration",
+             "Trot line Other (special) trot line", "Trawl Large lake trawl",
+             "Trawl Other (special) trawl",
+             "Miscellaneous Fish collected from or by an external source",
+             "Miscellaneous Fish taken by miscellaneous means",
+             "Miscellaneous 0.25-in-mesh minnow trap",
+             "Miscellaneous Fish spawning trap",
+             "Zooplankton Zooplankton sampling gear"),
+  effort_unit = c("net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "sets",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "sets",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "net_night",
+                  "sets",
+                  "hours",
+                  "hours",
+                  "hours",
+                  "hours",
+                  "hauls",
+                  "hauls",
+                  "hauls",
+                  "hauls",
+                  "none",
+                  "none",
+                  "none",
+                  "none",
+                  "none",
+                  "hours",
+                  "hours",
+                  "none",
+                  "none",
+                  "none",
+                  "none",
+                  "none"))
     
     
     #add effort units to gear tbale       
@@ -1061,7 +1133,8 @@ mn_dat[ sex == "N" | sex == "" | is.na(sex), sex := NA]
               mn_dat[ , c("lake_name_effort","lake_name_indivfish") := NULL]
               
 #date
-              sort(names(mn_dat))
+             
+               sort(names(mn_dat))
               
                   mn_dat %>% 
       select(contains("date")) %>% 
@@ -1108,7 +1181,7 @@ mn_dat[ sex == "N" | sex == "" | is.na(sex), sex := NA]
           #         on = .(lake_id, date_survey, sampling_method) , ]       
           #       
         
-        #flag records where two total efforts are happenign in one survey for a gear: 20988 records 
+        #flag records where two total efforts are happening in one survey for a gear: 20988 records 
                 mn_dat[mn_dat[ , .N ,.( lake_id, date_survey, survey_type, sampling_method, total_effort_1, total_effort_unit, nothing_caught ) ][ #take the summary table, 
                   mn_dat[ , .N ,.( lake_id, date_survey, survey_type, sampling_method,
                                    total_effort_1, total_effort_unit, nothing_caught
@@ -1139,8 +1212,34 @@ mn_dat[ , total_effort_nothing_caught :=  all(is.na(species))  , .(total_effort_
 mn_dat[ , .N , total_effort_nothing_caught == nothing_caught]
 mn_dat[ ,nothing_caught := NULL]
 
-```
+#do we have multipule TEIs within the same lake-gear-year/date?
+mn_dat %>% 
+  group_by(lake_id, sampling_method, date_survey) %>% 
+  summarise(n = n_distinct(total_effort_ident)) %>% 
+  filter(n > 1) %>% 
+  print(n = nrow(.))
 
+mn_dat %>% 
+  filter(lake_id == "11014700" & 
+           date_survey == "1997-06-30" & 
+           sampling_method == "Standard gill net sets") %>% 
+  distinct(total_effort_ident, sampling_method, survey_type, total_effort_1, date_survey, date_sample)
+#here we see that there is truly two total effort idents from the same date in this lake, but we maybe want to reconsider what our date structure is 
+
+mn_dat %>% 
+  filter(lake_id == "82005400" & 
+           date_survey == "1986-06-17" & 
+           sampling_method == "Standard gill net sets") %>% 
+  distinct(total_effort_ident, sampling_method, survey_type, total_effort_1, date_survey, date_sample, total_effort_nothing_caught)
+#this one is only split by effort 
+
+mn_dat %>% 
+  filter(lake_id == "86019300" & 
+           date_survey == "2017-08-07" & 
+           sampling_method == "Seining, 50 foot 1/8 in Beach Seine for IBI") %>% 
+  distinct(total_effort_ident, sampling_method, survey_type, total_effort_1, date_survey, date_sample, total_effort_nothing_caught)
+#this one appears to be the same effort by one shows nothing caught
+```
 
 #notes cols tidying
 ```{r}
@@ -1379,7 +1478,6 @@ mn_dat[ ,nothing_caught := NULL]
   
 ```
 
-
 #sampling_methods
 ```{r}
 mn_dat <- clean_names(mn_dat) #clean up names a touch
@@ -1397,6 +1495,8 @@ mn_dat[ , .N , gear_data_notes ]
     mn_dat[mesh == "NA", mesh := NA]
   mn_dat[ , n_netters := as.numeric(str_extract(gear_data_notes, "(?<=NUMBER_OF_NETTERS:)[^_]+"))]
     mn_dat[ ,summary(n_netters) ]
+    
+    ##########memory intensive##############
   mn_dat[ , daylight_sampling := str_extract(gear_data_notes, "(?<=DAYLIGHT_SAMPLING:)[^_]+")]
     mn_dat[ , .N, .(daylight_sampling) ]
     mn_dat[ daylight_sampling %in% c("N, Y", "Y, N"), daylight_sampling := NA , ]
@@ -1442,7 +1542,6 @@ mn_dat[ , ':='(gear_1 = NULL, gear_2 = NULL, n_netters = NULL, daylight_sampling
 rm(gear_xwalk, gear_table_mn, species_codes_mn, note_revisions, a, cde)
 
 ```
-
 
 #NHDids
 ```{r}
@@ -1514,12 +1613,23 @@ mn_dat[ , length(unique(date_survey)) , total_effort_ident ][order(-V1)]
 mn_dat[ , length(unique(date_sample)) , total_effort_ident ][order(-V1)]
 mn_dat[ , date_total_effort_ident := date_survey ]
 
+#survey date may not best represent when a gear was used in a lake, lets create a better variable
+#lets take the first date from the sample date to apply to the total effort ident date
+    #this date stems from the individual fish records, thus will probably be NA for a lot of records
+         #in those cases we will back fill the total effort ident date with the survey date
+#we used the survey date in the total effort ident generation, but this will not matter, we used specific enough grouping variables to split same gears within a lake year that should not be included in the same total effort ident 
 
+#to create the total effort ident date, lets create a grouping variable 
+mn_dat <- mn_dat %>% 
+  group_by(total_effort_ident) %>% 
+  mutate(date_total_effort_ident = min(date_sample, na.rm = T))
 
-
-
-
-
+mn_dat %>% 
+  filter((lubridate::year(date_survey) == "2018" & lake_id == "11020300") |
+           (lubridate::year(date_survey) == "1997" & lake_id == "11014700")) %>% 
+  distinct(total_effort_ident, survey_type, sampling_method_1, date_survey, date_total_effort_ident, date_sample, total_effort_1) %>% 
+  print(n = nrow(.))
+#here we can see two lakes with many sampling gears in a lake-year. All gears share a survey date. Total effort ident date varys by gear but is the same within a total effort ident, sample date is more refined - the date a specific fish was actually caught. This is a good example because now with total effort ident we know that ice fishing did not take place in May... that would be a rough spring
 ```
 
 #Column Names
@@ -1542,8 +1652,8 @@ mn_dat <- mn_dat %>%
     date_total_effort_ident = date_total_effort_ident,
     date_sub_effort_ident = as.IDate(NA),
     date_sample = date_sample,
-    year = year(date_survey),
-    month = month(date_survey),
+    year = lubridate::year(date_survey),
+    month = lubridate::month(date_survey),
     
     survey_id = as.character(NA),
     survey_type = survey_type,
@@ -1900,1409 +2010,206 @@ mn_dat[is.na(total_effort_1) , .N , .(total_effort_1_units, total_effort_2_units
 
 
 #flags
-
 mn_dat[ , .N, flag ]
 
-
-
-```
-
-#Large Lakes addition
-Data gathered from the large lakes was not as abundant as we hoped. In communication with MN DNR staff, we collected a more inclusive large lake data file. Data gathered with gill net surveys from the 10 MN lakes. Each lake ranges in data availability. The process goes:
-1. scope the effort data reported
-2. scope the fish data reported
-3. combine fish and effort data
-4. aggregate historical pepin data (1965-2005) that were not included in LL agency update 
-5. combine ll and historical pepin data
-6. remove previous surveys from the statwide data base where they get an update here
-7. add in new ll data 
-
-Items to do:
-1. ensure that leaving columns off won't screw the hive
-2. ensure columns are the correct type 
-
-
-#Large Lake overall agregation
-```{r}
-#effort data 
-ll_effort <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/large_lakes_data_2025/02tbl_GN_Effort.csv") %>% 
-  rename(SURVEY_ID = ID) %>% 
-  mutate(original_file = "02tbl_GN_Effort.csv")
-
-glimpse(ll_effort)
-
-ll_effort %>% 
-  summarise(n_distinct_ID = n_distinct(SURVEY_ID))
-#survey ID appears to be a unique identifier for surveys in MN,
-#however, those surveys appear to be at a net level - our sub effort
-
-ll_effort %>% 
-  group_by(NAME, Year) %>% 
-  summarise(nets = n_distinct(STATION_CODE),
-            n_ids = n_distinct(SURVEY_ID)) %>% 
-  filter(nets != n_ids)
-#there are only 12 times within a lake-year that there are not the same number of ids as nets 
-#there are always more ids than nets for those cases
-
-
-ll_effort %>% 
-  group_by(SAMP_STA_TYPE_NAME, GEAR_TP) %>% 
-  count()
-#exploring the naming of sampling methods 
-
-ll_effort %>% 
-  group_by(Year, NAME, STATION_CODE) %>% 
-  count() %>% 
-  filter(n > 1) %>% 
-  print(n = nrow(.))
-#looks like year-name-station code is unique to each net, but there are sometimes multiple records for the same net within a year
-
-ll_effort %>% 
-  group_by(Year, NAME, STATION_CODE) %>% 
-  summarise(n_dates = n_distinct(SURVEY_DATE),
-            n_start_date = n_distinct(START_DATE),
-            n_end_date = n_distinct(END_DATE),
-            n_sample_station_number = n_distinct(SAMP_STATION_NBR),
-            n = n()) %>% 
-  filter(n >1) %>% 
-  print(n = nrow(.))
-
-#look at an example 
-check <- ll_effort %>% 
-  filter(NAME == "Pepin" & Year == "1998" & STATION_CODE == "GN1")
-#this shows repetitive combos differ by survey date 
-
-#lets check another example
-check <- ll_effort %>% 
-  filter(NAME == "Mille Lacs" & Year == "1995" & STATION_CODE == "GN11")
-#the only thing that really varies between the two records is the bottom depth and old id - do we just trust the survey id code? Will have to explore the data more
-rm(check)
-
-##############################################################################
-#reading in total effort reported by agency 
-total_effort <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/large_lakes_data_2025/total_nets.csv") %>%
-  mutate(Lake = case_when(Lake == "Red" ~ "Red (Upper Red)",
-                          TRUE ~ Lake)) %>% 
-  mutate(WB_NM = Lake) %>% 
-  rename(ID_total_effort = ID)
-
-#############################################################################
-#fish data
-ll_fish <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/large_lakes_data_2025/MN_LL_FISH.csv") %>% 
-  rename(STATION_CODE = STATION) %>% 
-  mutate(original_file = "MN_LL_FISH.csv")
-
-glimpse(ll_fish)
-#columns that maybe be useful in a survey Xwalk: STATION_CODE, GEARTP, WB_NM, SURVEY_ID, ID
-
-ll_fish %>% 
-  distinct(SURVEY_ID)
-
-ll_fish %>% 
-  distinct(SURVEY_ID, STATION_CODE)
-
-#lets look at an examples
-ll_effort %>% 
-  filter(SURVEY_ID %in% c("1", "50", "200", "500", "5000")) %>% 
-  select(SURVEY_ID, NAME, Year, STATION_CODE)
-
-ll_fish %>% 
-  filter(SURVEY_ID %in% c("1", "50", "200", "500", "5000")) %>% 
-  distinct(SURVEY_ID, WB_NM, STATION_CODE)
-#bomb, looks like we should be able to join on survey id
-
-#############################################################################
-#combined data
-ll_fish_effort <- ll_fish %>% 
-  left_join(ll_effort, by = c("SURVEY_ID"), suffix = c("_fish", "_effort"))
-
-ll_fish_effort <- ll_fish_effort %>% 
-  left_join(total_effort, by = c("WB_NM", "Year"))
-
-ll_fish_effort %>% 
-  group_by(Lake, Year, is.na(Number_Nets)) %>% 
-  count() %>% 
-  filter(`is.na(Number_Nets)` == "TRUE")
-
-
-glimpse(ll_fish_effort)
-
-ll_fish_effort %>% 
-  filter(STATION_CODE_fish != STATION_CODE_effort)
-
-ll_fish_effort %>% 
-  distinct(SURVEY_ID, STATION_CODE_fish, STATION_CODE_effort)
-
-ll_fish_effort %>% 
-  distinct(SURVEY_ID)
-
-#holy cow - it looks like the join actually worked - there are quite a few nothing caught that will be worth exploring
-
-ll_fish_effort %>%
-  group_by(NAME, Year, STATION_CODE_fish, SURVEY_ID) %>% 
-  count() %>% 
-  group_by(NAME, Year, STATION_CODE_fish) %>% 
-  count() %>% 
-  filter(n >1)
-#this shows that NAME, Year, STATION_CODE applies to more than one station number some times
-
-ll_fish_effort %>% 
-  group_by(NAME, Year, STATION_CODE_effort) %>% 
-  summarise(n_survey_ids = n_distinct(SURVEY_ID)) %>% 
-  filter(n_survey_ids >1)
-
-#now we need to find out what is happening to those left over surveys
-ll_effort %>% 
-  anti_join(ll_fish, by = c("SURVEY_ID", "STATION_CODE")) %>% 
-  group_by(original_file) %>% 
-  count()
-
-#do the number of unique nets match the the total effort reported?
-ll_fish_effort %>% 
-  group_by(WB_NM, Year, Number_Nets) %>% 
-  summarise(n_stations = n_distinct(STATION_CODE_fish)) %>% 
-  filter(Number_Nets != n_stations) %>% 
-  print(n = nrow(.))
-#not excatly 
-  
-#from above we have 11443 unique survey ids from the effort file and 10756 from the fish file (diff of 687)
-#that is the exact amount from the anti join - meaning all fish found an effort home
-
-# nofish <- ll_effort %>% 
-#   anti_join(ll_fish, by = c("SURVEY_ID", "STATION_CODE"))
-#the code above uses the effort file to to fine nets that did not catch fish - the latest version uses the total nets instead 
-
-# nofish %>% 
-#   group_by(NAME, Year) %>% 
-#   count() %>% 
-#   arrange(NAME, desc(Year)) %>% 
-#   print(n = nrow(.))
-
-##creating flag for no fish surveys
-# nofish <- nofish %>% 
-#   mutate(flag = "no catch reported by agency, 0s could be misleading") %>% 
-#   rename(original_file_effort = original_file,
-#          STATION_CODE_effort = STATION_CODE)
-
-#now row bind the nothing caught surveys
-
-ll_fish_effort %>% 
-  group_by(is.na(SP)) %>% 
-  count()
-
-ll_fish_effort %>% 
-  filter(is.na(SP)) %>% 
-  glimpse()
-#two na fish species - that's not going to fly
-#its hard to make any quick sense of what they could be - let's just remove them
-
-ll_fish_effort <- ll_fish_effort %>% 
-  filter(!is.na(SP))
-
-#now add in no fish efforts and make nothing caught columns - after discussion of using overall total effort this is commented out
-# ll_fish_effort <- ll_fish_effort %>% 
-#   bind_rows(nofish)
-
-check <- ll_fish %>% 
-  mutate(FISH_COUNT = case_when(is.na(FISH_COUNT) ~ 1,
-                                TRUE ~ FISH_COUNT)) %>% 
-  group_by(FISH_COUNT) %>% 
-  count() %>%
-  mutate(total = FISH_COUNT * n,
-         left_over = total - n) %>% 
-  print(n = nrow(.))
-sum(check$left_over)
-rm(check)
-#we should uncount 11492 fish 
-
-ll_fish %>% 
-  mutate(FISH_COUNT = case_when(is.na(FISH_COUNT) ~ 1,
-                                TRUE ~ FISH_COUNT)) %>% 
-  filter(FISH_COUNT != 1) %>% 
-  filter(!is.na(WT_G)) %>% 
-  group_by(SP, WT_G) %>% 
-  count() %>% 
-  print(n = nrow(.))
-#sweet, doesn't look like we have any batched weight fish - all fish batch counted do not have a weight
-
-########################## Let's Hive #####################################
-ll_fish_effort <- ll_fish_effort %>% 
-  mutate(FISH_COUNT = case_when(is.na(FISH_COUNT) ~ 1,
-                                TRUE ~ FISH_COUNT)) %>% 
-  uncount(FISH_COUNT)
-
-#lets create a total effort ident - we currently have sub effort idents
-ll_fish_effort <- ll_fish_effort%>% 
-  # group_by(NAME, Year, STATION_CODE_effort) %>% 
-  # mutate(sub_effort_ident = cur_group_id(),
-  #        sub_effort_ident = paste0(sub_effort_ident, SURVEY_ID),
-  #        sub_effort_1 = 1) %>% 
-  group_by(NAME, Year) %>% 
-  mutate(total_effort_ident = cur_group_id(),
-         #total_effort_1 = sum(n_distinct(sub_effort_ident))
-         total_effort_1 = Number_Nets
-         ) %>% 
-  ungroup()
-
-#above I took the reported total effort from the DNR - lets compare this to the unique net ids within a total effort ident to see how they compare
-ll_fish_effort %>% 
-  group_by(total_effort_ident, WB_NM, Year, total_effort_1) %>% 
-  summarise(n_nets = n_distinct(STATION_CODE_effort)) %>% 
-  ungroup() %>% 
-  summarise(n_agree = sum(total_effort_1 == n_nets),
-            n_diff = sum(total_effort_1 != n_nets),
-            total_surveys = n_agree + n_diff,
-            prop_diff = n_diff/total_surveys)
-#roughly 10% of total effort idents different between the number of sub effort nets and the total effort reported by the DNR - lets look at those cases 
-
-ll_fish_effort %>% 
-  group_by(total_effort_ident, WB_NM, Year, total_effort_1) %>% 
-  summarise(n_nets = n_distinct(STATION_CODE_effort)) %>% 
-  filter(total_effort_1 != n_nets) %>% 
-  print(n = nrow(.))
-
-#lets create a flag for these surveys
-effort_flag <- ll_fish_effort %>% 
-  group_by(total_effort_ident, WB_NM, Year, total_effort_1) %>% 
-  summarise(n_nets = n_distinct(STATION_CODE_effort)) %>% 
-  filter(total_effort_1 != n_nets) %>%
-  mutate(flag = "unique # of nets does not match reported total effort, use caution in generating cpue") %>% 
-  select(-n_nets)
-
-ll_fish_effort <- ll_fish_effort %>% 
-  left_join(effort_flag) 
-rm(effort_flag)
-
-ll_fish_effort %>% 
-  group_by(total_effort_ident, flag) %>% 
-  count() %>% 
-  filter(!is.na(flag))
-#we see here that 39 total effort idents pick up a flag - perfect
-
-
-#fish species - this is a long one
-ll_fish_effort <- ll_fish_effort %>% 
-  mutate(species_1 = case_when(# first fish codes are converted,
-                            SP == "LMB" ~ "largemouth_bass",
-                            SP == "SMB" ~ "smallmouth_bass",
-                            SP == "WAE" ~ "walleye", 
-                            SP == "WTS" ~ "white_sucker",
-                            SP == "BLC" ~ "black_crappie",
-                            SP == "YEP" ~ "yellow_perch",
-                            SP == "BLG" ~ "bluegill",
-                            SP == "NOP" ~ "northern_pike",
-                            SP == "PMK" ~ "pumpkinseed", 
-                            SP == "RKB" ~ "rock_bass",
-                            SP == "BKF" ~ "banded_killifish",
-                            SP == "IOD" ~ "iowa_darter",
-                            SP == "BCS" ~ "blackchin_shiner",
-                            SP == "BLB" ~ "black_bullhead",
-                            SP == "JND" ~ "johnny_darter",
-                            SP == "GOS" ~ "golden_shiner",
-                            SP == "YEB" ~ "yellow_bullhead",
-                            SP == "BRB" ~ "brown_bullhead",
-                            SP == "CNM" ~ "central_mudminnow",
-                            SP == "NRD" ~ "northern_redbelly_dace",
-                            SP == "CSH" ~ "chinook_salmon",
-                            SP == "MTS" ~ "mottled_sculpin",
-                            SP == "TPM" ~ "tadpole_madtom",
-                            SP == "SHR" ~ "shorthead_redhorse",
-                            SP == "HSF" ~ "hybrid_sunfish",
-                            SP == "BOF" ~ "bowfin",
-                            SP == "WDS" ~ "weed_shiner",
-                            SP == "BNM" ~ "bluntnose_minnow",
-                            SP == "BND" ~ "blacknose_dace",
-                            SP == "OTM" ~ "minnows",
-                            SP == "FHM" ~ "fathead_minnow",
-                            SP == "FND" ~ "finescale_dace",
-                            SP == "SDM" ~ "slender_madtom",
-                            SP == "SPO" ~ "spottail_shiner",
-                            SP == "BNS" ~ "blacknose_shiner",
-                            SP == "BKT" ~ "brook_trout",
-                            SP == "SPT" ~ "splake",
-                            SP == "RBT" ~ "rainbow_trout",
-                            SP == "BNT" ~ "brown_trout",
-                            SP == "BUB" ~ "burbot",
-                            SP == "BIB" ~ "bigmouth_buffalo",
-                            SP == "BLH" ~ "bullheads",
-                            SP == "TLC" ~ "cisco",
-                            SP == "CCF" ~ "channel_catfish",
-                            SP == "BSD" ~ "blackside_darter",
-                            SP == "BKS" ~ "brook_silverside",
-                            SP == "LED" ~ "least_darter",
-                            SP == "LGP" ~ "logperch",
-                            SP == "SLR" ~ "silver_redhorse",
-                            SP == "HHC" ~ "hornyhead_chub",
-                            SP == "MUE" ~ "muskellunge",
-                            SP == "TRP" ~ "trout_perch",
-                            SP == "RHS" ~ "redhorse",
-                            SP == "CAP" ~ "common_carp",
-                            SP == "MMS" ~ "mimic_shiner",
-                            SP == "EMS" ~ "emerald_shiner",
-                            SP == "SUN" ~ "sunfish",
-                            SP == "CRC" ~ "creek_chub",
-                            SP == "GSF" ~ "green_sunfish",
-                            SP == "SFS" ~ "spotfin_shiner",
-                            SP == "SHI" ~ "shiners",
-                            SP == "BST" ~ "brook_stickleback",
-                            SP == "CSR" ~ "central_stoneroller",
-                            SP == "SDS" ~ "sand_shiner",
-                            SP == "GRR" ~ "greater_redhorse",
-                            SP == "PGS" ~ "pugnose_shiner",
-                            SP == "SMS" ~ "slimy_sculpin",
-                            SP == "LND" ~ "longnose_dace",
-                            SP == "FRD" ~ "freshwater_drum",
-                            SP == "WHC" ~ "white_crappie",
-                            SP == "DAR" ~ "darters",
-                            SP == "SAR" ~ "sauger",
-                            SP == "FCF" ~ "flathead_catfish",
-                            SP == "BMS" ~ "bigmouth_shiner",
-                            SP == "LKS" ~ "lake_sturgeon",
-                            SP == "LKW" ~ "lake_whitefish",
-                            SP == "BRM" ~ "brassy_minnow",
-                            SP == "SLM" ~ "mississippi_silvery_minnow",
-                            SP == "GLR" ~ "golden_redhorse",
-                            SP == "OTS" ~ "suckers",
-                            SP == "NST" ~ "ninespine_stickleback",
-                            SP == "GOE" ~ "goldeye",
-                            SP == "QBS" ~ "quillback",
-                            SP == "RVS" ~ "river_shiner",
-                            SP == "LES" ~ "longear_sunfish",
-                            SP == "CHL" ~ "chestnut_lamprey",
-                            SP == "RRH" ~ "river_redhorse",
-                            SP == "WHB" ~ "white_bass",
-                            SP == "OSS" ~ "orangespotted_sunfish",
-                            SP == "STC" ~ "stonecat",
-                            SP == "SNG" ~ "shortnose_gar",
-                            SP == "RFS" ~ "rosyface_shiner",
-                            SP == "CMS" ~ "carmine_shiner",
-                            SP == "SAB" ~ "smallmouth_buffalo",
-                            SP == "GIS" ~ "gizzard_shad",
-                            SP == "LNG" ~ "longnose_gar",
-                            SP == "RCS" ~ "river_carpsucker",
-                            SP == "SLS" ~ "shovelnose_sturgeon",
-                            SP == "LAT" ~ "lake_trout",
-                            SP == "TME" ~ "tiger_muskellunge",
-                            SP == "PRD" ~ "pearl_dace",
-                            SP == "PLS" ~ "pallid_shiner",
-                            SP == "RBS" ~ "rainbow_smelt",
-                            SP == "RBD" ~ "rainbow_darter",
-                            SP == "LNS" ~ "longnose_sucker",
-                            SP == "SJC" ~ "shortjaw_cisco",
-                            SP == "DWS" ~ "deepwater_sculpin",
-                            SP == "SHS" ~ "spoonhead_sculpin",
-                            SP == "BDD" ~ "banded_darter",
-                            SP == "MOE" ~ "mooneye",
-                            SP == "BLS" ~ "blue_sucker",
-                            SP == "SLC" ~ "silver_chub",
-                            SP == "HFS" ~ "highfin_carpsucker",
-                            SP == "MCP" ~ "mirror_carp",
-                            SP == "WAS" ~ "walleye/sauger",
-                            SP == "AME" ~ "american_eel",
-                            SP == "GOF" ~ "goldfish",
-                            SP == "SPS" ~ "spotted_sucker",
-                            SP == "PAH" ~ "paddlefish",
-                            SP == "RVD" ~ "river_darter",
-                            SP == "NHS" ~ "northern_hog_sucker",
-                            SP == "BHM" ~ "bullhead_minnow",
-                            SP == "WSD" ~ "western_sand_darter",
-                            SP == "MDD" ~ "mud_darter",
-                            SP == "SIL" ~ "silver_lamprey",
-                            SP == "SKJ" ~ "skipjack_herring",
-                            SP == "PGM" ~ "pugnose_minnow",
-                            SP == "BKB" ~ "black_buffalo",
-                            SP == "FTD" ~ "fantail_darter",
-                            SP == "YLB" ~ "yellow_bass",
-                            SP == "PRP" ~ "pirate_perch",
-                            SP == "LKC" ~ "lake_chub",
-                            SP == "RIR" ~ "river_ruffe",
-                            SP == "WHP" ~ "white_perch",
-                            SP == "ALW" ~ "alewife",
-                            SP == "SEL" ~ "sea_lamprey",
-                            SP == "BHC" ~ "bighead_carp",
-                            SP == "GLD" ~ "gilt_darter",
-                            SP == "CRD" ~ "crystal_darter",
-                            SP == "SMT" ~ "speckled_madtom",
-                            SP == "RDS" ~ "red_shiner",
-                            SP == "WAM" ~ "warmouth",
-                            SP == "CIS" ~ "cisco",
-                            SP == "CPS" ~ "carpsucker",
-                            SP == "CRP" ~ "crappie",
-                            SP == "HCR" ~ "hybrid_crappie",
-                            SP == "SCU" ~ "sculpin",
-                            SP == "SHD" ~ "slenderhead_darter",
-                            SP == "SIP" ~ "northern_pike_silver_phase",
-                            SP == "UK1" ~ "unknown_fish",
-                            SP == "UK2" ~ "unknown_fish",
-                            # below unknown codes specified as such
-                            SP == "LXB" ~ "see_ambiguous_species_code",
-                            TRUE ~ SP
-                          ))
-
-ll_fish_effort %>% 
-  group_by(STD_SAMPLING_FLAG, CPUE) %>% 
-  count()
-
-#note columns
-#gear data notes - BOTTOM_DEPTH_1ST_END_FEET, BOTTOM_DEPTH_2nd_END_FEET, MESH_SIZE_1st_end_inches, Start_Time, End_Time
-#location notes - there could be some location notes in the crew notes/comments.. is it worth moving
-#notes_1 - MESH, CREW_NOTES, COMMENTS
-ll_fish_effort %>% 
-  mutate(gear_data_notes = paste0("start_time: ", Start_Time, "; ",
-                                  "end_time: ", End_Time, "; ",
-                                  "depth_end_1_ft: ", BOTTOM_DEPTH_1ST_END_FEET, "; ",
-                                   "depth_end_2_ft: ", BOTTOM_DEPTH_2ND_END_FEET, "; ",
-                                  "mesh_end_1_in: ", MESH_SIZE_1ST_END_INCHES, "; "),
-         notes_1 = paste0("mesh_fish_capture: ", MESH, "; ",
-                          "crew_notes: ", CREW_NOTES, "; ",
-                          "comments: ", COMMENTS, "; ")) %>% 
-  distinct(gear_data_notes, notes_1) %>% 
-  glimpse()
-
-ll_fish_effort <- ll_fish_effort %>% 
-  mutate(
-    gear_data_notes = paste0(
-      ifelse(!is.na(Start_Time), paste0("start_time: ", Start_Time, "; "), ""),
-      ifelse(!is.na(End_Time), paste0("end_time: ", End_Time, "; "), ""),
-      ifelse(!is.na(BOTTOM_DEPTH_1ST_END_FEET), paste0("depth_end_1_ft: ", BOTTOM_DEPTH_1ST_END_FEET, "; "), ""),
-      ifelse(!is.na(BOTTOM_DEPTH_2ND_END_FEET), paste0("depth_end_2_ft: ", BOTTOM_DEPTH_2ND_END_FEET, "; "), ""),
-      ifelse(!is.na(MESH_SIZE_1ST_END_INCHES), paste0("mesh_end_1_in: ", MESH_SIZE_1ST_END_INCHES, "; "), "")
-    ),
-    notes_1 = paste0(
-      ifelse(!is.na(MESH), paste0("mesh_fish_capture: ", MESH, "; "), ""),
-      ifelse(!is.na(CREW_NOTES), paste0("crew_notes: ", CREW_NOTES, "; "), ""),
-      ifelse(!is.na(COMMENTS), paste0("comments: ", COMMENTS, "; "), "")
-    )
-  ) %>% 
-  mutate(
-    gear_data_notes = str_remove(gear_data_notes, "; $"),  # Remove trailing semicolon
-    notes_1 = str_remove(notes_1, "; $"),  # Remove trailing semicolon
-    gear_data_notes = na_if(gear_data_notes, ""),  # Replace empty string with NA
-    notes_1 = na_if(notes_1, "")  # Replace empty string with NA
-  )
-
-ll_fish_effort %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  print(n = nrow(.))
-
-ll_fish_effort %>% 
-  group_by(flag) %>% 
-  count()
-
-#auto flags for length and weight
-length_weight_flag_1 <- ll_fish_effort %>% 
-  #filter out surveys that have no catch
-  filter(!is.na(species_1)) %>% 
-  #group by species to create z score for weight and length
-  #flag created for fish more or less than 10 sd 
-  #add this flag to the flag column with coalesce
-  group_by(species_1) %>% 
-  mutate(mean_length = mean(LEN_MM, na.rm = TRUE),
-         mean_weight = mean(WT_G, na.rm = TRUE),
-         sd_length = sd(LEN_MM, na.rm = TRUE),
-         sd_weight = sd(WT_G, na.rm = TRUE),
-         z_score_length = (LEN_MM - mean_length) / sd_length,
-         z_score_weight = (WT_G - mean_weight) / sd_weight,
-         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", "; ", coalesce(flag, "")),
-                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = case_when(LEN_MM == 0 | WT_G == 0 ~ paste("length or weight reported as 0", "; ", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = na_if(flag, "")) %>% 
-  ungroup()
-
-length_weight_flag_2 <- length_weight_flag_1 %>% 
-  filter((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
-           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10))) %>% 
-  group_by(species_1) %>% 
-  mutate(mean_length = mean(LEN_MM, na.rm = TRUE),
-         mean_weight = mean(WT_G, na.rm = TRUE),
-         sd_length = sd(LEN_MM, na.rm = TRUE),
-         sd_weight = sd(WT_G, na.rm = TRUE),
-         z_score_length = (LEN_MM - mean_length) / sd_length,
-         z_score_weight = (WT_G - mean_weight) / sd_weight,
-         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", "; ", coalesce(flag, "")),
-                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = na_if(flag, "")) %>% 
-  ungroup()
-
-# no_effort_flags <- ll_fish_effort %>% 
-#   filter(is.na(species_1))
-
-combined_flags <- length_weight_flag_1 %>% 
-   filter(!((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
-           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10)))) %>% 
-  bind_rows(length_weight_flag_2) %>% 
-  #bind_rows(no_effort_flags) %>% 
-  select(total_effort_ident,
-         #sub_effort_ident,
-         species_1,
-         LEN_MM,
-         WT_G,
-         flag) %>% 
-  distinct()
-
-combined_flags %>% 
-  group_by(flag) %>% 
-  count()
-
-length_weight_flag_1 %>% 
-  group_by(flag) %>% 
-  count()
-
-length_weight_flag_2 %>% 
-  group_by(flag) %>% 
-  count()
-
-length_weight_flag_1 %>% 
-  filter(str_detect(flag, "unlikely")) %>% 
-  select(flag)
-
-length_weight_flag_2 %>% 
-  filter(str_detect(flag, "unlikely")) %>% 
-  select(flag)
-
-combined_flags %>% 
-  filter(str_detect(flag, "unlikely")) %>% 
-  select(flag)
-
-combined_flags %>% 
-  filter(str_detect(flag, "#")) %>% 
-  group_by(total_effort_ident) %>% 
-  count()
-
-rm(length_weight_flag_1, length_weight_flag_2)
-
-#we can left join these flags to the data 
-ll_fish_effort <- ll_fish_effort %>% 
-  ungroup() %>% 
-  select(-flag) %>% 
-  left_join(combined_flags, relationship = "many-to-one") 
-
-ll_fish_effort %>% 
-  group_by(flag) %>% 
-  count()
-
-rm(combined_flags)
-
-ll_fish_effort %>% 
-  filter(str_detect(flag, "unlikely") | str_detect(flag, "reported as")) %>% 
-  select(flag)
-
-ll_fish_effort %>% 
-  filter(str_detect(flag, "#")) %>% 
-  select(flag)
-
-ll_fish_effort %>% 
-  group_by(is.na(flag)) %>% 
-  count()
-
-#missing spacial data
-ll_fish_effort <- ll_fish_effort %>% 
-  group_by(NAME) %>% 
-  mutate(lake_id = DOW_KITTLE) %>% 
-  fill(lake_id, .direction = "updown") %>% 
-  ungroup()
-
-#nothing caught columns
-ll_fish_effort <- ll_fish_effort %>% 
-  group_by(total_effort_ident) %>% 
-  mutate(total_effort_nothing_caught = is.na(species_1)) %>% 
-  ungroup()
-
-# ll_fish_effort %>% 
-#   group_by(total_effort_ident) %>% 
-#   summarise(
-#     num_sub_efforts = n_distinct(sub_effort_ident),
-#     num_nothing_caught = sum(sub_effort_nothing_caught == T),
-#     total_flag = first(total_effort_nothing_caught)
-#   ) %>% 
-#   filter(num_nothing_caught != 0) %>% 
-#   print(n = nrow(.))
-#we can see that when all sub efforts are na within a total effort than total effort nothing caught is T, otherwise it is false 
-
-#as a quick check, our 783323 total fish records make a difference of 11490 from the original file - this is perfect given our uncount and removal of two records with NA species. 
-
-# age and aging structure
-aging_check <- ll_fish_effort %>% 
-  distinct(NAME, Year, STATION_CODE_effort, LEN_MM, WT_G, species_1, OFF_AGE, AGE_SRC, CALCIFIED_STRUC_TYPE_NAME, SERIAL) %>% 
-  arrange(STATION_CODE_effort, LEN_MM, WT_G, OFF_AGE, SERIAL)
-#when you arrange by net, length, weight, species, serial - it is pretty clear the serial number is for identifying individual fish
-#it looks like we have a ton of obs where there is more than one observation of a fish within a sub effort ident (which includes length, weight, and age). This leads me to think there are multiple fish with different aging types 
-
-check <- aging_check %>% 
-  filter(STATION_CODE_effort == "GN1" & NAME == "Vermilion" & Year == 2018 & species_1 == "walleye")
-rm(check)
-#in this example of a net, SERIAL looks like a unique fish identifier for when a fish is aged - but is that always the case?
-
-# what about for cases when the serial is na, null, or lengths vary within a serial?
-
-# filters for where there are multiple length values within a net, serial 
-check <- aging_check %>% 
-  filter(SERIAL != "null" & !is.na(SERIAL)) %>% 
-  group_by(NAME, Year, STATION_CODE_effort, species_1, SERIAL) %>% 
-  filter(n_distinct(LEN_MM) > 1) %>% 
-  ungroup() %>% 
-  arrange(NAME, Year, STATION_CODE_effort, species_1, SERIAL, LEN_MM)
-# most of these samples come from cass where it looks like the serial numbers are off by one fish - for example serial 2015 has an excat matching weight of a fish for serial 2016
-#the other cases either look like they could be within measurement error (the fish was measured twice with some variance) or who knows...
-
-#what about cases where the serial is absent? can we just assume 1.) those fish were not aged or 2.) they were aged but not duplicates 
-check <- ll_fish_effort %>% 
-  mutate(check= case_when(is.na(SERIAL) | SERIAL == "null" ~ "absent",
-                          TRUE ~ "present")) %>% 
-  filter(check == "absent" & !is.na(OFF_AGE)) %>% 
-  select(NAME, Year, STATION_CODE_effort, SERIAL, species_1, LEN_MM, WT_G, AGE_SRC, OFF_AGE) %>% 
-  group_by(NAME, Year, STATION_CODE_effort, species_1, LEN_MM, WT_G) %>% 
-  count() %>% 
-  filter(n > 1)
-
-check<- ll_fish_effort %>% 
-  mutate(check= case_when(is.na(SERIAL) | SERIAL == "null" ~ "absent",
-                          TRUE ~ "present")) %>% 
-  filter(check == "absent" & !is.na(OFF_AGE)) %>% 
-  filter(!is.na(AGE_SRC)) %>% 
-  select(STATION_CODE_effort, NAME, Year, SERIAL, species_1, LEN_MM, WT_G, AGE_SRC, OFF_AGE) %>% 
-  arrange(STATION_CODE_effort, species_1, LEN_MM, WT_G) 
-rm(check, aging_check)
-#this shows a ton of records where a serial is absent and there appears to be a fish aged in different ways
-#long story short, I'm going to have to make a decision here
-
-# I am going to move forward assuming the serial column identifies unique fish, any fish without an id is unique. Any duplicate weight/leng/spec combo for a net is a complete separate fish. If a fish were aged without a serial number we are going to assume that is also a separate fish 
-
-#what do our structures look like?
-ll_fish_effort %>% 
-  mutate(aging_structure_1 = case_when(CALCIFIED_STRUC_TYPE_NAME == "N/A" ~ NA,
-                                       CALCIFIED_STRUC_TYPE_NAME == "null" ~ NA,
-                                       TRUE ~ CALCIFIED_STRUC_TYPE_NAME),
-         aging_structure_1 = tolower(aging_structure_1),
-         aging_structure_1 = str_replace(aging_structure_1, " ", "_")) %>% 
-  group_by(CALCIFIED_STRUC_TYPE_NAME, aging_structure_1) %>% 
-  count()
-
-aging_rank <- c("otolith" = 1, "cleithrum" = 2, "opercle" = 3, 
-                "pectoral_spine" = 4, "dorsal_spine" = 5, "fin_ray" = 6, "scale" = 7)
-
-
-
-check <- ll_fish_effort %>% 
-  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
-                             TRUE ~ SERIAL),
-         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
-                             TRUE ~ fish_id)) %>% 
-  group_by(NAME, Year, STATION_CODE_effort, fish_id) %>% 
-  count() %>% 
-  group_by(n) %>% 
-  count() %>%  
-  mutate(total_obs = n * nn,
-         remaining_fish = nn) 
-#it is valid that a fish might be aged 3+ times... or 17 times?
-sum(check$remaining_fish)
-#after the slice we should have 690277 fish left
-
-#here we see an example of a serial number that repeats 17 times 
-#was it really aged 17 times, mostly all by a scale? we will just have to roll with it
-ll_fish_effort %>% 
-  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
-                             TRUE ~ SERIAL),
-         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
-                             TRUE ~ fish_id)) %>% 
-  group_by(NAME, Year, STATION_CODE_effort, fish_id, LEN_MM, WT_G) %>% 
-  count() %>% 
-  filter(n == 17)
-#every fish aged 17 times comes from Mille Lacs in 2019, lets look at just one example
-
-ll_fish_effort %>% 
-  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
-                             TRUE ~ SERIAL),
-         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
-                             TRUE ~ fish_id)) %>% 
-  filter(fish_id == "10030" & STATION_CODE_effort == "GN18" & Year == "2019") %>% 
-  select(NAME, Year, STATION_CODE_effort, fish_id, LEN_MM, WT_G, SX, OFF_AGE, AGE_SRC, CALCIFIED_STRUC_TYPE_NAME) %>% 
-  print(n = nrow(.))
-
-  
-
-#clean up serial, structure, and slice for only one unique fish obs
-ll_fish_effort <- ll_fish_effort %>% 
-  #make fish id column NA where it is null, make sure there is a unique id for those that are NA
-  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
-                             TRUE ~ SERIAL),
-         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
-                             TRUE ~ fish_id)) %>% 
-  #clean up aging structure 
-  mutate(aging_structure_1 = case_when(CALCIFIED_STRUC_TYPE_NAME == "N/A" ~ NA,
-                                       CALCIFIED_STRUC_TYPE_NAME == "null" ~ NA,
-                                       TRUE ~ CALCIFIED_STRUC_TYPE_NAME),
-         aging_structure_1 = tolower(aging_structure_1),
-         aging_structure_1 = str_replace(aging_structure_1, " ", "_")) %>% 
-  #bring in aging rank
-  mutate(aging_rank = aging_rank[aging_structure_1]) %>% 
-  #group by sub effort - the net the fish was caught in - and the serial number
-  #order by the aging structure rank
-  #this will take the best aging structure for serial numbers that repeat in a net
-  group_by(NAME, Year, STATION_CODE_effort, fish_id) %>% 
-  arrange(aging_rank, .by_group = TRUE) %>% 
-  slice(1) %>% 
-  ungroup()
-#the obs in here match the above calc for remaining fish, lets see how this handled a fish aged 17 times
-
-ll_fish_effort %>% 
-  mutate(fish_id = case_when(is.na(SERIAL) | SERIAL == "null" ~ NA,
-                             TRUE ~ SERIAL),
-         fish_id = case_when(is.na(fish_id) ~ as.character(row_number()),
-                             TRUE ~ fish_id)) %>% 
-  filter(fish_id == "10030" & STATION_CODE_effort == "GN18" & Year == "2019") %>% 
-  select(NAME, Year, STATION_CODE_effort, fish_id, LEN_MM, WT_G, SX, OFF_AGE, AGE_SRC, CALCIFIED_STRUC_TYPE_NAME) %>% 
-  print(n = nrow(.))
-#perfect we can see it just grabbed one record and it was the highest ranking structure 
-
-ll_fish_effort %>% 
-  group_by(aging_structure_1) %>% 
-  count() %>% 
-  arrange(desc(n))
-#we can see that most fish are not aged, but the ranking looks correct here in cases where they are
-
-#Kristin tipped us off to a few data anomalies that we should explore
-#1. 1986-1989 in Mille Lacs only has WAE, NOP, MUE
-ll_fish_effort %>% 
-  filter(NAME == "Mille Lacs" & Year %in% c("1986", "1987", "1988", "1989")) %>% 
-  group_by(Year, species_1) %>% 
-  count()
-#that is correct - lets make a flag for this 
-
-#2. bulk weighted fish 1983-2001 for yep and tlc
-ll_fish_effort %>% 
-  filter(species_1 %in% c("yellow_perch", "cisco") & !is.na(LEN_MM) & !is.na(WT_G)) %>% 
-  ggplot() +
-  geom_point(aes(LEN_MM, WT_G, color = species_1)) +
-  geom_smooth(aes(LEN_MM, WT_G, color = species_1)) +
-  facet_wrap(~NAME, scales = "free")
-#most of these look pretty good - there are certainly a few outliers - large weights for a length
-
-ll_fish_effort %>%
-  filter(species_1 %in% c("yellow_perch", "cisco") & !is.na(LEN_MM) & !is.na(WT_G) & !(LEN_MM == 0 | WT_G == 0)) %>% 
-  mutate(lw_ratio = WT_G/LEN_MM) %>% 
-  ggplot() +
-  geom_histogram(aes(lw_ratio, fill = species_1)) +
-  facet_wrap(~NAME, scale = "free")
-
-check <- ll_fish_effort %>% 
- filter(species_1 %in% c("yellow_perch", "cisco") & !is.na(LEN_MM) & !is.na(WT_G) & !(LEN_MM == 0 | WT_G == 0)) %>% 
-  mutate(lw_ratio = WT_G/LEN_MM) %>%
-  filter(lw_ratio > 3) %>%
-  arrange(NAME, Year, STATION_CODE_effort ,species_1, LEN_MM, WT_G) %>% 
-  select(NAME, Year, STATION_CODE_effort ,species_1, LEN_MM, WT_G, lw_ratio, flag)
-#there are some clear outliers, the most egregious seem to already pick up a flag - lets just move on
-rm(check)
-
-additional_flags <- ll_fish_effort %>% 
-  mutate(flag = case_when(WB_NM == "Mille Lacs" & 
-                     Year %in% c("1986", "1987", "1988", "1989") ~ paste0("only walleye, pike and muskie collected - all other species should not be considered", "; ", coalesce(flag, "")),
-                     TRUE ~ coalesce(flag, "")),
-         flag = na_if(flag, "")) %>% 
-  filter(!is.na(flag))
-
-additional_flags %>% 
-  group_by(flag) %>% 
-  count()
-
-ll_fish_effort <- ll_fish_effort %>% 
-  ungroup() %>% 
-  select(-flag) %>% 
-  left_join(additional_flags, relationship = "many-to-one") 
-
-ll_fish_effort %>% 
-  group_by(flag) %>% 
-  count()
-
-rm(additional_flags)
-
-
-#making sure we have all the hived columns
-ll_fish_effort <- ll_fish_effort %>% 
-  mutate(state = "Minnesota",
-         lake_name = NAME) %>% 
-  #the date headache 
-  #survey date - when reported just use that, other wise take the first of start date or end date
-  #date total effort ident - first record of date in start date and then the first record of end date if start date NA
-  #date sub effort idnet - start date if present or then end date
-  #date sample - end date when present or NA
-  mutate(SURVEY_DATE = mdy(SURVEY_DATE),
-         START_DATE = mdy(START_DATE),
-         END_DATE = mdy(END_DATE)) %>% 
-  mutate(lake_id = as.character(lake_id)) %>% 
-  group_by(total_effort_ident) %>% 
-  mutate(date_survey = case_when(!is.na(SURVEY_DATE) ~ SURVEY_DATE,
-                                 is.na(SURVEY_DATE) & !is.na(START_DATE) ~ first(START_DATE),
-                                 is.na(SURVEY_DATE) & is.na(START_DATE) & !is.na(END_DATE) ~ first(END_DATE),
-                                 TRUE ~ NA),
-         date_total_effort_ident = case_when(!is.na(START_DATE) ~ first(START_DATE),
-                                             is.na(START_DATE) & !is.na(END_DATE) ~ (END_DATE),
-                                             TRUE ~ NA),
-         # date_sub_effort_ident = case_when(!is.na(START_DATE) ~ START_DATE,
-         #                                   is.na(START_DATE) & !is.na(END_DATE) ~ END_DATE,
-         #                                   TRUE ~ NA),
-         # date_sample = case_when(!is.na(END_DATE) ~ END_DATE,
-         #                         TRUE ~ NA),
-         year = case_when(!is.na(date_survey) ~ year(date_survey),
-                          TRUE ~ Year),
-         month = case_when(!is.na(date_total_effort_ident) ~ month(date_total_effort_ident),
-                           TRUE ~ NA)) %>% 
-  ungroup() %>% 
-  #reporting agency given survey id - this is really the sub effort ident those so many its not needed
-  mutate(survey_id = SURVEY_ID,
-         survey_type = SRV_TYPE) %>% 
-  #first make a clean sampling method - these are all gill nets
-  mutate(sampling_method_simple = "gill_net",
-         sampling_method = "gill_net_standard",
-         sampling_method_2 = "gill_net_standard_graduated_mesh") %>% 
-  #total effort 1 units
-  mutate(total_effort_1_units = "net_nights") %>% 
-  #water temp
-  mutate(water_temp = Temperature,
-         water_temp_units = "celcius") %>% 
-  #site id - making it the net number 
-  mutate(site_id = STATION_CODE_fish) %>% 
-  #sub effort units
-  #mutate(sub_effort_1_units = "net_nets") %>% 
-  #length
-  mutate(length_1 = LEN_MM,
-         length_unit_1 = "mm") %>% 
-  #weight
-  mutate(weight_1 = WT_G,
-         weight_unit_1 = "g") %>% 
-  #sex
-  mutate(sex = case_when(SX == "N/A" ~ NA,
-                         SX == "Not Examined" ~ NA,
-                         SX == "Unknown" ~ NA,
-                         SX == "male" ~ "Male",
-                         TRUE ~ SX)) %>%
-  #indv fish idents - reported by agency
-  mutate(ind_fish_ident = SERIAL,
-         ind_fish_ident = case_when(ind_fish_ident == "null" ~ NA,
-                                    TRUE ~ ind_fish_ident)) %>% 
-  #original file
-  mutate(original_file_names = paste0(original_file_effort, "; ", original_file_fish)) %>% 
-  rename(age = OFF_AGE) %>% 
-  #making sure everything is in the correct type
-  mutate(survey_id = as.character(survey_id),
-         total_effort_ident = as.character(total_effort_ident)) %>% 
-  select(state, 
-         #county, 
-         lake_name,
-         lake_id,
-         #nhdhr_id,
-         #latitude_lake_centroid,
-         #longitude_lake_centroid,
-         date_survey,
-         date_total_effort_ident,
-         #date_sub_effort_ident,
-         #date_sample,
-         year,
-         month,
-         survey_id,
-         survey_type,
-         sampling_method_simple,
-         sampling_method,
-         sampling_method_2,
-         gear_data_notes,
-         #target_species,
-         total_effort_ident,
-         total_effort_1, 
-         #total_effort_2,
-         total_effort_1_units,
-         #total_effort_2_units,
-         total_effort_nothing_caught,
-         water_temp,
-         water_temp_units,
-         #water_clarity,
-         #water_clarity_units,
-         #lat_start,
-         #lon_start,
-         #lat_end,
-         #lon_end,
-         site_id,
-         #sub_effort_ident,
-         #sub_effort_1,
-         #sub_effort_1_units,
-         #sub_effort_2,
-         #sub_effort_2_units,
-         #sub_effort_nothing_caught,
-         species_1,
-         length_1,
-         length_unit_1,
-         #length_bin,
-         #length_bin_unit,
-         age,
-         aging_structure_1,
-         weight_1,
-         weight_unit_1,
-         #batch_weight,
-         #batch_weight_unit,
-         sex,
-         #age_class,
-         flag,
-         original_file_names,
-         ind_fish_ident,
-         #lakesize,
-         #lakesize_units,
-         #lat_unspec,
-         #lon_unspec,
-         #waterbody_type,
-         #location_notes_1,
-         notes_1
-         )
-
-glimpse(ll_fish_effort)
-```
-
-# Historical Pepin aggregation 
-```{r}
-#read in Pepin effort and fish data
-pep_fish <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/large_lakes_data_2025/pepin_fish_65_05.csv") %>% 
-  mutate(original_file_name = "pepin_fish_65_05.csv")
-
-total_effort <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/large_lakes_data_2025/total_nets.csv") %>% 
-  mutate(Lake = case_when(Lake == "pepin" ~ "Pepin",
-                          TRUE ~ Lake)) %>% 
-  filter(Lake == "Pepin" & 
-           (Year >=1965 & Year <= 2005)) %>% 
-  mutate(original_file_name = "total_nets.csv")
-
-
-################ effort data ###############################
-glimpse(total_effort)
-
-total_effort <- total_effort %>% 
-  rename(year = Year) %>% 
-  select(-ID)
-
-####################fish data###############################
-glimpse(pep_fish)
-
-pep_fish <- pep_fish %>% 
-  #clean species
-  mutate(species_1 = tolower(Species),
-         species_1 = str_replace(species_1, " ", "_")) %>% 
-  #clean length and weight 
-  mutate(length_1 = `LEN (mm)`,
-         length_unit_1 = "mm",
-         weight_1 = `WEIGHT (g)`,
-         weight_unit_1 = "g") %>% 
-  #clean date
-  mutate(date = mdy(Date)) %>% 
-  #rename some columns 
-  rename(sex = Sex,
-         station = STATION,
-         fish_count = `FISH COUNT`) %>% 
-  #dates
-  mutate(year = year(date),
-         month = month(date)) %>% 
-  select(`Mesh Size (in)`,
-         species_1,
-         length_1,
-         length_unit_1,
-         weight_1,
-         weight_unit_1,
-         sex,
-         Maturity,
-         date,
-         year,
-         month,
-         station,
-         original_file_name,
-         fish_count)
-
-
-pep_fish %>% 
-  filter(year== 1999 & species_1 ==  "freshwater_drum" & weight_1 >2000) %>% 
-  select(date, species_1, length_1, weight_1, fish_count)
-
-pep_fish %>% 
-  filter(fish_count > 1 & !is.na(weight_1)) %>% 
-  select(date, species_1, length_1, weight_1, fish_count) %>% 
-  print(n = nrow(.))
-#it looks like fish that were counted have a batch weight 
-
-pep_fish %>% 
-  filter(!is.na(length_1) & !is.na(weight_1) & fish_count > 1) %>% 
-  glimpse()
-#I'm moving forward assuming that all fish with a weight but not length and count grater an 1 are batch weighted
-#fish that a length and weight but have multiple fish I will note as individual fish 
-
-
-#this code below creates a grouping id for fish that were batched weighted together
-#I then add those weights to a batch weight column, making the weight column na
-#all other fish will be treated as individual fish measures 
-pep_fish <- pep_fish %>% 
-  group_by(year, species_1, fish_count) %>% 
-  mutate(batch_weight_id = cur_group_id(),
-         batch_weight_id = case_when(is.na(length_1) & !is.na(weight_1) & fish_count > 1 ~ batch_weight_id,
-                                     TRUE ~ NA)) %>%
-  mutate(batch_weight = case_when(is.na(length_1) & !is.na(weight_1) & fish_count > 1 ~ weight_1,
-                                  TRUE ~ NA),
-         batch_weight_unit = "g",
-         weight_1 = case_when(!is.na(batch_weight_id) ~ NA,
-                              TRUE ~ weight_1)) %>% 
-  ungroup()
-
-#check it
-pep_fish %>% 
-  filter((!is.na(length_1) & is.na(batch_weight) & fish_count >1) |
-           (is.na(length_1) & !is.na(batch_weight) & fish_count > 1)) %>% 
-  select(batch_weight_id, date, species_1, length_1, weight_1, fish_count, batch_weight) %>% 
-  print(n = nrow(.))
-#this shows that in cases where a weight was reported without length and the fish count was greater than 1, the weight was moved to a batch weight 
-#call other cases retain individual fish level 
-
-
-################ combining year with effort ############################
-pep_fish_effort <- pep_fish %>% 
-  left_join(total_effort, by = "year", suffix = c("_fish", "_effort"))
-
-pep_fish_effort %>% 
-  filter(is.na(Number_Nets)) %>% 
-  group_by(year) %>% 
-  count()
-#all fish records have effort - sweet
-
-#now lets see if the number of unique stations in a year is the same as the total effort
-pep_fish_effort %>% 
-  group_by(year, Number_Nets) %>% 
-  summarise(n_stations = n_distinct(station)) %>% 
-  distinct(year, .keep_all = T) %>% 
-  filter(Number_Nets != n_stations)
-#we have one case where there are more nets than total effort reported - 1991
-#we have two cases where the total effort is more than the number of stations - a potential nothing caught - 1993 and 1996
-#given we did not get a sub-effort level effort, i am just going to roll with the total effort given by the number of nets 
-
-glimpse(pep_fish_effort)
-
-pep_fish_effort <- pep_fish_effort %>% 
-  uncount(fish_count)
-
-pep_fish_effort %>% 
-  group_by(is.na(weight_1), is.na(batch_weight), is.na(batch_weight_id)) %>% 
-  count()
-#this shows that all batch weight fish have been uncounted and do not have a weight_1. All fish that have a weight but are individual fish do not have a batch weight 
-
-#total_effort_ident
-pep_fish_effort <- pep_fish_effort %>% 
-  group_by(year) %>% 
-  mutate(total_effort_ident = paste0(cur_group_id(), "_pep"))
-
-pep_fish_effort %>% 
-  group_by(total_effort_ident) %>% 
-  summarise(n_distinct(date)) %>% 
-  filter(`n_distinct(date)` >1)
-
-#auto flags for length and weight
-length_weight_flag_1 <- pep_fish_effort %>% 
-  #filter out surveys that have no catch
-  filter(!is.na(species_1)) %>% 
-  #group by species to create z score for weight and length
-  #flag created for fish more or less than 10 sd 
-  #add this flag to the flag column with coalesce
-  group_by(species_1) %>% 
-  mutate(mean_length = mean(length_1, na.rm = TRUE),
-         mean_weight = mean(weight_1, na.rm = TRUE),
-         sd_length = sd(length_1, na.rm = TRUE),
-         sd_weight = sd(weight_1, na.rm = TRUE),
-         z_score_length = (length_1 - mean_length) / sd_length,
-         z_score_weight = (weight_1 - mean_weight) / sd_weight,
-         #we have not created a flag for this the pepin data yet, so here we cannot refer a previously made column like we do in other ag scripts - removed the coalesce fuction in the case when for length and w
-         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", ";"),
-                          TRUE ~ NA),
-         flag = case_when(z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = case_when(length_1 == 0 | weight_1 == 0 ~ paste("length or weight reported as 0", "; ", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = na_if(flag, "")) %>% 
-  ungroup()
-
-length_weight_flag_1 %>% 
-  group_by(flag) %>% 
-  count()
-
-length_weight_flag_2 <- length_weight_flag_1 %>% 
-  filter((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
-           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10))) %>% 
-  group_by(species_1) %>% 
-  mutate(mean_length = mean(length_1, na.rm = TRUE),
-         mean_weight = mean(weight_1, na.rm = TRUE),
-         sd_length = sd(length_1, na.rm = TRUE),
-         sd_weight = sd(weight_1, na.rm = TRUE),
-         z_score_length = (length_1 - mean_length) / sd_length,
-         z_score_weight = (weight_1 - mean_weight) / sd_weight,
-         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste0("unlikely length", "; ", coalesce(flag, "")),
-                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste0("unlikely weight", "; ", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = na_if(flag, "")) %>% 
-  ungroup()
-
-length_weight_flag_2 %>% 
-  group_by(flag) %>% 
-  count()
-
-no_effort_flags <- pep_fish_effort %>% 
-  filter(is.na(species_1))
-#no no effort surveys
-rm(no_effort_flags)
-
-combined_flags <- length_weight_flag_1 %>% 
-   filter(!((is.na(z_score_length) | (z_score_length > -10 & z_score_length < 10)) & 
-           (is.na(z_score_weight) | (z_score_weight > -10 & z_score_weight < 10)))) %>% 
-  bind_rows(length_weight_flag_2) %>% 
-  select(total_effort_ident,
-         species_1,
-         length_1,
-         weight_1,
-         flag) %>% 
-  distinct()
-
-pep_fish_effort <- pep_fish_effort %>% 
-  left_join(combined_flags) 
-
-pep_fish_effort %>% 
-  group_by(flag) %>% 
-  count()
-
-pep_fish_effort.trial <- pep_fish_effort %>%
-  ungroup() %>% 
-  mutate(state = "Minnesota",
-         lake_name = "Pepin",
-         lake_id = "25000100") %>% 
-  #dates
-  mutate(date_survey = first(date),
-         date_total_effort_ident = first(date),
-         # date_sub_effort_ident = date,
-         # date_sample = date,
-         month = month(date_total_effort_ident)) %>% 
-  #sampling method 
-  mutate(sampling_method_simple = "gill_net",
-         sampling_method = "gill_net_standard",
-         sampling_method_2 = "gill_net_standard_graduated_mesh") %>% 
-  # total effort 
-  mutate(total_effort_1 = Number_Nets,
-         total_effort_1_units = "net_nights") %>% 
-  #total effort nothing caught
-  group_by(total_effort_ident) %>% 
-  mutate(total_effort_nothing_caught = case_when(is.na(species_1) ~ TRUE,
-                                                 TRUE ~ FALSE)) %>% 
-  ungroup() %>% 
-  # site id 
-  mutate(site_id = station)  %>% 
-  #original file name
-  mutate(original_file_names = paste0(original_file_name_fish, "; ", original_file_name_effort)) %>%
-  #notes_1
-  mutate(notes_1 = paste0(ifelse(!is.na(`Mesh Size (in)`), paste0("mesh_fish_capture: ", `Mesh Size (in)`, "; "), ""),
-                          ifelse(!is.na(Maturity), paste0("fish_maturity: ", Maturity, "; "), ""),
-                          ifelse(!is.na(batch_weight_id), paste0("batch_weight_id: ", batch_weight_id, "; "), "")),
-         notes_1 = str_remove(notes_1, "; $"),
-         notes_1 = na_if(notes_1, "")) %>% 
-    select(state, 
-         #county, 
-         lake_name,
-         lake_id,
-         #nhdhr_id,
-         #latitude_lake_centroid,
-         #longitude_lake_centroid,
-         date_survey,
-         date_total_effort_ident,
-         #date_sub_effort_ident,
-         #date_sample,
-         year,
-         month,
-         #survey_id,
-         #survey_type,
-         sampling_method_simple,
-         sampling_method,
-         sampling_method_2,
-         #gear_data_notes,
-         #target_species,
-         total_effort_ident,
-         total_effort_1, 
-         #total_effort_2,
-         total_effort_1_units,
-         #total_effort_2_units,
-         total_effort_nothing_caught,
-         #water_temp,
-         #water_temp_units,
-         #water_clarity,
-         #water_clarity_units,
-         #lat_start,
-         #lon_start,
-         #lat_end,
-         #lon_end,
-         site_id,
-         #sub_effort_ident,
-         #sub_effort_1,
-         #sub_effort_1_units,
-         #sub_effort_2,
-         #sub_effort_2_units,
-         #sub_effort_nothing_caught,
-         species_1,
-         length_1,
-         length_unit_1,
-         #length_bin,
-         #length_bin_unit,
-         #age,
-         #aging_structure_1,
-         weight_1,
-         weight_unit_1,
-         batch_weight,
-         batch_weight_unit,
-         sex,
-         #age_class,
-         flag,
-         original_file_names,
-         #ind_fish_ident,
-         #lakesize,
-         #lakesize_units,
-         #lat_unspec,
-         #lon_unspec,
-         #waterbody_type,
-         #location_notes_1,
-         notes_1
-         )
-
-glimpse(pep_fish_effort.trial)
-```
-
-# combine large lakes and historical pepin
-```{r}
-rm(combined_flags, 
-   length_weight_flag_1, 
-   length_weight_flag_2,
-   ll_effort, 
-   ll_fish, pep_fish,
-   pep_fish_effort, 
-   total_effort,
-   aging_rank)
-
-large_lakes <- bind_rows(ll_fish_effort, pep_fish_effort.trial) %>% 
-  mutate(length_unit_1 = case_when(is.na(length_1) ~ NA,
-                                   TRUE ~ length_unit_1),
-         weight_unit_1 = case_when(is.na(weight_1) ~ NA,
-                                   TRUE ~ weight_unit_1),
-         total_effort_1_units = case_when(is.na(total_effort_1) ~ NA,
-                                   TRUE ~ total_effort_1_units),
-         water_temp_units = case_when(is.na(water_temp) ~ NA,
-                                   TRUE ~ water_temp_units),
-         batch_weight_unit = case_when(is.na(batch_weight) ~ NA,
-                                   TRUE ~ batch_weight_unit))
-glimpse(large_lakes)
-```
-
-# Lets get this into the mn hive
-1. First we need to check the lake years of gn data that already exist and how to compares to the update
-2. we need to update some spatial data in ll update from the existing db
-3. then we need to make sure the columns align (date structure, survey date, make total effort ident unique within ll so there is none repeated, new obs id)
-```{r}
+#why are some effort flags not applied to all fish records in a total effort ident?
 glimpse(mn_dat)
 
-#what do we have for data?
-dows <- large_lakes %>% 
-  distinct(lake_id, lake_name, survey_id)
+multi_flags <- mn_dat %>% 
+  group_by(total_effort_ident) %>%
+  summarise(flag_count = n_distinct(flag)) %>% 
+  filter(flag_count > 1) 
 
-#do we have the dows?
-mn_dat %>% 
-  filter(lake_id %in% dows$lake_id) %>% 
-  distinct(lake_id, lake_name)
-#okay everything looks good here
-
-#compare how many years of data exist in the mn state pull vs the large lakes pull
-mn_dat %>% 
-  filter(lake_id %in% dows$lake_id) %>%
-  filter(sampling_method_simple == "gill_net") %>% 
-  group_by(lake_name, lake_id, survey_type) %>% 
-  summarise(year_min = min(year),
-            year_max = max(year),
-            n_years = n_distinct(year))%>% 
-  print(n = nrow(.))
-
-large_lakes %>% 
-  group_by(lake_name, lake_id) %>% 
-  summarise(year_min = min(year),
-            year_max = max(year),
-            n_years = n_distinct(year)) 
-#looks like kab already has some extra surveys that are labeled as historical and not just Large Lakes?
-
-no_match <- mn_dat %>% 
-  filter(lake_id %in% dows$lake_id) %>% 
-  filter(sampling_method_simple == "gill_net") %>% 
-  anti_join(large_lakes, by = c("lake_name", "year", "sampling_method_simple"))
-
-no_match %>% 
-  group_by(lake_name, year, survey_type) %>% 
+check <- mn_dat %>% 
+  filter(total_effort_ident %in% multi_flags$total_effort_ident) %>% 
+  group_by(total_effort_ident, flag) %>% 
   count()
-#there are 17 lake years that the older file has that the new one doesn't
-#looks like they are are historical outside of the one erroneous lake of the woods "nothing caught"
+#why are some effort flags not applied to all records within a total effort ident?
+#when you sort this list by total effort ident, it appears that there are effort notes retained from the state and effort flags that we generated. Our generated flags get applied to all records within a total effort ident, but those retained from the state are likely at the sub effort level. Thus, the fish only retain that effort flag if they were captured in the net that was flagged. Lets applied any effort flag across all records within a total effort ident.
+rm(check, multi_flags)
 
-no_match %>% 
-  group_by(is.na(age)) %>% 
+#effort flagged idents
+flagged_idents <- mn_dat %>%
+  filter(
+    str_detect(flag, "Do not use in CPUE") |
+    str_detect(flag, "Not representative sampling") |
+    str_detect(flag, "Questionable total effort") |
+    str_detect(flag, "database issue") |
+    str_detect(flag, "effort value error") |
+    str_detect(flag, "gear issue") |
+    str_detect(flag, "high effort") |
+    str_detect(flag, "very high catch")
+  ) %>%
+  group_by(total_effort_ident) %>%
+  summarise(all_flags = paste(unique(flag), collapse = "; "), .groups = "drop")
+
+#here we apply effort flags to all records within a total effort ident while maintaining pre-existing flags
+mn_dat <- mn_dat %>% 
+  left_join(flagged_idents, by = "total_effort_ident") %>%
+  mutate(
+    flag = case_when(is.na(flag) & !is.na(all_flags) ~ all_flags,
+      !is.na(flag) & !is.na(all_flags) ~ paste(flag, all_flags, sep = "; "),
+      TRUE ~ flag )
+  ) %>% 
+  #this ensures there is no redundancy in the flags
+  mutate(flag = sapply(strsplit(flag, ";\\s*"), function(x) paste(unique(x), collapse = "; "))) 
+rm(flagged_idents)
+
+mn_dat <- mn_dat %>% 
+  mutate(flag = case_when(flag == "NA" ~ NA,
+                          TRUE ~ flag)) %>% 
+  select(-all_flags)
+
+mn_dat %>% 
+  filter(total_effort_ident %in% c("10009", "33994", "32738", "4696")) %>% 
+  group_by(total_effort_ident, flag) %>% 
   count()
-#i bet it is because they didn't have age data so Kristin left those data out... we can check places where they do share data to see if they have age 
 
-glimpse(no_match)
-
-large_lakes %>% 
-  anti_join(mn_dat, by = c("lake_name", "year", "sampling_method_simple")) %>% 
-  group_by(lake_name, year, is.na(age)) %>% 
+#target species
+mn_dat %>% 
+  group_by(target_species) %>% 
   count() %>% 
   print(n = nrow(.))
- #for the data in large lakes but not in the original database, there are always ages, we knew historical pepin did not have age data. This gives me more confidence that Kristin gave us only surveys with age data and may not have included historical surveys without age
- #this leads me to thinking we will still want those residual surveys from the original data pull 
- #1980 kab, 1980 rainy, 1981 red, all but 81 and 83 vermilion do not show in lake finder
- 
-org_efforts <- mn_dat %>% 
-  filter(lake_id %in% dows$lake_id) %>%
-  filter(sampling_method_simple == "gill_net") %>% 
-  distinct(lake_name, year, total_effort_1, sampling_method_2, date_total_effort_ident)
+#some are listed just as "NA" - lets actually make them NA
+mn_dat <- mn_dat %>% 
+  mutate(target_species = case_when(target_species == "NA" ~ NA,
+                                    TRUE ~ target_species)) 
 
-ll_effort <- large_lakes %>% 
-  distinct(lake_name, year, total_effort_1) %>% 
-  rename(effort_ll = total_effort_1)
-
-check <- org_efforts %>% 
-  left_join(ll_effort)
-
-ll_fish_effort %>% 
-  filter(lake_name == "Winnibigoshish" & year == "2014") %>%
-  group_by(date_total_effort_ident) %>% 
-  summarise(n_nets = n_distinct(site_id))
-#lake finder shows two targeted surveys from Winni in some years - thus Mike has split this effort out into the respective groupings correctly. It appears that Kristin has not done this and I need to go back and see if I could retain that information in some way
-
-winni <- ll_effort %>% 
-  filter(NAME == "Winnibigoshish" & Year == "2014")
-#okay this is from the original file - we can see that there are multipule survey types in winni in 2014 so the effort should be split up between them respectively... but that makes a headache for using the total effort tab because it is not split up like that 
+mn_dat %>% 
+  group_by(target_species) %>% 
+  count() %>% 
+  print(n = nrow(.))
 ```
 
 
 # Save Parquet
 ```{r}
-
+#saved mn data
 fwrite(mn_dat, "Data_and_Scripts/Data/output/mn_data.csv" , na="NA" )
+
+#remove old dataframe
 rm(mn_dat)
-mn_dat <- fread("Data_and_Scripts/Data/output/mn_data.csv", na.strings = "NA")
 
-mn_dat[ , date_sub_effort_ident := as.IDate(NA) , ]
-mn_dat %>% 
-  mutate(date_sub_effort_ident = as.IDate(NA)) %>% 
-  {mn_dat <<- .}
+#read in data using data table
+mn_dat <- fread("Data_and_Scripts/Data/output/mn_data.csv", 
+                na.strings = "NA")
 
-#needs date_sub_effort_ident converted back to date
+#making sure we have the correct column types
+mn_dat <- mn_dat %>% 
+  mutate(
+    lake_id = as.character(lake_id),
+    date_sub_effort_ident = as.IDate(NA),
+    survey_id = as.character(NA),
+    survey_type_2 = as.character(NA),
+    survey_type_3 = as.character(NA),
+    survey_type_4 = as.character(NA),
+    total_effort_ident = as.character(total_effort_ident),
+    total_effort_2 = as.numeric(NA),
+    total_effort_2_units = as.character(NA),
+    water_clarity = as.numeric(NA),
+    water_clarity_units = as.character(NA),
+    lat_start = as.numeric(NA),
+    lon_start = as.numeric(NA),
+    lat_end = as.numeric(NA),
+    lon_end = as.numeric(NA),
+    sub_effort_ident = as.character(NA),
+    sub_effort_1 = as.numeric(NA),
+    sub_effort_1_units = as.character(NA),
+    sub_effort_2 = as.numeric(NA),
+    sub_effort_2_units = as.character(NA),
+    sub_effort_nothing_caught = NA,
+    length_bin = as.character(NA),
+    length_bin_unit = as.character(NA),
+    batch_weight = as.character(NA),
+    batch_weight_unit = as.character(NA),
+    ind_fish_ident = as.character(ind_fish_ident),
+    # lakesize = as.numeric(NA),
+    # lakesize_units = as.numeric(NA),
+    lat_unspec = as.numeric(NA),
+    lon_unspec = as.numeric(NA),
+    lakesize = as.numeric(NA),
+    lakesize_units = as.character(NA)) %>% 
+    select(state,
+         county,
+         lake_name,
+         lake_id,
+         nhdhr_id,
+         latitude_lake_centroid,
+         longitude_lake_centroid,
+         date_survey,
+         date_total_effort_ident,
+         date_sub_effort_ident,
+         date_sample,
+         year,
+         month,
+         survey_id,
+         survey_type,
+         survey_type_2,
+         survey_type_3,
+         survey_type_4,
+         sampling_method_simple,
+         sampling_method,
+         sampling_method_2,
+         gear_data_notes,
+         target_species,
+         #target_species_2,
+         total_effort_ident,
+         total_effort_1,
+         total_effort_2,
+         #total_effort_3,
+         total_effort_1_units,
+         total_effort_2_units,
+         #total_effort_3_units,
+         total_effort_nothing_caught,
+         water_temp,
+         water_temp_units,
+         water_clarity,
+         water_clarity_units,
+         lat_start,
+         lon_start,
+         lat_end,
+         lon_end,
+         site_id,
+         sub_effort_ident,
+         sub_effort_1,
+         sub_effort_1_units,
+         sub_effort_2,
+         sub_effort_2_units,
+         sub_effort_nothing_caught,
+         species_1,
+         length_1,
+         length_unit_1,
+         length_bin,
+         length_bin_unit,
+         age,
+         aging_structure_1,
+         #aging_structure_2,
+         weight_1,
+         weight_unit_1,
+         batch_weight,
+         batch_weight_unit,
+         sex,
+         age_class,
+         flag,
+         original_file_names,
+         ind_fish_ident,
+         lakesize,
+         lakesize_units,
+         #area_group,
+         lat_unspec,
+         lon_unspec,
+         waterbody_type,
+         location_notes_1,
+         notes_1,
+         obs_id)
 
+glimpse(mn_dat)
 
-# write_dataset(dataset = mn_dat, path = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update", "state=Minnesota"), format = "parquet")
-# 
-# mn_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update", "state=Minnesota"))
-# 
-# glimpse(mn_data)
-
+write_dataset(dataset = mn_dat, 
+              path = "Data_and_Scripts/Data/output/mn_file_arrow", 
+              format = "parquet")
+mn_data <- open_dataset("Data_and_Scripts/Data/output/mn_file_arrow")
+glimpse(mn_data)
 ```
 
 #sleuth out the MN duplicated/missing erroneously data issues:
@@ -3369,17 +2276,5 @@ mn_dat %>%
 # ggplot(effort_assumptions, aes( effort_diff, group = sampling_method_simple))+
 #   geom_histogram(breaks = c(-30:100))+
 #   scale_y_log10()
-
-
-
-
-
-
-
-
-
-
-
-
 ```
 

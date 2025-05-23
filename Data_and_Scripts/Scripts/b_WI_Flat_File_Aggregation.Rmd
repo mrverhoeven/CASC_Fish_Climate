@@ -519,9 +519,13 @@ wi_inland_fishobservations_10Nov2023[, .N, species] #285 species/hybrids
 
 #we'll have to merge these to the length-age data in a way that resp[ects ]
 
-
-
-
+wi_inland_lenage_10Nov2023 %>% 
+  mutate(year_check = year(date)) %>% 
+  group_by(year, year_check) %>% 
+  count() %>% 
+  arrange(year_check) %>% 
+  print(n = nrow(.))
+# we can see here there are some funky dates from this file but year is preserved 
 ```
 
 ## Fish Count Conflicts
@@ -558,7 +562,7 @@ wi_inland_fishobservations_10Nov2023[ , .N , sort(year) ]
 # how many sample dates in a survey 
 wi_inland_lenage_10Nov2023[ , n_distinct(date) , survey_id][ , hist(V1)]
 
-# so a quick recap here is that there are ~20k records in the fish obs that do not have a sample date a person could dredge up the survey start and end dates, but it is not clear to me how that could help ID fish within a survey. For another 20k, there are bad dates in the length age data 
+# so a quick recap here is that there are ~20k records in the fish obs that do not have a sample date a person could dredge up the survey start and end dates, but it is not clear to me how that could help ID fish within a survey. For another 3.5k, there are bad dates in the length age data 
   wi_inland_fishobservations_10Nov2023[ , .N , .("nosampledate" = is.na(date)) ]
   wi_inland_lenage_10Nov2023[ , .N , .("nosampledate" = is.na(date), "errordate" = !(year(as.IDate(date)) %in% c(1930:2023))) ]
 
@@ -904,6 +908,7 @@ wi_inland_fishobservations_10Nov2023 <- merge(wi_inland_fishobservations_10Nov20
 
 #saveRDS(wi_inland_fishobservations_10Nov2023, file = "Data_and_Scripts\\Data\\output\\wi_indiv_fish_w_effort_with_ages.rds")
 
+
 rm(wi_inland_effort_10Nov2023)
 ```
 
@@ -1161,10 +1166,10 @@ wi_inland_fishobservations_10Nov2023 <- rbindlist(list(wi_cisco_final, wi_inland
 
 wi_inland_fishobservations_10Nov2023[ , state := "Wisconsin" , ]
 
+
 rm(wi_cisco_final)
 
 ```
-
 
 
 #fix & fill effort values
@@ -1231,7 +1236,6 @@ wi_inland_fishobservations_10Nov2023[ , c("sample_time_notes.1", "sample_time_no
 
 
 # Total efforts and idents
-clean up the data product:
 ```{r}
 
 #try to fix up total effort idents
@@ -1416,7 +1420,9 @@ wi_inland_fishobservations_10Nov2023[ , .N , flag]
 wi_inland_fishobservations_10Nov2023[year(date) < 1938 |
                                         year(date) > 2023 , flag := ifelse(is.na(flag), "bad_date" , paste(flag, "bad_date", sep = ";" )) ,]
 
-
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(year(date) <1938 | year(date) > 2023) %>% 
+  distinct(date, flag)
 ```
 
 # NHDs & Lakes Only Trim
@@ -1523,7 +1529,6 @@ wi_inland_fishobservations_10Nov2023[ , lake_name  :=  gsub(" ", "_", clean_stri
 
 ```
 
-
 #fix gears here, addding simple gear
 ```{r}
 
@@ -1627,9 +1632,9 @@ wi_inland_fishobservations_10Nov2023[ , ':=' (gear_1 = NULL, gear_2 = NULL) , ]
 
 ```
 
+
 ##flags and other blemishes
 ```{r}
-
 #fix sexes
 wi_inland_fishobservations_10Nov2023[,.N, sex]
 
@@ -1663,22 +1668,71 @@ wi_inland_fishobservations_10Nov2023[ weight_unit == "lb", weight_unit := "pound
 #year
 wi_inland_fishobservations_10Nov2023[ , .N , is.na(year) ]
 wi_inland_fishobservations_10Nov2023[ is.na(year), .N , is.na(date) ]
-  wi_inland_fishobservations_10Nov2023[ is.na(year) & !str_detect(flag, "bad_date"), year := year(date) ]
+  wi_inland_fishobservations_10Nov2023[ is.na(year) & !str_detect(flag, "bad_date"), year := year(date) ] #this fills year when it is na and date doesn't have a flag
+  
 #dates
 wi_inland_fishobservations_10Nov2023[ !str_detect(flag, "bad_date"), month := month(date) , ]
 #any info in the start or end to backfill?
 wi_inland_fishobservations_10Nov2023[str_detect(flag, "bad_date") | is.na(date), .N, .(date_survey_start, date_survey_end)]#nope, no data to fill from 
+
 #TEIdate
 wi_inland_fishobservations_10Nov2023[  , length(unique(date)) , total_effort_ident  ][V1>1]
-wi_inland_fishobservations_10Nov2023[order(date)  , date_total_effort_ident := first(date)  , total_effort_ident  ]
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(str_detect(flag, "bad_date")) %>% 
+  group_by(total_effort_ident, date) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#all bad dates do not have a total effort ident, in the chunk below, all na total effort idents will get the first record of date within na total effort idents. Let's only apply this ordering to records that have a total effort ident
+
+wi_inland_fishobservations_10Nov2023[ !is.na(total_effort_ident), date_total_effort_ident := date[order(date)][1], by = total_effort_ident]
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  group_by(total_effort_ident) %>% 
+  summarise(n_tei_dates = n_distinct(date_total_effort_ident)) %>% 
+  filter(is.na(total_effort_ident))
+  filter(n_tei_dates >1)
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(str_detect(flag, "bad_date")) %>% 
+  group_by(total_effort_ident, date_total_effort_ident) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
 #surveydate
 wi_inland_fishobservations_10Nov2023[ , length(unique(date))  ,  survey_id] 
-wi_inland_fishobservations_10Nov2023[order(date) , date_survey := first(date)  ,  survey_id] 
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(str_detect(flag, "bad_date")) %>% 
+  group_by(survey_id, date) %>%
+  count() %>% 
+  print(n = nrow(.))
+
+#doing the same thing as above, only taking the first date where total effort ident is not NA
+wi_inland_fishobservations_10Nov2023[!is.na(total_effort_ident), 
+                                     date_survey := first(date), 
+                                     by = survey_id] 
+
 #sub effort date
 wi_inland_fishobservations_10Nov2023[ , length(unique(date))  ,  sub_effort_ident] [V1>1]
-wi_inland_fishobservations_10Nov2023[order(date) , date_sub_effort_ident := first(date)  ,  sub_effort_ident] 
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(str_detect(flag, "bad_date")) %>% 
+  group_by(sub_effort_ident) %>% 
+  count()
+
+wi_inland_fishobservations_10Nov2023[!is.na(sub_effort_ident), 
+  date_sub_effort_ident := first(date), 
+  by = sub_effort_ident]
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(str_detect(flag, "bad_date")) %>%
+  group_by(sub_effort_ident, date_sub_effort_ident) %>% 
+  count()
+
 #change name
 setnames(wi_inland_fishobservations_10Nov2023, old = "date", new = "date_sample")
+
 #drop old 
 wi_inland_fishobservations_10Nov2023[ , c("date_survey_start", "date_survey_end", "date_recieved") := NULL ,]
 colnames(wi_inland_fishobservations_10Nov2023)[str_detect(colnames(wi_inland_fishobservations_10Nov2023), "date")]
@@ -1797,16 +1851,7 @@ wi_inland_fishobservations_10Nov2023[ , young_of_year:= NULL , ]
 
 #observation ident assignment
 wi_inland_fishobservations_10Nov2023[ , obs_id := .I , ]
-
-
-
-  
 ```
-
-
-
-
-
 
 
 #Standarization for hive structure 
@@ -1935,9 +1980,6 @@ wi_inland_fishobservations_10Nov2023[ !is.na(notes_1) , notes_1 := gsub("^\\s*;+
 # wi_inland_fishobservations_10Nov2023[ , notes := NULL]
 
 ```
-
-
-
 
 #Generic Flags
 ```{r}
@@ -2124,15 +2166,42 @@ wi_inland_fishobservations_10Nov2023[ total_effort_ident %in%
 
 
 
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(str_detect(flag, "bad_date")) %>% 
+  group_by(date_survey, date_total_effort_ident, date_sub_effort_ident, date_sample, year, month) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
 #year
 wi_inland_fishobservations_10Nov2023[ , .N , is.na(year) ]
 wi_inland_fishobservations_10Nov2023[ is.na(year), .N , is.na(date_sample) ]
+
+
   wi_inland_fishobservations_10Nov2023[ is.na(year) & !str_detect(flag, "bad_date"), year := year(date_sample) ]
+
+  
 #month
 wi_inland_fishobservations_10Nov2023[ , .N , is.na(month) ]
 wi_inland_fishobservations_10Nov2023[ is.na(month), .N , is.na(date_sample) ]
+
   wi_inland_fishobservations_10Nov2023[ is.na(month) & !str_detect(flag, "bad_date"), month := month(date_sample) ]
 
+#did it work?
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(str_detect(flag, "bad_date")) %>% 
+  group_by(date_survey, date_total_effort_ident, date_sub_effort_ident, date_sample, year, month) %>% 
+  count() %>% 
+  print(n = nrow(.))
+#nothing filled for bad dates, intentional 
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(!str_detect(flag, "bad_date")) %>% 
+  group_by(is.na(year),
+           is.na(month),
+           is.na(date_sample)) %>% 
+  count()
+  
+  
 rm(age_stats, a, mw_data, chr_cols, col_name, del_col, i, new, new_colnames, num_cols, old, schema_names)
 
 wi_inland_fishobservations_10Nov2023[ ,notes_1 := trimws(notes_1) , ]
@@ -2140,9 +2209,74 @@ wi_inland_fishobservations_10Nov2023[notes_1 == "", .N]
 wi_inland_fishobservations_10Nov2023[notes_1 == "" , notes_1 := NA]
 
 
+#year to total effort ident year
+wi_inland_fishobservations_10Nov2023 %>% 
+  distinct(total_effort_ident, year, year_tei = year(date_total_effort_ident)) %>% 
+  mutate(check = year_tei - year) %>% 
+  filter(check != 0)
+#one total effort ident where the agency reported year does not match the tei date
+check <- wi_inland_fishobservations_10Nov2023 %>% 
+  filter(total_effort_ident == "67564") %>% 
+  distinct(year, date_survey, date_total_effort_ident, date_sub_effort_ident, 
+           date_sample, sampling_method_2, flag, total_effort_ident, sub_effort_ident, survey_type, 
+           survey_id, total_effort_1, species_1, lake_name, lake_id)
+glimpse(check)
+rm(check)
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(survey_id == "79725") %>% 
+  group_by(total_effort_ident, year, lake_name, sampling_method_2, date_sample, flag) %>% 
+  count()
+#looks like this stems from a big gap within the same survey_id 
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(year = case_when(is.na(year) ~ year(date_total_effort_ident),
+                          TRUE ~ year))
+#now we should see all records within a total effort ident have a year, even if it differs from the survey date year
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(survey_id == "79725") %>% 
+  group_by(total_effort_ident, year, lake_name, sampling_method_2, date_sample, flag) %>% 
+  count()
+#but it looks like we only solved the problem for when the year value was already NA, we will want to make sure that we take the total effort ident year for when total effort ident is not NA
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(year = case_when(!is.na(total_effort_ident) ~ year(date_total_effort_ident),
+                          TRUE ~ year)) 
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(survey_id == "79725" |
+           str_detect(flag, "bad_date")) %>% 
+  group_by(total_effort_ident, year, lake_name, sampling_method_2, date_sample, flag) %>% 
+  count()
+# looks good
+
+#lets just take a look at any differences between survey years and total effort ident years
+check <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(year_tei = year(date_total_effort_ident),
+         year_survey = year(date_survey)) %>% 
+  distinct(survey_id, total_effort_ident, year, year_tei, year_survey, date_survey, date_total_effort_ident) %>% 
+  filter(year_tei != year_survey)
+#cool, we can see here that when a survey spans years, we take the year from the total effort ident date but keep the survey date constant across survey records
+
+# we do need to make date survey have the total effort ident date when it is na
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(date_survey = case_when(is.na(survey_id) ~ date_total_effort_ident,
+                                 TRUE ~ date_survey))
+
+check <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(year_tei = year(date_total_effort_ident),
+         year_survey = year(date_survey)) %>% 
+  distinct(survey_id, total_effort_ident, year, year_tei, year_survey, date_survey, date_total_effort_ident) %>% 
+  filter(year_tei != year_survey)
+rm(check)
+
+#fix the month so that it is the month of the tei when it is possible, otherwise take the sample month
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(month = case_when(!is.na(date_total_effort_ident) ~ month(date_total_effort_ident),
+                           TRUE ~ month(date_sample)))
 ```
-
-
 
 #export as parquet file
 ```{r}
@@ -2156,42 +2290,25 @@ rm(wi_inland_fishobservations_10Nov2023)
 wi_dat <- fread("Data_and_Scripts/Data/output/wi_data.csv", na.strings = "NA")
 glimpse(wi_dat)
 
-#####################still needs work 5/19 @ 1:14###################
 #make sure column are correct and in the correct form
 wi_dat <- wi_dat %>% 
   mutate(
     lake_id = as.character(lake_id),
-    date_sub_effort_ident = as.IDate(NA),
-    survey_id = as.character(NA),
+    survey_id = as.character(survey_id),
     survey_type_2 = as.character(NA),
     survey_type_3 = as.character(NA),
     survey_type_4 = as.character(NA),
     total_effort_ident = as.character(total_effort_ident),
-    total_effort_2 = as.numeric(NA),
-    total_effort_2_units = as.character(NA),
-    water_clarity = as.numeric(NA),
-    water_clarity_units = as.character(NA),
-    lat_start = as.numeric(NA),
-    lon_start = as.numeric(NA),
-    lat_end = as.numeric(NA),
-    lon_end = as.numeric(NA),
-    sub_effort_ident = as.character(NA),
-    sub_effort_1 = as.numeric(NA),
-    sub_effort_1_units = as.character(NA),
-    sub_effort_2 = as.numeric(NA),
-    sub_effort_2_units = as.character(NA),
-    sub_effort_nothing_caught = NA,
     length_bin = as.character(NA),
-    length_bin_unit = as.character(NA),
+    length_bin_unit = as.character(NA), 
     batch_weight = as.character(NA),
     batch_weight_unit = as.character(NA),
     ind_fish_ident = as.character(ind_fish_ident),
-    # lakesize = as.numeric(NA),
-    # lakesize_units = as.numeric(NA),
-    lat_unspec = as.numeric(NA),
-    lon_unspec = as.numeric(NA),
     lakesize = as.numeric(NA),
-    lakesize_units = as.character(NA)) %>% 
+    lakesize_units = as.character(NA),
+    location_notes_1 = as.character(NA),
+    sub_effort_ident = as.character(sub_effort_ident),
+    obs_id = as.character(obs_id)) %>% 
     select(state,
          county,
          lake_name,
@@ -2271,11 +2388,8 @@ glimpse(wi_dat)
 write_dataset(dataset = wi_dat, 
               path = "Data_and_Scripts/Data/output/wi_file_arrow", 
               format = "parquet")
-mn_data <- open_dataset("Data_and_Scripts/Data/output/wi_file_arrow")
+wi_data <- open_dataset("Data_and_Scripts/Data/output/wi_file_arrow")
 glimpse(wi_data)
-
-
-
 
 
 # setDT(wi_inland_fishobservations_10Nov2023)

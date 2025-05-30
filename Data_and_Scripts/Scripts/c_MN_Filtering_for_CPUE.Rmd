@@ -8,8 +8,6 @@ editor_options:
 ---
 #to fix in main data and return to filtering:
 -multiple total effort idents within the same day
--dates
--previous filtering included: making survey date the total effort ident date for historical surveys, filtered cpe product so that it did not contain total effort idents with more than one total effort  
 
 #Preamble
 We have a pretty detailed MN filtering script as we have extensive knowledge of the data. First we read in the Minnesota data. The next section manipulates the MN data to make filtering easier, including filtering out records with flags, choosing sampling methods, and filtering effort based on lake size. 

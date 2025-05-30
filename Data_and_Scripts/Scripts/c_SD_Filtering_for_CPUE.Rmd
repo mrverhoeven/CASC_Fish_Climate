@@ -72,9 +72,18 @@ good_surveys <- sd_data %>%
   collect() 
 
 adult_walleye <- sd_data %>% 
-  #filter for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect() %>%
+  #remove teis that have a good starting month but a sub extends outside of the range
+  mutate(sub_month = month(date_sub_effort_ident)) %>%
+  group_by(total_effort_ident) %>%
+  mutate(
+    multi_month = n_distinct(sub_month) > 1,
+    has_late_month = any(sub_month > 10),
+    bad_group = multi_month & has_late_month
+  ) %>%
+  ungroup() %>%
+  filter(!bad_group)
 
 #creating cpue for species of interest
 adult_walleye_cpue <- adult_walleye %>% 
@@ -125,7 +134,6 @@ adult_walleye %>%
           month_min,
           month_max) %>% 
   glimpse()
-#this includes subsurvey level
 
 adult_walleye %>% 
   distinct(total_effort_ident,
@@ -135,7 +143,7 @@ adult_walleye %>%
 adult_walleye %>% 
   distinct(total_effort_ident) %>% 
   glimpse()
-#survey level records 
+#the difference between good surveys and adult walleye cpe is that the surveys where total effort ident spans into November or december are filtered out
   
 #range of cpues?
 adult_walleye_cpue %>%
@@ -163,6 +171,55 @@ adult_walleye_cpue %>%
   filter(total_effort_nothing_caught == "TRUE") %>% 
   group_by(cpue) %>% 
   count()
+
+#exploring cases of sub efforts spanning the minimum or maximum ranges 
+sd_data %>% 
+  filter(lake_name == "Francis Case" & year == 2021) %>% 
+  group_by(month(date_total_effort_ident),
+           month(date_sub_effort_ident),
+           total_effort_ident) %>% 
+  count() %>% 
+  collect()
+
+adult_walleye %>% 
+  filter(total_effort_ident == "2")
+#We see here that in total effort ident 2, the total effort spans months 3, 8, and 8. Month is created by taking the first month from the total effort ident. Thus, all sub efforts are filtered out here.
+
+sd_data %>% 
+  filter(lake_name == "Poinsett" & year == 2016) %>% 
+  group_by(total_effort_ident, 
+           month(date_total_effort_ident), 
+           month(date_sub_effort_ident)) %>% 
+  count() %>% 
+  collect()
+
+adult_walleye_cpue %>% 
+  filter(total_effort_ident == "3831") %>% 
+  group_by(total_effort_ident, 
+           month(date_total_effort_ident), 
+           month(date_sub_effort_ident)) %>% 
+  count()
+#filtered out here 
+
+adult_walleye %>% 
+  mutate(sub_month = month(date_sub_effort_ident)) %>% 
+  distinct(total_effort_ident, sub_month) %>%
+  group_by(total_effort_ident) %>% 
+  filter(n_distinct(sub_month) > 1, any(sub_month > 10)) %>% 
+  ungroup()
+#no cases of overlap here 
+
+sd_data %>% 
+  filter(total_effort_ident == "2724") %>% 
+  group_by(total_effort_ident, 
+           month(date_total_effort_ident),
+           month(date_sub_effort_ident),
+           species_1) %>% 
+  count() %>% 
+  collect()
+
+adult_walleye %>% 
+  filter(total_effort_ident == "2724")
 
 rm(adult_walleye)
 ```
@@ -204,7 +261,17 @@ good_surveys <- sd_data %>%
 adult_black_crappie <- sd_data %>% 
   #filter for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect() %>% 
+  #remove teis that have a good starting month but a sub extends outside of the range
+  mutate(sub_month = month(date_sub_effort_ident)) %>%
+  group_by(total_effort_ident) %>%
+  mutate(
+    multi_month = n_distinct(sub_month) > 1,
+    has_late_month = any(sub_month > 10),
+    bad_group = multi_month & has_late_month
+  ) %>%
+  ungroup() %>%
+  filter(!bad_group)
 
 #creating cpue for species of interest
 adult_black_crappie_cpue <- adult_black_crappie %>% 
@@ -327,7 +394,17 @@ good_surveys <- sd_data %>%
 adult_bluegill <- sd_data %>% 
   #filter for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect() %>% 
+  #remove teis that have a good starting month but a sub extends outside of the range
+  mutate(sub_month = month(date_sub_effort_ident)) %>%
+  group_by(total_effort_ident) %>%
+  mutate(
+    multi_month = n_distinct(sub_month) > 1,
+    has_late_month = any(sub_month > 10),
+    bad_group = multi_month & has_late_month
+  ) %>%
+  ungroup() %>%
+  filter(!bad_group)
 
 #creating cpue for species of interest
 adult_bluegill_cpue <- adult_bluegill %>% 
@@ -450,7 +527,17 @@ good_surveys <- sd_data %>%
 adult_largemouth_bass <- sd_data %>% 
   #filter for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect() %>% 
+  #remove teis that have a good starting month but a sub extends outside of the range
+  mutate(sub_month = month(date_sub_effort_ident)) %>%
+  group_by(total_effort_ident) %>%
+  mutate(
+    multi_month = n_distinct(sub_month) > 1,
+    has_late_month = any(sub_month > 10),
+    bad_group = multi_month & has_late_month
+  ) %>%
+  ungroup() %>%
+  filter(!bad_group)
 
 #creating cpue for species of interest
 adult_largemouth_bass_cpue <- adult_largemouth_bass %>% 
@@ -573,7 +660,17 @@ good_surveys <- sd_data %>%
 adult_smallmouth_bass <- sd_data %>% 
   #filter for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect() %>% 
+  #remove teis that have a good starting month but a sub extends outside of the range
+  mutate(sub_month = month(date_sub_effort_ident)) %>%
+  group_by(total_effort_ident) %>%
+  mutate(
+    multi_month = n_distinct(sub_month) > 1,
+    has_late_month = any(sub_month > 10),
+    bad_group = multi_month & has_late_month
+  ) %>%
+  ungroup() %>%
+  filter(!bad_group)
 
 #creating cpue for species of interest
 adult_smallmouth_bass_cpue <- adult_smallmouth_bass %>% 
@@ -696,7 +793,17 @@ good_surveys <- sd_data %>%
 adult_northern_pike <- sd_data %>% 
   #filter for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect() %>% 
+  #remove teis that have a good starting month but a sub extends outside of the range
+  mutate(sub_month = month(date_sub_effort_ident)) %>%
+  group_by(total_effort_ident) %>%
+  mutate(
+    multi_month = n_distinct(sub_month) > 1,
+    has_late_month = any(sub_month > 10),
+    bad_group = multi_month & has_late_month
+  ) %>%
+  ungroup() %>%
+  filter(!bad_group)
 
 #creating cpue for species of interest
 adult_northern_pike_cpue <- adult_northern_pike %>% 
@@ -820,7 +927,17 @@ good_surveys <- sd_data %>%
 adult_yellow_perch <- sd_data %>% 
   #filter for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect() %>% 
+  #remove teis that have a good starting month but a sub extends outside of the range
+  mutate(sub_month = month(date_sub_effort_ident)) %>%
+  group_by(total_effort_ident) %>%
+  mutate(
+    multi_month = n_distinct(sub_month) > 1,
+    has_late_month = any(sub_month > 10),
+    bad_group = multi_month & has_late_month
+  ) %>%
+  ungroup() %>%
+  filter(!bad_group)
 
 #creating cpue for species of interest
 adult_yellow_perch_cpue <- adult_yellow_perch %>% 
@@ -944,7 +1061,17 @@ good_surveys <- sd_data %>%
 adult_cisco <- sd_data %>% 
   #filter for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect() %>% 
+  #remove teis that have a good starting month but a sub extends outside of the range
+  mutate(sub_month = month(date_sub_effort_ident)) %>%
+  group_by(total_effort_ident) %>%
+  mutate(
+    multi_month = n_distinct(sub_month) > 1,
+    has_late_month = any(sub_month > 10),
+    bad_group = multi_month & has_late_month
+  ) %>%
+  ungroup() %>%
+  filter(!bad_group)
 
 #creating cpue for species of interest
 adult_cisco_cpue <- adult_cisco %>% 
@@ -1049,263 +1176,5 @@ sd_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                  adult_yellow_perch_cpue %>% 
                                    mutate(species_1 = "yellow_perch"))
 write_csv(sd_filtered_species, "SD_all_cpue_filtered.csv")
-```
-
-#Data exploration
-```{r}
-######################checking on 4/15###################################
-#how many total effort idents exist where there are more than 30 days duration between sub effort idents
-sd_data %>% 
-  group_by(total_effort_ident, sampling_method_2, lake_name) %>% 
-  summarise(min_date = min(date_sub_effort_ident),
-            max_date = max(date_sub_effort_ident),
-            duration_days = max_date - min_date) %>% 
-  collect() %>% 
-  mutate(duration_days = as.numeric(duration_days, unit = "days")) %>% 
-  ungroup() %>% 
-  mutate(n_over30 = case_when(duration_days >= 30 ~ "y",
-                              TRUE ~ "n")) %>% 
-  filter(n_over30 == "y") %>%
-  arrange(sampling_method_2) %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(total_effort_ident, sampling_method_2, lake_name) %>% 
-  summarise(min_date = min(date_sub_effort_ident),
-            max_date = max(date_sub_effort_ident),
-            duration_days = max_date - min_date) %>% 
-  collect() %>% 
-  mutate(duration_days = as.numeric(duration_days, unit = "days")) %>% 
-  ungroup() %>% 
-  mutate(n_over30 = case_when(duration_days >= 30 ~ "y",
-                              TRUE ~ "n")) %>% 
-  filter(n_over30 == "y") %>%
-  group_by(sampling_method_2) %>% 
-  count() %>% 
-  print(n = nrow(.))
-###########################################################################
-
-sd_data %>% 
-  distinct(total_effort_ident, sub_effort_ident, sampling_method, sampling_method_2) %>% 
-  group_by(sampling_method, sampling_method_2) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
-  collect() %>% 
-  ggplot() +
-  geom_histogram(aes(total_effort_1)) + 
-  #geom_vline(xintercept = c(24, .5)) +
-  facet_wrap(~sampling_method, scales = "free")
-
-sd_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1, total_effort_1_units) %>% 
-  group_by(sampling_method, total_effort_1_units) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(total_effort_1_units, sub_effort_1_units) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(survey_type) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(target_species) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  arrange(species_1) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(sampling_method, sampling_method_2) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.)) 
-
-sd_data %>% 
-  group_by(total_effort_ident) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(date_total_effort_ident) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  filter(total_effort_nothing_caught == "FALSE" & sub_effort_nothing_caught == "TRUE") %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_nothing_caught, sub_effort_nothing_caught) %>% 
-  collect()
-
-
-sd_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  collect %>% 
-  arrange(species_1) %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(sampling_method) %>% 
-  count() %>% 
-  collect() %>% 
-  arrange(desc(n)) %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(sampling_method) %>% 
-  count() %>% 
-  collect() %>% 
-  arrange(desc(n)) %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(sampling_method) %>% 
-  summarise(min = min(total_effort_1), max = max(total_effort_1), mean = mean(total_effort_1)) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-#looks like nets are in net night and efishing is in minutes
-
-sd_data %>% 
-  filter(nothing_caught == "TRUE") %>% 
-  collect() %>% 
-  distinct(total_effort_ident, .keep_all = T) %>% 
-  group_by(sampling_method) %>% 
-  summarise(effort.min = min(total_effort_ident),
-            date.min = min(month(date_1)),
-            date.max = max(month(date_1)),
-            count = n()) %>% 
-  collect() %>% 
-  print(n=nrow(.))
-
-data <- sd_data %>% 
-  filter(total_effort_ident == 1 & species_1 == "yellow_perch") %>% 
-  collect()
-
-sd_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-#in an older parquet there was a poor link between fish obs and effort - here is some code that explored it
-
-#looking at null sub effort 
-#all null sub effort comes from total effort ident 1
-te1 <- sd_data %>% 
-  filter(total_effort_ident == "1") %>% 
-  collect()
-
-te1 %>% 
-  group_by(sampling_method, date_survey, date_total_effort_ident, lake_name, total_effort_1) %>% 
-  count()
-#survey level info appears to be missing for all records
-#are these records really from the sample survey OR do they just get grouped together due to the lack of grouping info?
-#there are 5 different sub effort idents (one of which is <Null>)
-
-
-#total effort 1 is the only survey with na date
-sd_data %>% 
-  group_by(total_effort_ident, is.na(date_survey)) %>% 
-  count() %>% 
-  collect() %>% 
-  filter(`is.na(date_survey)` == TRUE)
-
-sd_data %>% 
-  filter(lake_name == "Elmore Pond") %>% 
-  group_by(sub_effort_ident) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  filter(total_effort_ident == "1") %>% 
-  group_by(sub_effort_ident) %>% 
-  count() %>% 
-  collect()
-
-sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "sd_file_arrow"))
-glimpse(sd_data)
-
-
-sd_data %>% 
-  distinct(total_effort_ident, sub_effort_ident, sampling_method, sampling_method_2) %>% 
-  group_by(sampling_method, sampling_method_2) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1) %>% 
-  collect() %>% 
-  ggplot() +
-  geom_histogram(aes(total_effort_1)) + 
-  #geom_vline(xintercept = c(24, .5)) +
-  facet_wrap(~sampling_method, scales = "free")
-
-sd_data %>% 
-  distinct(total_effort_ident, sampling_method, total_effort_1, total_effort_1_units) %>% 
-  group_by(sampling_method, total_effort_1_units) %>% 
-  count() %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-sd_data %>% 
-  group_by(survey_type) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(target_species) %>% 
-  count() %>% 
-  collect()
-
-sd_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  arrange(species_1) %>% 
-  collect() %>% 
-  print(n = nrow(.))
-
-
-##############checking against old##########################################
-old <- read_csv("all_state_cpue_6Feb24_chris_copy_IN_not_fixed.csv") %>% 
-  filter(state == "South Dakota" & species_1 == "walleye") %>% 
-  mutate(month = month(date),
-         year = year(date))
-
-check <- old %>% 
-  anti_join(adult_walleye_cpue, by = c("lake_id", "year")) %>% 
-  select(lake_name, lake_id, sampling_method, month, year, total_effort_1, cpue) 
-
-sd_data %>% 
-  filter(lake_id == "RAP-Lake-1-000" & year == 2020) %>% 
-  collect() %>% 
-  group_by(month, sampling_method_2, flag) %>% 
-  count()
-
-
-sd_data %>% 
-  filter(lake_id == "LCL-Lake-73-000" & year == 1984) %>%
-  group_by(lake_name, year, month, date_sub_effort_ident, sampling_method_2, total_effort_1) %>% 
-  count() %>% 
-  collect()
-
-old %>% 
-  filter(state == "South Dakota") %>% 
-  group_by(species_1) %>% 
-  count()
 ```
 

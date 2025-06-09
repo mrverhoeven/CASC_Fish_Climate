@@ -1020,4 +1020,3 @@ ia_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "yellow_perch"))
 write_csv(ia_filtered_species, "IA_all_cpue_filtered.csv")
 ```
-

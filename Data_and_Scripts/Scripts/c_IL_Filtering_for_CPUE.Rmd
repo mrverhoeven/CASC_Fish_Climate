@@ -18,13 +18,6 @@ library(arrow)
 il_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Illinois")
 glimpse(il_data)
-
-il_data %>% 
-  group_by(target_species) %>% 
-  count() %>% 
-  collect() %>% 
-  arrange(target_species) %>% 
-  print(n = nrow(.))
 ```
 
 #targeted species check
@@ -33,6 +26,10 @@ il_data %>%
   group_by(target_species) %>% 
   count() %>% 
   collect()
+#here we can see that Illinoies has unique ways of marking a survey as targeted:
+#1.) the survey targeted that fish and only that species should be used in cpe generation
+#2.) the survey actively didn't target that species and that species should NOT be used in cpe generation while the others can be
+#see the explaination below for more info
 
 il_data %>% 
   mutate(bluegill_relevant =case_when(is.na(target_species) ~ "y",
@@ -44,7 +41,7 @@ il_data %>%
   arrange(bluegill_relevant) %>% 
   collect()
 ```
-We can see here that Illinois structures efishing surveys differently than other states, in that they do "sub sampling" where in the first amount of time they specifically DO NOT target a particular species and then in the 2nd part of the survey they ONLY target that species. We have aggregated this data so that each "sub sampling" event is its own total effort ident. Each total effort ident then has a target species where a species is either targeted "[insert species]Y" or it is not targeted "[insert species]N". We have to do a little clever coding so that we only include total efforts where a species is targeted OR not excluded 
+We can see here that Illinois structures efishing surveys differently than other states, they do "sub sampling" where in the first amount of time they specifically DO NOT target a particular species and then in the 2nd part of the survey they ONLY target that species. We have aggregated this data so that each "sub sampling" event is its own total effort ident. Each total effort ident then has a target species where a species is either targeted "[insert species]Y" or it is not targeted "[insert species]N". We have to do a little clever coding so that we only include total efforts where a species is targeted OR not excluded 
 
 #effort flag check
 ```{r}
@@ -62,7 +59,7 @@ il_data %>%
 ```
 Looks like we have surveys with effort reported as 0 - those will be taken care of with the min effort filter.
 We also have some flags for high effort - those could be taken care of with the max effort filter - but lets make another filter to be certain.
-The no zero catches flag is just warning no confirmed surveys with effort but no catch - a niche thing for Illinois 
+The no zero catches flag is just warning no confirmed surveys with effort but no catch - a niche thing for Illinois where we do not have any confirmed non-catches and thus we may not have surveys that didn't catch any fish at all
 
 #walleye filtering 
 ```{r}
@@ -712,7 +709,7 @@ good_surveys %>%
   summarise(min.effort = min(total_effort_1), max.effort = max(total_effort_1))
 
 good_surveys %>% 
-  group_by(target_species, species_included) %>% 
+  group_by(target_species, largemouth_relevant) %>% 
   count()
 
 il_data %>% 

@@ -101,7 +101,7 @@ adult_walleye %>%
             n = n()) 
 
 adult_walleye %>% 
-  group_by(target_species) %>% 
+  group_by(target_species, waterbody_type) %>% 
   count()
 
 

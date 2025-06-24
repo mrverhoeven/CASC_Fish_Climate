@@ -114,7 +114,7 @@ wi_data %>%
   arrange(sampling_method) %>% 
   collect()
 ```
-For fyke nets it is really obvious that it is standard to report in hours and we will proceed only using hours for that gear. For electrofishing the most used unit is mintues, we will need to make sure that only minutes show up for electrofishing and only hours for fykes.
+For fyke nets it is really obvious that it is standard to report in hours and we will proceed only using hours for that gear. For electrofishing the most used unit is minutes, we will need to make sure that only minutes show up for electrofishing and only hours for fykes.
 
 #Walleye filtering
 ```{r}
@@ -1587,3 +1587,4 @@ wi_filtered_species <- bind_rows(adult_walleye_cpue %>%
 
 write_csv(wi_filtered_species, "WI_all_cpue_filtered.csv")
 ```
+

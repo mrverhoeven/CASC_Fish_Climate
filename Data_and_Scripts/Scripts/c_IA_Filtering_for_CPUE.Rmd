@@ -58,6 +58,17 @@ ia_data %>%
 ```
 There are several flags in Iowa that we will want to weed out for relative abundance. Any fish level flag is fine because we are just counting. Here are two flags that are concerning - high effort and agency flagged surveys. We will make a y or n record when filtering and make sure that there are no effort flags in the remaining observations. 
 
+#effort units filtering
+```{r}
+ia_data %>% 
+  group_by(sampling_method, sampling_method_2, total_effort_1_units) %>% 
+  count() %>% 
+  collect() %>% 
+  arrange(sampling_method) %>% 
+  print(n = nrow(.))
+```
+Hours is the standard Iowan effort unit - we need to make sure only do not use distance. There appear to be some NA unit values, all of those have an adequacy flag tagged on them and it is not nessary to worry about filtering on that.
+
 #filtering walleye
 ```{r}
 filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vSkGZinLPrSuv1DorBrAkV2JNUZsOlpG7jk_WsnGyZX56z9JMVcGHdCPlsxInjOdjUH0tXb4nBwt9Js/pub?output=csv") %>% 
@@ -93,6 +104,7 @@ good_surveys <- ia_data %>%
            effort_max,
            month_min,
            month_max,
+           total_effort_1_units,
            species_included,
            survey_type_filter,
            effort_flag) %>% 
@@ -103,7 +115,8 @@ good_surveys <- ia_data %>%
         species_included == "y",
         survey_type_filter == "y",
         effort_flag == "n") %>% 
-  collect()
+  collect() %>% 
+  filter(total_effort_1_units == "hours")
 
 #collecting fish from good surveys
 adult_walleye <- ia_data %>% 
@@ -230,6 +243,7 @@ good_surveys <- ia_data %>%
            effort_max,
            month_min,
            month_max,
+           total_effort_1_units,
            species_included,
            survey_type_filter,
            effort_flag) %>% 
@@ -240,7 +254,8 @@ good_surveys <- ia_data %>%
         species_included == "y",
         survey_type_filter == "y",
         effort_flag == "n") %>% 
-  collect()
+  collect() %>% 
+  filter(total_effort_1_units == "hours")
 
 #collecting fish from good surveys
 adult_black_crappie <- ia_data %>% 
@@ -364,6 +379,7 @@ good_surveys <- ia_data %>%
            effort_max,
            month_min,
            month_max,
+           total_effort_1_units,
            species_included,
            survey_type_filter,
            effort_flag) %>% 
@@ -374,7 +390,8 @@ good_surveys <- ia_data %>%
         species_included == "y",
         survey_type_filter == "y",
         effort_flag == "n") %>% 
-  collect()
+  collect() %>% 
+  filter(total_effort_1_units == "hours")
 
 #collecting fish from good surveys
 adult_bluegill <- ia_data %>% 
@@ -499,6 +516,7 @@ good_surveys <- ia_data %>%
            effort_max,
            month_min,
            month_max,
+           total_effort_1_units,
            species_included,
            survey_type_filter,
            effort_flag) %>% 
@@ -509,7 +527,8 @@ good_surveys <- ia_data %>%
         species_included == "y",
         survey_type_filter == "y",
         effort_flag == "n") %>% 
-  collect()
+  collect() %>% 
+  filter(total_effort_1_units == "hours")
 
 #collecting fish from good surveys
 adult_largemouth_bass <- ia_data %>% 
@@ -633,6 +652,7 @@ good_surveys <- ia_data %>%
            effort_max,
            month_min,
            month_max,
+           total_effort_1_units,
            species_included,
            survey_type_filter,
            effort_flag) %>% 
@@ -643,7 +663,8 @@ good_surveys <- ia_data %>%
         species_included == "y",
         survey_type_filter == "y",
         effort_flag == "n") %>% 
-  collect()
+  collect() %>% 
+  filter(total_effort_1_units == "hours")
 
 #collecting fish from good surveys
 adult_smallmouth_bass <- ia_data %>% 
@@ -767,6 +788,7 @@ good_surveys <- ia_data %>%
            effort_max,
            month_min,
            month_max,
+           total_effort_1_units,
            species_included,
            survey_type_filter,
            effort_flag) %>% 
@@ -777,7 +799,8 @@ good_surveys <- ia_data %>%
         species_included == "y",
         survey_type_filter == "y",
         effort_flag == "n") %>% 
-  collect()
+  collect() %>% 
+  filter(total_effort_1_units == "hours")
 
 #collecting fish from good surveys
 adult_northern_pike <- ia_data %>% 
@@ -902,6 +925,7 @@ good_surveys <- ia_data %>%
            effort_max,
            month_min,
            month_max,
+           total_effort_1_units,
            species_included,
            survey_type_filter,
            effort_flag) %>% 
@@ -912,7 +936,8 @@ good_surveys <- ia_data %>%
         species_included == "y",
         survey_type_filter == "y",
         effort_flag == "n") %>% 
-  collect()
+  collect() %>% 
+  filter(total_effort_1_units == "hours")
 
 #collecting fish from good surveys
 adult_yellow_perch <- ia_data %>% 

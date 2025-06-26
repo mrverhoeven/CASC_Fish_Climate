@@ -6,8 +6,6 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
-#to fix in main data and return to filtering:
--multiple total effort idents within the same day
 
 #Preamble
 We have a pretty detailed MN filtering script as we have extensive knowledge of the data. First we read in the Minnesota data. The next section manipulates the MN data to make filtering easier, including filtering out records with flags, choosing sampling methods, and filtering effort based on lake size. 
@@ -70,7 +68,8 @@ flagged_rows <- mn_data %>%
     str_detect(flag, "effort value error") |
     str_detect(flag, "gear issue") |
     str_detect(flag, "high effort") |
-    str_detect(flag, "very high catch")
+    str_detect(flag, "likely") |
+    str_detect(flag, "very high catch") 
   ) %>%
   distinct(total_effort_ident) %>%
   mutate(effort_flag = "y")
@@ -97,7 +96,7 @@ rm(flagged_rows)
 mn_data %>% 
   distinct(effort_flag, flag) %>% 
   collect() %>% 
-  arrange(effort_flag) %>% 
+  arrange(flag) %>% 
   print(n = nrow(.))
 
 
@@ -259,6 +258,7 @@ good_surveys <- mn_data %>%
            effort_max,
            month_min,
            month_max,
+           survey_type,
            survey_type_filter,
            effort_flag)  %>%
   filter(total_effort_1 >= effort_min,
@@ -290,6 +290,9 @@ adult_walleye_cpue <- adult_walleye %>%
   distinct(total_effort_ident,
            .keep_all = T) 
 
+adult_walleye_cpue %>% 
+  filter(total_effort_nothing_caught == "TRUE") %>% 
+  distinct(lake_id, year, sampling_method)
 
 #checking filtering
 #survey level checks
@@ -355,55 +358,15 @@ adult_walleye %>%
            survey_type_filter) %>% 
   glimpse()
 
-adult_walleye %>% 
-  group_by(lake_id,
-           date_total_effort_ident,
-           sampling_method,
-           sampling_method_2,
-           #total_effort_ident,
-           total_effort_1) %>% 
-  summarise(n = n_distinct(total_effort_ident)) %>% 
-  filter(n > 1) %>% 
-  glimpse()
-#these surveys have multiple effort idents?
 
-check <- adult_walleye %>% 
-  group_by(lake_id,
-           date_total_effort_ident,
-           sampling_method,
-           sampling_method_2,
-           #total_effort_ident,
-           total_effort_1) %>% 
-  summarise(n = n_distinct(total_effort_ident)) %>% 
-  filter(n > 1) %>% 
-  glimpse()
-#all of the surveys with multiple records of TEIs within the same day have multiple survey types 
-check <- adult_walleye %>% 
-  filter(lake_id == "38055400" & year == "1979") %>% 
-  group_by(lake_id,
-           date_total_effort_ident,
-           sampling_method,
-           sampling_method_2,
-           total_effort_ident,
-           total_effort_1,
-           survey_type,
-           total_effort_nothing_caught) %>% 
-  count()
-
-adult_walleye %>% 
-  filter(total_effort_ident %in% c("44207", "50905")) %>% 
-  group_by(total_effort_ident, species_1) %>%
-  count() %>% 
-  print(n = nrow(.))
-rm(check)
-
-#85 nothing caught surveys
+#85 nothing caught surveys, but they were removed from the cpe product
 adult_walleye %>% 
   distinct(total_effort_ident, .keep_all = T) %>% 
   group_by(total_effort_nothing_caught) %>% 
   count()
 
 #checks after calculating cpue
+
 #range of cpues?
 adult_walleye_cpue %>% 
   group_by(sampling_method) %>% 
@@ -424,6 +387,36 @@ adult_walleye_cpue %>%
   ggplot() +
   geom_histogram(aes(cpue)) +
   facet_wrap(~sampling_method, scales = "free")
+
+#here is an example of a lake-year-method that had more than one tei, we can see that we capture the total effort ident we want based on its survey type
+mn_data %>% 
+  filter(lake_id == "11014700" & year == 1997 & sampling_method == "gill_net_standard") %>% 
+  group_by(survey_type) %>% 
+  count() %>% 
+  collect()
+
+adult_walleye %>% 
+  filter(lake_id == "11014700" & year == 1997 & sampling_method == "gill_net_standard") %>% 
+  group_by(survey_type) %>% 
+  count()
+
+#here are examples of there being two total effort idents, different by survey_type on the same day
+multi <- adult_walleye %>% 
+  group_by(lake_id, sampling_method, year) %>% 
+  summarise(n_tei = n_distinct(total_effort_ident)) %>% 
+  filter(n_tei >1)
+
+check <- adult_walleye %>% 
+  semi_join(multi, by = c("lake_id", "sampling_method", "year")) %>% 
+  group_by(lake_id, survey_type, year, date_total_effort_ident, total_effort_1, total_effort_ident) %>% 
+  count() %>% 
+  arrange(lake_id, survey_type, year, date_total_effort_ident, total_effort_1)
+#all lake-gear-year duplicates have valid splits (varying total efforts, survey type, or date)
+rm(multi, check)
+
+adult_walleye_cpue %>% 
+  group_by(sampling_method) %>% 
+  count()
 
 #removes individual fish object to save memory
 rm(adult_walleye)
@@ -580,6 +573,8 @@ adult_black_crappie_cpue %>%
   ggplot() +
   geom_histogram(aes(cpue)) +
   facet_wrap(~sampling_method, scales = "free")
+
+
 
 #removes individual fish object to save memory
 rm(adult_black_crappie)
@@ -789,7 +784,7 @@ adult_largemouth_bass_cpue <- adult_largemouth_bass %>%
   mutate(cpue = count/total_effort_1) %>%
   #collapse data into survey level cpue (also works as a select function)
   distinct(total_effort_ident,
-           .keep_all = T) 
+           .keep_all = T)
 
 
 #checking filtering
@@ -929,7 +924,7 @@ good_surveys <- mn_data %>%
 adult_smallmouth_bass <- mn_data %>% 
   #filter the data for surveys that were good for species abundance
   right_join(good_surveys) %>% 
-  collect() 
+  collect()
 
 #create cpue for species of interest
 adult_smallmouth_bass_cpue <- adult_smallmouth_bass %>% 
@@ -944,7 +939,7 @@ adult_smallmouth_bass_cpue <- adult_smallmouth_bass %>%
   mutate(cpue = count/total_effort_1) %>%
   #collapse data into survey level cpue (also works as a select function)
   distinct(total_effort_ident,
-           .keep_all = T) 
+           .keep_all = T)
 
 #checking filtering
 
@@ -1108,7 +1103,6 @@ adult_cisco_cpue <- adult_cisco %>%
   distinct(total_effort_ident,
            total_effort_1,
            .keep_all = T) 
-
 
 #checking filtering
 
@@ -1408,7 +1402,7 @@ adult_yellow_perch_cpue <- adult_yellow_perch %>%
   mutate(cpue = count/total_effort_1) %>%
   #collapse data into survey level cpue (also works as a select function)
   distinct(total_effort_ident,
-           .keep_all = T) 
+           .keep_all = T)
 
 
 #checking filtering
@@ -1516,4 +1510,3 @@ mn_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "yellow_perch"))
 #write_csv(mn_filtered_species, "MN_all_cpue_filtered.csv")
 ```
-

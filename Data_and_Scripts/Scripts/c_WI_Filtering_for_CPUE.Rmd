@@ -93,7 +93,7 @@ wi_data %>%
   collect() %>% 
   arrange(sampling_method_simple) %>% 
   print(n = nrow(.))
-#it looks like for any given gear there could be multipule types of effort reported
+#it looks like for any given gear there could be multiple types of effort reported
 #we will need to make sure this is consistent
 
 wi_data %>% 
@@ -106,7 +106,7 @@ wi_data %>%
 
 wi_data %>% 
   filter(sampling_method %in% c("fyke_net") | str_detect(sampling_method, "boat_electrofishing")) %>% 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>%
   group_by(sampling_method, total_effort_1_units, units_flag) %>% 
@@ -114,7 +114,7 @@ wi_data %>%
   arrange(sampling_method) %>% 
   collect()
 ```
-For fyke nets it is really obvious that it is standard to report in hours and we will proceed only using hours for that gear. For electrofishing the most used unit is minutes, we will need to make sure that only minutes show up for electrofishing and only hours for fykes.
+For fyke nets it is really obvious that it is standard to report in net_nights and we will proceed only using hours for that gear. For electrofishing the most used unit is minutes, we will need to make sure that only minutes show up for electrofishing and only hours for fykes.
 
 #Walleye filtering
 ```{r}
@@ -143,7 +143,7 @@ good_surveys <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>% 
   #removing na water temps
@@ -331,7 +331,7 @@ good_surveys <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>%
   #removing na water temps
@@ -372,7 +372,7 @@ good_surveys <- wi_data %>%
 good_surveys %>% 
   distinct(total_effort_ident) %>% 
   count()
-#1718
+#1627
 
 good_surveys %>% 
   distinct(total_effort_ident, water_temp) %>% 
@@ -483,7 +483,7 @@ good_surveys <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>% 
   #removing na water temps
@@ -660,7 +660,7 @@ good_surveys_standard <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>%
   filter(!is.na(total_effort_ident)) %>% 
@@ -714,7 +714,7 @@ good_surveys_extra <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>%
   filter(!is.na(total_effort_ident)) %>% 
@@ -761,7 +761,7 @@ good_surveys %>%
 good_surveys %>% 
   distinct(total_effort_ident, water_temp) %>% 
   count()
-#all attributed to water temp and sampling method
+#all attributed to water temp
 
  #gathering fish data from good surveys
 adult_largemouth <- wi_data %>% 
@@ -910,7 +910,7 @@ good_surveys_standard <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>%
   filter(!is.na(total_effort_ident)) %>% 
@@ -964,7 +964,7 @@ good_surveys_extra <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>%
   filter(!is.na(total_effort_ident)) %>% 
@@ -1133,6 +1133,8 @@ good_surveys <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   filter(!is.na(total_effort_ident)) %>% 
+  mutate(units_flag = case_when(sampling_method == "gill_net_vertical" & total_effort_1_units == "net_nights" ~ "y",
+                                TRUE ~ "n")) %>%
   #filter(!is.na(water_temp)) %>% 
   #first join the filter table data to the Wisconsin data (while also filtering for survey purpose)
   right_join(filter_table_effort, by = c("state", 
@@ -1150,7 +1152,8 @@ good_surveys <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag) %>% 
+    effort_flag,
+    units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
@@ -1159,7 +1162,8 @@ good_surveys <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n") %>% 
+         effort_flag == "n",
+         units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()
 #ignoring water temp for these surveys due to data structure and limited samples(note limited samples are not due to temperature restriction, it just makes the filtering easier)
@@ -1266,7 +1270,7 @@ good_surveys <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>%
   filter(!is.na(total_effort_ident)) %>% 
@@ -1429,7 +1433,7 @@ good_surveys <- wi_data %>%
                                  str_detect(flag, "multi types") ~ "y",
                                  TRUE ~ "n")) %>%
   #units check 
-  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "hours" ~ "y",
+  mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
                                 TRUE ~ "n")) %>%
   filter(!is.na(total_effort_ident)) %>% 
@@ -1584,7 +1588,6 @@ wi_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "northern_pike"), 
                                  adult_yellow_perch_cpue %>% 
                                    mutate(species_1 = "yellow_perch"))
-
 write_csv(wi_filtered_species, "WI_all_cpue_filtered.csv")
 ```
 

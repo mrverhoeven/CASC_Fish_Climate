@@ -13,7 +13,6 @@ library(tidyverse)
 library(arrow)
 ```
 
-
 # read in filtered state cpue data and select for appropriate columns
 ```{r}
 #MI
@@ -153,13 +152,37 @@ mn <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS
        cpue) %>% 
   mutate(lake_id = as.character(lake_id),
          total_effort_ident = as.character(total_effort_ident))
+
+#wi
+wi <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Data for Collaborators", "CPUE_Data", "filter_update_spring_2025", "WI_all_cpue_filtered.csv")) %>% 
+  select(state,
+       nhdhr_id,
+       lake_id,
+       lake_name,
+       county,
+       latitude_lake_centroid,
+       longitude_lake_centroid,
+       date = date_total_effort_ident,
+       month,
+       year,
+       total_effort_ident,
+       sampling_method_simple,
+       sampling_method,
+       sampling_method_2,
+       total_effort_1,
+       total_effort_1_units,
+       species_1,
+       count,
+       cpue) %>% 
+  mutate(total_effort_ident = as.character(total_effort_ident),
+         lake_id = as.character(lake_id))
 ```
 
 # join data
 ```{r}
-mw_cpue <- bind_rows(ia, il, indy, mi, sd, mn)
+mw_cpue <- bind_rows(ia, il, indy, mi, sd, mn, wi)
 
-rm(ia, il, indy, mi, sd, mn)
+rm(ia, il, indy, mi, sd, mn, wi)
 ```
 
 # QA/QC
@@ -255,7 +278,7 @@ mw_cpue %>%
 ```
 
 # addtional filtering not needed after future fix
-6/9/2025
+6/27/2025
 In QC checking, I noted some Iowan surveys that had units of distance rather than time. Lets filter them out for this product and fix the filtering script for the future 
 ```{r}
 mw_cpue <- mw_cpue %>% 
@@ -264,31 +287,17 @@ mw_cpue <- mw_cpue %>%
 
 # saving
 ```{r}
-write_csv(mw_cpue, "subset_cpue_26Jun2025.csv")
+write_csv(mw_cpue, "subset_cpue_27Jun2025.csv")
 ```
 
 
 
 # QC that can be deleted 
 ```{r}
-old <- read_csv("all_state_cpue_6Feb24_chris_copy_IN_not_fixed.csv")
-
 #total number of surveys for each species-state
 mw_cpue %>% 
   group_by(state, species_1) %>% 
   count() %>% 
   pivot_wider(names_from = species_1, values_from = n, values_fill = 0)
-
-old %>% 
-  group_by(state, species_1) %>% 
-  count() %>% 
-  pivot_wider(names_from = species_1, values_from = n, values_fill = 0)
-
-sd_data %>% 
-  group_by(species_1) %>% 
-  count() %>% 
-  collect() %>% 
-  arrange(species_1) %>% 
-  print(n = nrow(.))
 ```
 

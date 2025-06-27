@@ -1967,6 +1967,7 @@ wi_inland_fishobservations_10Nov2023[water_temp_units == "F", water_temp_units :
 
 #lats lons
 wi_inland_fishobservations_10Nov2023[ , summary(.SD), .SDcols = c("lat_start", "lat_end", "lat_unspec", "latitude_lake_centroid", "LAT") ]
+
 #use MGLP crosswalk centroid locs if not available via direct from state via lak.id linkage
 wi_inland_fishobservations_10Nov2023[is.na(latitude_lake_centroid), length(unique(lake_id)), is.na(LAT)]
 wi_inland_fishobservations_10Nov2023[is.na(latitude_lake_centroid), latitude_lake_centroid := LAT ]
@@ -2510,21 +2511,6 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
 
 #export as parquet file
 ```{r}
-wi_inland_fishobservations_10Nov2023 %>% 
-  filter(str_detect(lake_name, "innebag") & date_total_effort_ident == "2014-08-07") %>% 
-  distinct(total_effort_ident, sub_effort_ident, site_id, total_effort_1, sub_effort_1_units)
-
-wi_inland_fishobservations_10Nov2023 %>% 
-  filter(lake_name == "lake_chippewa" & year == 1990 & sampling_method == "fyke_net") %>% 
-  distinct(date_total_effort_ident, 
-           target_species,
-           total_effort_ident, 
-           total_effort_1, 
-           total_effort_1_unit,
-           sub_effort_ident, 
-           sub_effort_1, 
-           sub_effort_1_units)
-
 #save dataframe as a csv
 fwrite(wi_inland_fishobservations_10Nov2023, "Data_and_Scripts/Data/output/wi_data.csv" , na="NA" )
 
@@ -2666,7 +2652,26 @@ mw_data %>%
    group_by(state, length_unit_1) %>% count() %>% 
    collect()
 
+wi_dat %>% 
+  filter(lake_name == "lake_chippewa" & year == 1990 & sampling_method == "fyke_net") %>% 
+  distinct(date_total_effort_ident, 
+           target_species,
+           total_effort_ident, 
+           total_effort_1, 
+           total_effort_1_units,
+           sub_effort_ident, 
+           sub_effort_1, 
+           sub_effort_1_units) %>% 
+  collect()
 
+wi_dat %>% 
+  filter(str_detect(lake_name, "innebag") & date_total_effort_ident %in% c("2014-08-07", "2014-08-06")) %>% 
+  group_by(total_effort_ident, sub_effort_ident, site_id, total_effort_1, total_effort_1_units, sub_effort_1, sub_effort_1_units) %>% 
+  summarise(n_walleye_sub = sum(species_1 == "walleye")) %>%
+  group_by(total_effort_ident) %>% 
+  mutate(n_walleye_total = sum(n_walleye_sub)) %>% 
+  collect() %>% 
+  print(n = nrow(.))
 ```
 
 

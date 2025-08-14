@@ -8,14 +8,6 @@ editor_options:
 ---
 # Preamble
 
-#notes as of 2/26/24:
--all surveys/sub surveys were made their own survey. Each part has their own unique effort ident with either the target species listed or the "non-target species" listed
--no nhdids exist
--sub effort idents were created so that call sub efforts have a unique ident. net number was also retained to identify agency nets/runs within a survey
--the aging file did not contain a separate effort file - 0s might not be fully represented - a flag was created
--some surveys/runs contain 0 effort indicative of errors in the agency data themselves - a flag was created
-
-
 -naming schema: -made net/run (agency provided) into site_id 
                 -moved sub sampling designation to gear data notes 
                 -target species lists species with either Y or N at the end
@@ -1548,6 +1540,20 @@ il_data.prep %>%
   group_by(is.na(flag)) %>% 
   count()
 
+###########creating column for cpue invalids###############
+il_data.prep %>% 
+  group_by(flag) %>% 
+  count() 
+
+il_data.prep %>% 
+  group_by(is.na(survey_effort_id), flag) %>% 
+  count()
+
+il_data.prep <- il_data.prep %>% 
+  mutate(cpue_invalid = case_when(str_detect(flag, "high effort") ~ "y",
+                                  str_detect(flag, "effort reported as 0") ~ "y",
+                                            TRUE ~ "n"))
+
 ############################final tidy################################
 il_data <- il_data.prep %>% 
   #lower case with no spaces for species name
@@ -1624,9 +1630,9 @@ il_data <- il_data.prep %>%
   #columns that still need to be added
   mutate(year = year(date_sample),
          month = month(date_sample),
-         survey_type_2 = as.character(NA),
-         survey_type_3 = as.character(NA),
-         survey_type_4 = as.character(NA),
+         #survey_type_2 = as.character(NA),
+         #survey_type_3 = as.character(NA),
+         #survey_type_4 = as.character(NA),
          gear_data_notes = subsampling_survey,
          target_species_2 = as.character(NA),
          total_effort_3 = as.numeric(NA),
@@ -1687,9 +1693,9 @@ il_data <- il_data.prep %>%
          month,
          survey_id,
          survey_type,
-         survey_type_2,
-         survey_type_3,
-         survey_type_4,
+         #survey_type_2,
+         #survey_type_3,
+         #survey_type_4,
          sampling_method_simple,
          sampling_method,
          sampling_method_2,
@@ -1730,6 +1736,7 @@ il_data <- il_data.prep %>%
          sex,
          age_class,
          flag,
+         cpue_invalid,
          original_file_names,
          ind_fish_ident,
          lakesize,
@@ -1741,7 +1748,6 @@ il_data <- il_data.prep %>%
          notes_1,
          obs_id
          )
-#no crosswalk for lake id exists for nhdids
 
 #all the columns appear to be present that we need
 #clean up column naming (underscores for periods)
@@ -1928,6 +1934,14 @@ il_data %>%
 
 il_data %>% 
   count(is.na(species_1))
+
+il_data %>% 
+  group_by(is.na(nhdhr_id)) %>% 
+  count()
+
+il_data %>% 
+  group_by(cpue_invalid, flag) %>% 
+  count()
 ``` 
 
 

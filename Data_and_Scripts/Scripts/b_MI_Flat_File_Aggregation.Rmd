@@ -3,6 +3,8 @@ title: "MI_Flat_File_Aggregation"
 author: "Mike Verhoeven"
 date: "2Oct2024"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 # Preamble
 
@@ -933,8 +935,30 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
 mi_catch_eff_merge %>% 
   group_by(is.na(age), is.na(total_effort_1_effort), is.na(effort_ident)) %>% 
   count()
-#now we can see that aged fish have an NA effot ident becuase they don't have effort, there is also one odd survey that doesn't have effor that also does not retain an effort ident
+#now we can see that aged fish have an NA effort ident becuase they don't have effort, there is also one odd survey that doesn't have effort that also does not retain an effort ident
 
+#adding a flag for if a survey should be used for cpue generation or not
+mi_catch_eff_merge %>% 
+  group_by(flag) %>% 
+  count() 
+
+mi_catch_eff_merge %>% 
+   group_by(flag, is.na(effort_ident)) %>% 
+   count()
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  mutate(cpue_invalid = case_when(str_detect(flag, "no effort data") ~ "y",
+                                  str_detect(flag, "likely") ~ "y",
+                                  TRUE ~ "n"))
+# all aged fish samples and no effort data samples are now told to be invaild for cpue
+
+mi_catch_eff_merge %>% 
+  group_by(cpue_invalid, flag, is.na(effort_ident)) %>% 
+  count()
+```                        
+
+# Final clean up to match schema
+```{r}
 #matching to schema
 mi_data <- mi_catch_eff_merge %>% 
   ungroup() %>% 
@@ -947,9 +971,9 @@ mi_data <- mi_catch_eff_merge %>%
          month = month(date.1),
          survey_id = as.character(survey_id),
          survey_type = survey_type.1_effort,
-         survey_type_2 = as.character(NA),
-         survey_type_3 = as.character(NA),
-         survey_type_4 = as.character(NA),
+         #survey_type_2 = as.character(NA),
+         #survey_type_3 = as.character(NA),
+         #survey_type_4 = as.character(NA),
          gear_data_notes = as.character(NA),
          target_species = target_species_effort,
          #target_species_2 = as.character(NA),
@@ -1015,9 +1039,9 @@ mi_data <- mi_catch_eff_merge %>%
          month,
          survey_id,
          survey_type,
-         survey_type_2,
-         survey_type_3,
-         survey_type_4,
+         #survey_type_2,
+         #survey_type_3,
+         #survey_type_4,
          sampling_method_simple,
          sampling_method,
          sampling_method_2,
@@ -1062,6 +1086,7 @@ mi_data <- mi_catch_eff_merge %>%
          sex,
          age_class,
          flag,
+         cpue_invalid,
          original_file_names,
          ind_fish_ident,
          lakesize,
@@ -1078,8 +1103,8 @@ glimpse(mi_data)
 mi_data <- mi_data %>% 
   clean_names()
 glimpse(mi_data)
-```                        
-                        
+```
+
  
 # Review & QC datasets
 ```{r}
@@ -1208,6 +1233,10 @@ mi_data %>%
 
 mi_data %>% 
   group_by(length_unit_1, weight_unit_1, total_effort_1_units, total_effort_2_units, length_bin_unit) %>% 
+  count()
+
+mi_data %>% 
+  group_by(cpue_invalid, flag) %>% 
   count()
 ```
 

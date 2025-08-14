@@ -26,10 +26,10 @@ il_data %>%
   group_by(target_species) %>% 
   count() %>% 
   collect()
-#here we can see that Illinoies has unique ways of marking a survey as targeted:
+#here we can see that Illinois has unique ways of marking a survey as targeted:
 #1.) the survey targeted that fish and only that species should be used in cpe generation
 #2.) the survey actively didn't target that species and that species should NOT be used in cpe generation while the others can be
-#see the explaination below for more info
+#see the explanation below for more info
 
 il_data %>% 
   mutate(bluegill_relevant =case_when(is.na(target_species) ~ "y",

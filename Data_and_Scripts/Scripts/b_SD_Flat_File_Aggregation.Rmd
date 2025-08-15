@@ -7,9 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Update 7/22/24 (Denver)
-I ran into an issue in the parquet file where total effort ident "1" had no survey level info. I did some exploration and found it was due to poor survey id crosswalks between the individual fish object and the effort object. The survey id linkage was 1.) null in fish obs or 2.) survey id in fish was not found in the effort object. The surveys causing issue were removed. They must be removed because they were creating an erroneous total effort ident grouping for the surveys that just didn't have any info
-
 ## To do list:
 
 
@@ -560,6 +557,7 @@ flag_xwalk_effort <- rbind(flag_xwalk, flag_xwalk_2) %>%
          flag)
 rm(flag_xwalk, flag_xwalk_2)
 
+
 sd_merged_ce <- sd_merged_ce %>% 
   left_join(flag_xwalk_effort,
             relationship = "many-to-one")
@@ -574,47 +572,45 @@ sd_merged_ce %>%
 #flag gets applied to 12350 fish records
 rm(flag_xwalk_effort)
 
+sd_merged_ce %>% 
+  mutate(effort_flag = case_when(str_detect(flag, "effort") ~ "y",
+                                 TRUE ~ "n")) %>% 
+  group_by(total_effort_ident) %>% 
+  summarise(n = n_distinct(effort_flag)) %>% 
+  filter(n >1)
+
 #flag for fish
-length_weight_flag_1 <- sd_merged_ce %>% 
-  filter(!is.na(species.1)) %>% 
-  group_by(species.1) %>% 
-  mutate(mean_length = mean(length.1, na.rm = TRUE),
-         weight.1 = as.numeric(weight.1),
-         mean_weight = mean(weight.1, na.rm = TRUE),
-         sd_length = sd(length.1, na.rm = TRUE),
-         sd_weight = sd(weight.1, na.rm = TRUE),
-         z_score_length = (length.1 - mean_length) / sd_length,
-         z_score_weight = (weight.1 - mean_weight) / sd_weight,
-         flag = case_when(z_score_length >= 10 | z_score_length <= -10 ~ paste("unlikely length", ";", coalesce(flag, "")),
-                          z_score_weight >= 10 | z_score_weight <= -10 ~ paste("unlikely weight", ";", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = case_when(length.1 == 0 | weight.1 == 0 ~ paste("length or weight reported as 0", ";", coalesce(flag, "")),
-                          TRUE ~ coalesce(flag, "")),
-         flag = na_if(flag, "")) %>% 
-  select(total_effort_ident,
-         total_effort_1,
-         species.1,
-         weight.1,
-         length.1,
-         mean_length,
-         mean_weight,
-         z_score_length,
-         z_score_weight,
-         flag) %>% 
-  filter(!is.na(flag)) %>% 
-  distinct()
+sd_merged_ce <- sd_merged_ce %>% 
+  mutate(joining_id = row_number())
+
+length_weight_flag_1 <- sd_merged_ce %>%
+  filter(!is.na(species.1)) %>%
+  group_by(species.1) %>%
+  mutate(
+    weight.1 = as.numeric(weight.1),
+    mean_length = mean(length.1, na.rm = TRUE),
+    mean_weight = mean(weight.1, na.rm = TRUE),
+    sd_length = sd(length.1, na.rm = TRUE),
+    sd_weight = sd(weight.1, na.rm = TRUE),
+    z_score_length = (length.1 - mean_length) / sd_length,
+    z_score_weight = (weight.1 - mean_weight) / sd_weight,
+    flag_new = case_when(
+      z_score_length >= 10 | z_score_length <= -10 ~ "unlikely length ; ",
+      z_score_weight >= 10 | z_score_weight <= -10 ~ "unlikely weight ; ",
+      length.1 == 0 | weight.1 == 0 ~ "length or weight reported as 0 ; ",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  ungroup() %>%
+  select(joining_id, flag_new)
+
+sd_merged_ce <- sd_merged_ce %>%
+  left_join(length_weight_flag_1, by = "joining_id") %>%
+  mutate(flag = paste0(coalesce(flag, ""), coalesce(flag_new, "")))
 
 sd_merged_ce <- sd_merged_ce %>% 
-  select(-flag) %>% 
-  mutate(weight.1 = as.numeric(weight.1)) %>% 
-  left_join(length_weight_flag_1,
-            relationship = "many-to-one")
-
-flag_check <- sd_merged_ce %>% 
-  filter(!is.na(flag)) %>% 
-  group_by(total_effort_ident, sampling_method_1, species.1, total_effort_1, length.1, weight.1, flag) %>% 
-  count()
-rm(flag_check)
+  mutate(flag = case_when(flag == "" ~ NA,
+                          TRUE ~ flag))
 
 sd_merged_ce %>% 
   group_by(flag) %>% 
@@ -654,6 +650,20 @@ sd_merged_ce <- sd_merged_ce %>%
 sd_merged_ce %>% 
   filter(age > 200) %>% 
   glimpse()
+
+####adding a cpue invalid column#######
+sd_merged_ce %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  print(n = nrow(.)) 
+
+sd_merged_ce <- sd_merged_ce %>% 
+  mutate(cpue_invalid = case_when(str_detect(flag, "high effort") ~ "y",
+                                  TRUE ~ "n")) 
+
+sd_merged_ce %>% 
+  group_by(cpue_invalid, flag) %>% 
+  count()
 ```
 
 ## Match Columns to parquet schema
@@ -677,9 +687,9 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          month = month(date_total_effort_ident),
          survey_id = as.character(NA),
          survey_type = as.character(NA),
-         survey_type_2 = as.character(NA),
-         survey_type_3 = as.character(NA),
-         survey_type_4 = as.character(NA),
+         #survey_type_2 = as.character(NA),
+         #survey_type_3 = as.character(NA),
+         #survey_type_4 = as.character(NA),
          sampling_method = sampling_method_1_2,
          gear_data_notes = as.character(NA),
          target_species = as.character(NA),
@@ -726,9 +736,9 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          month,
          survey_id,
          survey_type,
-         survey_type_2,
-         survey_type_3,
-         survey_type_4,
+         #survey_type_2,
+         #survey_type_3,
+         #survey_type_4,
          sampling_method_simple,
          sampling_method,
          sampling_method_2,
@@ -769,12 +779,13 @@ sd_merged_ce_trial <- sd_merged_ce %>%
          sex,
          age_class,
          flag,
+         cpue_invalid,
          original_file_names,
          ind_fish_ident,
          lakesize,
          lakesize_units,
-         lat_unspec,
-         lon_unspec,
+         #lat_unspec,
+         #lon_unspec,
          waterbody_type,
          location_notes_1,
          notes_1,

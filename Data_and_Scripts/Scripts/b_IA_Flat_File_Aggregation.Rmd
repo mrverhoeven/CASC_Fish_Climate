@@ -27,7 +27,7 @@ options(scipen = 999)
 ##Data
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -40,7 +40,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
+          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -933,7 +933,7 @@ sampling_methods <- ia_fishobs %>%
   distinct(total_effort_ident, .keep_all = T) %>% 
   select(total_effort_ident, consolidated_gear, sampling_method_1, sampling_method_2)
 #I will take sampling_method_1 as the first sampling method 
-#I will then take consolidated gear as sampling method 2 - more refined year type
+#I will then take consolidated gear as sampling method 2 - more refined gear type
 rm(sampling_methods)
 
 gear_xwalk <- read_csv("gears_by_state.csv") %>% 
@@ -953,7 +953,7 @@ ia_fishobs <- ia_fishobs %>%
 rm(gear_corrections, gear_xwalk)
 
 ####recover lake ids from old version of data sent by Iowa#################
-ia_dat_old <-  fread("D:\\Shared drives\\Hansen Lab\\RESEARCH PROJECTS\\Fish Survey Data\\IA_Data\\ia_raw_disaggregated_data\\Archived\\ia_fishlengths_24Oct2023.csv")
+ia_dat_old <-  fread("G:\\Shared drives\\Hansen Lab\\RESEARCH PROJECTS\\Fish Survey Data\\IA_Data\\ia_raw_disaggregated_data\\Archived\\ia_fishlengths_24Oct2023.csv")
 
 ialakecodekey <- ia_dat_old[ , .("Lat" = mean(Station_Lat), "Lon" = mean(Station_Long)) , .(County, LakeName, LakeID)]
 
@@ -1181,12 +1181,12 @@ rm(check, spec_check)
 
 ####are there cases of multiple total efforts idents in a year-lake-gear (grouping that makes up the ident)
 multi_tei_in_year <- ia_fishobs %>% 
-  group_by(year(survey_start_date), lake_name_1, consolidated_gear) %>% 
+  group_by(lubridate::year(survey_start_date), lake_name_1, consolidated_gear) %>% 
   summarise(n_total_effort_idents = n_distinct(total_effort_ident)) %>% 
   filter(n_total_effort_idents >1)
 
 check <- ia_fishobs %>% 
-  group_by(year = year(survey_start_date), lake_name_1, consolidated_gear) %>% 
+  group_by(year = lubridate::year(survey_start_date), lake_name_1, consolidated_gear) %>% 
   summarise(
     n_total_effort_idents = n_distinct(total_effort_ident),
     .groups = "drop"
@@ -1194,10 +1194,10 @@ check <- ia_fishobs %>%
   filter(n_total_effort_idents > 1) %>%
   inner_join(
     ia_fishobs %>% 
-      mutate(year = year(survey_start_date)),
+      mutate(year = lubridate::year(survey_start_date)),
     by = c("year", "lake_name_1", "consolidated_gear")
   ) %>% 
-  mutate(year = year(survey_start_date)) %>% 
+  mutate(year = lubridate::year(survey_start_date)) %>% 
   distinct(lake_name_1, 
            lake_name,
            consolidated_gear, 
@@ -1211,7 +1211,7 @@ check <- ia_fishobs %>%
 #it looks like in a lot of cases there is a large range in when sampling with the same method (fall and spring), other cases looks like the grouping gear was different than the more defined gear in the end 
 
 check_org <- ia_fishobs %>% 
-  group_by(year = year(survey_start_date), lake_name_1, consolidated_gear) %>% 
+  group_by(year = lubridate::year(survey_start_date), lake_name_1, consolidated_gear) %>% 
   summarise(
     n_total_effort_idents = n_distinct(total_effort_ident),
     .groups = "drop"
@@ -1219,10 +1219,10 @@ check_org <- ia_fishobs %>%
   filter(n_total_effort_idents > 1) %>%
   inner_join(
     ia_fishobs %>% 
-      mutate(year = year(survey_start_date)),
+      mutate(year = lubridate::year(survey_start_date)),
     by = c("year", "lake_name_1", "consolidated_gear")
   ) %>% 
-  mutate(year = year(survey_start_date)) %>% 
+  mutate(year = lubridate::year(survey_start_date)) %>% 
   distinct(lake_name_1, 
            lake_name,
            consolidated_gear, 
@@ -1426,15 +1426,92 @@ ia_fishobs %>%
   mutate(na_effort = case_when(is.na(total_effort_1) ~ T,
                                !is.na(total_effort_1) ~ F)) %>% 
   summarise(prop = mean(na_effort))
-  
 
-#Denver's attempt to clean up columns
+#######flag for multiple gears in a tei###############
+#total effort ident is create at the consolidated gear level, there are a select number of surveys where the gear reported by agency compete with eachother. These were usually consistent with a total effort ident, but there are a few where the consolidated gear change at the more specific agency level within the survey_id, survey_start_date, lake_name level. We will just flag these so they will be removed. (above, consolidated gear is the more specific gear )
+ia_fishobs %>% 
+  group_by(total_effort_ident, lake_name_1, survey_start_date, survey_id, consolidated_gear) %>% 
+  summarise(n_detailed = n_distinct(sampling_method_agency)) %>% 
+  filter(n_detailed > 1)
+
+multi_gears_flag <- ia_fishobs %>% 
+  group_by(total_effort_ident, lake_name_1, survey_start_date, survey_id, consolidated_gear) %>% 
+  mutate(flag = case_when(n_distinct(sampling_method_agency) > 1 ~ paste0("contrasting gears reported by agency within TEI", "; ", coalesce(flag, "")),
+                          TRUE ~ coalesce(flag, "")),
+         flag = na_if(flag, "")) %>% 
+  ungroup() %>% 
+  distinct() %>% 
+  filter(!is.na(flag))
+
+multi_gears_flag %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+multi_gears_flag %>% 
+  filter(total_effort_ident %in% c("1137", "2657")) %>% 
+  group_by(total_effort_ident, flag) %>% 
+  count()
+
+ia_fishobs <- ia_fishobs %>% 
+  select(-flag) %>% 
+  left_join(multi_gears_flag, relationship = "many-to-one")
+rm(multi_gears_flag)
+
+ia_fishobs %>%
+  group_by(flag) %>%
+  count() %>% 
+  print(n = nrow(.))
+
+ia_fishobs %>%
+  group_by(total_effort_ident) %>%
+  summarise(
+    n_samples = n(),
+    n_flagged = sum(str_detect(flag, "Agency flagged sample issue"), na.rm = T),
+    flag_status = case_when(
+      n_flagged == 0 ~ "none",
+      n_flagged == n_samples ~ "all",
+      TRUE ~ "some"
+    ),
+    .groups = "drop"
+  ) %>%
+  filter(flag_status == "some")
+
+ia_fishobs %>% 
+  filter(total_effort_ident == "2657") %>% 
+  group_by(flag) %>% 
+  count()
+
+ia_fishobs %>% 
+  filter(str_detect(flag, "contrasting")) %>% 
+  group_by(total_effort_ident) %>% 
+  count()
+#now we can see flags for the appropriate total effort idents
+
+#######creating cpue invalid column#################
+ia_fishobs %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+
+ia_fishobs <- ia_fishobs %>%
+  mutate(cpue_invalid = case_when(str_detect(flag, "high effort") ~ "y",
+                                  str_detect(flag, "Agency flagged") ~ "y",
+                                  str_detect(flag, "contrasting gears") ~ "y",
+                                  TRUE ~ "n")) 
+
+```
+
+#final cleaning
+```{r}
+#clean up columns
 ia_fishobs_trial <- ia_fishobs %>% 
   mutate(lake_name = lake_name_1,
          survey_type = survey_type_1,
-         survey_type_2 = as.character(NA),
-         survey_type_3 = as.character(NA),
-         survey_type_4 = as.character(NA),
+         #survey_type_2 = as.character(NA),
+         #survey_type_3 = as.character(NA),
+         #survey_type_4 = as.character(NA),
          gear_data_notes = gear_data_notes_1,
          water_temp = as.numeric(NA),
          water_temp_units = as.character(NA),
@@ -1464,8 +1541,8 @@ ia_fishobs_trial <- ia_fishobs %>%
          date_sample = as.Date(NA)) %>% 
   group_by(total_effort_ident) %>% 
   mutate(date_total_effort_ident = first(date_1),
-         month = month(date_total_effort_ident),
-         year = year(date_total_effort_ident)) %>% 
+         month = lubridate::month(date_total_effort_ident),
+         year = lubridate::year(date_total_effort_ident)) %>% 
   ungroup() %>% 
   select(state, 
          county, 
@@ -1482,9 +1559,9 @@ ia_fishobs_trial <- ia_fishobs %>%
          month,
          survey_id,
          survey_type,
-         survey_type_2,
-         survey_type_3,
-         survey_type_4,
+         #survey_type_2,
+         #survey_type_3,
+         #survey_type_4,
          sampling_method_simple,
          sampling_method,
          sampling_method_2,
@@ -1525,12 +1602,13 @@ ia_fishobs_trial <- ia_fishobs %>%
          sex,
          age_class,
          flag,
+         cpue_invalid,
          original_file_names,
          ind_fish_ident,
          lakesize,
          lakesize_units,
-         lat_unspec,
-         lon_unspec,
+         #lat_unspec,
+         #lon_unspec,
          waterbody_type,
          location_notes_1,
          notes_1,
@@ -1577,9 +1655,7 @@ ia_fishobs_trial %>%
 
 #fish obs unpacked and tidied, clean up ws
 rm(ia_fishobs_30Nov2023, b, cde, ia_age_length_21Aug2021, ia_BLG_age_length_21Aug2021,ia_CCF_age_length_21Aug2021, ia_diet_21Aug2021, ia_lake_characteristics_21Aug2021, names, unusedbits, samplestationlocationmap_drawrectangletofilterlocations, ia_renamer, addcols, dropcols, filei, files_list, first_word, i, maxn, n, dates, check)
-
 ```
-
 
 
 # Import/Export files
@@ -1598,312 +1674,7 @@ ia_data <- open_dataset("Data_and_Scripts/Data/output/ia_file_arrow")
 glimpse(ia_data)
 
 ```
-
-# Prep Age Data
-```{r}
-# #We've got three age files, each of them is uniquely messy. This first block is built to start cleaning them
-# 
-# glimpse(ia_age_length_21Aug2021)
-# toString(names(ia_age_length_21Aug2021))
-# ia_age_length_21Aug2021[ , .N, is.na(date.1) ]
-# ia_age_length_21Aug2021[ , .N , survey_type.1]
-# ia_age_length_21Aug2021[ , .N , aging_data_notes.3]
-# ia_age_length_21Aug2021[ , .N , .(garbage_bin_notes.4, species.1)]
-# 
-# 
-# #drop a bunch of backcalc cols and other crud
-# cols <- as.character(expression(sample_id.1, sample_id.2, sex, lake_id, lake_name.1, county, date.1, garbage_bin_notes.1, garbage_bin_notes.2, garbage_bin_notes.3, year, sampling_method.1, species.1, length.1,length_unit.1, weight.1, weight_unit.1, age, aging_structure.1, garbage_bin_notes.4, original_file_name.1))
-#    
-# ia_age_length_21Aug2021 <- ia_age_length_21Aug2021[ , .SD , .SDcols = cols]
-# #there, now each fish is a row. Bring in other data
-# 
-# 
-# #these guys have multiple rows for each fish. We want only the age observed, not the backcalc ages
-# head(ia_BLG_age_length_21Aug2021)
-# glimpse(ia_BLG_age_length_21Aug2021)
-# 
-# ia_BLG_age_length_21Aug2021[ , .N , sample_id.1 ]
-# 
-# #how to select that: we don't need to do much. each row has the basic info, just take the first of each:
-# 
-# ia_BLG_age_length_21Aug2021[ , .SD[1] , sample_id.1 ]#in each subset print row 1
-# ia_BLG_age_length_21Aug2021 <- ia_BLG_age_length_21Aug2021[ , .SD[1] , sample_id.1 ] # in each subset print row 1
-# 
-# #nab out only useful cols:
-# toString(names(ia_BLG_age_length_21Aug2021))
-# cols <- as.character(expression(sample_id.1, garbage_bin_notes.1, lake_name.1, aging_structure.1, species.1, length.1, weight.1, sex, age, original_file_name.1, length_unit.1, weight_unit.1))
-# ia_BLG_age_length_21Aug2021 <- ia_BLG_age_length_21Aug2021[ , .SD , .SDcols = cols]
-
-
-
-
-# This code in borrowed from the growth munging file.   
-# #date data
-# ia[, unique(year)]
-# 
-# #backfill year?
-# ia[is.na(year) & !is.na(date.1)]
-# #date align with year?
-# ia[!is.na(date.1) & !year==year(date.1)]
-# 
-# #lost in garbage can? yes there are some month and season data there, 
-# ia[is.na(date.1), date.2 := word(garbage_bin_notes.1, -1, sep = ":"), ]
-# ia[is.na(date.1), .N , date.2]
-# ia[date.2 == "7", date.2 := "July"]
-# ia[date.2 == "6", date.2 := "June"]
-# ia[date.2 == "8", date.2 := "August"]
-# ia[date.2 == "5", date.2 := "May"]
-# ia[date.2 == "NA", date.2 := NA  ]
-# ia[is.na(date.1)& is.na(date.2), date.2 := word(garbage_bin_notes.3, -1, sep = ":"), ]
-# ia[date.2 == "." , date.2 := NA, ]
-# ia[ ,date.2 := tolower(date.2) , ]
-# 
-# ia[is.na(date.1), .N , date.2]
-# 
-# ia[ , date.1 :=  as.IDate(date.1) , ]
-# 
-# ia[, date_clean :=  as.IDate(date.1)]
-# 
-# hist(ia[!is.na(date_clean) ,yday(date_clean)])
-# 
-# #now populate some dates where only mo or season provided (set to 15th if mo given, or season date approximated from histogram here^)
-# 
-# ia_datefill <- transpose(keep.names = "oldname", data.table(fall = "2 Oct",
-#                                                           july = "15 July",
-#                                                           spring = "20 April",
-#                                                           summer = "19 July",
-#                                                           june = "15 June",
-#                                                           august = "15 August",
-#                                                           may = "15 May"))
-# ia[ , date.3 := 
-#       ia_datefill[match(ia[ ,date.2],ia_datefill[,oldname]) ,
-#                 V1 , ]
-#     , ]
-# 
-# ia[!is.na(year) , date.4 := paste(date.3, year)]
-# 
-# ia[ , .N, date.4]
-# 
-# ia[str_detect(date.4, "NA"), date.4 := NA]
-# 
-# ia[is.na(date_clean) & !is.na(date.4), date_clean := as.IDate(date.4, format = "%d %B %Y") ]
-# 
-# # check coverage
-# hist(ia[ ,yday(date_clean)])
-# ia[!is.na(date_clean), .N , ]/ia[ , .N , ]
-# 
-# rm(ia_datefill)
-# 
-# # make other dates character strings
-# datecols <- colnames(ia)[str_detect(colnames(ia), "date\\.")]
-# ia[    , (datecols) := lapply(.SD, as.character)    ,   .SDcols = datecols]
-# 
-# #in this chunk you join the effort data to the fish-as-rows or obs-level dataset. I start by prepping these multiple files for a merge. After each operation, be sure to check your work! Again I have left MI in here to give you an idea of how one previous example went. 
-# 
-# #grabbing effort from catch file
-
-
-``` 
-          
-          
-          
-# Data tidying                        
-```{r}        
-#this is a bit of tidying code that Denver bypassed in his schema review
-# clean up these names and match overall schema
-#need to 1. fix current cols to match 2. add missing cols 3.drop all extras 
-ia_fishobs <- clean_names(ia_fishobs) #clean up names a touch
-
-# then open into excel an align with the schema (see these IA example files)
-# fwrite(as.data.table(names(ia_fishobs)), file = "Data_and_scripts/Data/output/ia_names.csv")
-
-# use the exported csv to align with the column names in the column schema GSheet (https://docs.google.com/spreadsheets/d/1zfevASMxRMxMYNWm3Hq1yR2Qk0zcJV_JnO0LBeODaPQ/edit#gid=0) . 
-# - if you delete a column from your state's names in the sheet, the code below will drop those cols automatically from the data product.
-# - put an NA in the table in each place where your data have no equivalent col and the code below will fill those with NAs in the data product
-# - keep the order of the table in line with the column schema GSheet and that will automatically reorder your data to match the schema GSheet
-# after aligning the names with the schema bring that back in (note that the )
-ia_renamer <- fread( file = "Data_and_scripts/Data/input/ia_renamer.csv") #read in 
-
-#drop extras
-dropcols <- names(ia_fishobs)[!(names(ia_fishobs) %in% ia_renamer[,  iowa])]
-ia_fishobs[ , (dropcols) := NULL , ]
-
-#rename ia to fit the schema
-ia_renamer[match(names(ia_fishobs),ia_renamer[,iowa]), schema]
-
-setnames(ia_fishobs, 
-         old = names(ia_fishobs),
-         new = ia_renamer[match(names(ia_fishobs),ia_renamer[,iowa]), schema])
-
-
-#missing cols
-ia_renamer[,schema] %in% names(ia_fishobs)
-names(ia_fishobs) %in% ia_renamer[,schema]
-
-#add misssing names:
-addcols <- ia_renamer[is.na(iowa) , schema ,]
-ia_fishobs[ ,(addcols) := NA , ]
-
-newcolorder <- ia_renamer[ ,schema]
-
-
-setcolorder(ia_fishobs, newcolorder)
-
-
-#generate an obs_id
-
-ia_fishobs[ , .N , obs_id ]
-ia_fishobs[ , obs_id := .I , ]
-
-
-
-
-
-### dataset cleanup and tidying. MI work left here as an idea of a previous state's work
-
-
-
-                                               
-                        #check the product:
-                        colnames(mi_catch_eff_merge)
-                        
-                       mi_catch_eff_merge[ str_detect(lake_name.1, "ike" ), .(count = .N, missinglengths = sum(is.na(length.1)), meanL = mean(length.1)), .(lake_name.1, lake_id, date.1_effort, date.1_mergedcatch, survey_id, sampling_method_abbrev, species.1) ]
-
-            
-                        #did we retain all of the surveys? Looks like 498 unique survey IDs, and both the product and input reflect this:
-                        mi_catch_eff_merge[ , .N , .(survey_id)]
-                        merge(merge(mi_statustrends_effort_16Mar2021[ , .( effort_nrows = .N) , survey_id], 
-                                    mi_statustrends_catch_16Mar2021[ , .( catch_nrows = .N) , survey_id], all = T),
-                              mi_statustrends_catchlengthclass_03July2023[ , .( catchlen_nrows = .N) , survey_id ], all = T)
-                       
-                       
-                        #here's all of our effort:
-                        mi_catch_eff_merge[ , .N ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
-                        #no catch data exist (or matched) for these data:
-                        mi_catch_eff_merge[ is.na(species.1)  , .N ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
-                        #no_taxa_found
-                        mi_catch_eff_merge[   , nothing_caught  := is.na(species.1) ,  ]
-                        
-                        
-                        #no effort data were submitted for these fish:
-                        mi_catch_eff_merge[ is.na(date.1_effort)  , .N ,   c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
-
-                        
-       #clean up the column names and tidy the data table up a bit                 
-       
-              sort(colnames(mi_catch_eff_merge))                 
-              
-              #county     
-              mi_catch_eff_merge[ is.na(county_mergedcatch)|is.na(county_effort) , .N ,   ]
-              mi_catch_eff_merge[ !(is.na(county_mergedcatch)&is.na(county_effort)) & county_mergedcatch != county_effort  , .N ,   ]# no cases where the county doesn't match
-              mi_catch_eff_merge[  , .N , .(is.na(county_mergedcatch), is.na(county_effort))  ]#there are some cases where we haven't got a county at all, otherwise the effort county covers all. 
-              mi_catch_eff_merge[  , county_mergedcatch := NULL]
-              setnames(mi_catch_eff_merge, "county_effort", "county")
-              
-              #data_type
-              setnames(mi_catch_eff_merge, "data_type", "data_type_effort")
-                   
-              #date.1
-              mi_catch_eff_merge[ is.na(date.1_mergedcatch)|is.na(date.1_effort) , .N ,   ]
-              mi_catch_eff_merge[ !(is.na(date.1_mergedcatch)&is.na(date.1_effort)) & date.1_mergedcatch != date.1_effort  , .N ,   ]# no cases where the dates don't match
-              mi_catch_eff_merge[  , .N , .(is.na(date.1_mergedcatch), is.na(date.1_effort))  ]#there are some cases where we haven't got a date at all, otherwise the effort info covers all. 
-              mi_catch_eff_merge[  , date.1_mergedcatch := NULL]
-              setnames(mi_catch_eff_merge, "date.1_effort", "date.1")
-              
-              #date recieved
-              setnames(mi_catch_eff_merge, "date_recieved", "date_recieved_effort")
-              
-              #effort units
-              mi_catch_eff_merge[ is.na(effort_units.1_mergedcatch)|is.na(effort_units.1_effort) , .N ,   ]
-              mi_catch_eff_merge[ !(is.na(effort_units.1_mergedcatch)&is.na(effort_units.1_effort)) & effort_units.1_mergedcatch != effort_units.1_effort  , .N ,   ]# no cases where the units don't match
-              mi_catch_eff_merge[  , .N , .(is.na(effort_units.1_mergedcatch), is.na(effort_units.1_effort))  ]#we have efforts for all. slide into single column. 
-              
-              mi_catch_eff_merge[is.na(effort_units.1_effort), .N , ]
-              mi_catch_eff_merge[is.na(effort_units.1_effort) , effort_units.1_effort := effort_units.1_mergedcatch , ]
-              mi_catch_eff_merge[ , effort_units.1_mergedcatch := NULL , ]
-               setnames(mi_catch_eff_merge, "effort_units.1_effort", "effort_units.1")
-              
-              #filenumber
-              setnames(mi_catch_eff_merge, "file_number", "file_number_effort")
-              
-              #state
-              mi_catch_eff_merge[ ,state := "Michigan"  ] 
-              mi_catch_eff_merge[ , `:=` (state_catch = NULL, state_catchlengths = NULL)  , ]
-              
-              #total effort
-              mi_catch_eff_merge[total_effort_1.1_effort != total_effort_1.1_mergedcatch, .N,  ]
-              plot(total_effort_1.1_effort ~ total_effort_1.1_mergedcatch, data = mi_catch_eff_merge  )
-              abline(1,0)
-              
-              #effort vals
-              mi_catch_eff_merge[ total_effort_1.1_effort != total_effort_1.1_mergedcatch , .N , .(total_effort_1.1_mergedcatch, total_effort_1.1_effort)]
-              #I think that the merged catch values were assigned to indiv fish (like "this fish was caught in ONE net lift") and the effort file has survey X gear total efforts
-              mi_statustrends_catchlengthclass_03July2023[ , summary(total_effort_1.1) , ] 
-                mi_statustrends_catchlengthclass_03July2023[total_effort_1.1 > 1 , summary(total_count), sampling_method_abbrev]
-              # mi_statustrends_catch_16Mar2021[ , summary(total_effort_1.1) , ]    #this won run b/c no col for effort in that       
-              mi_statustrends_effort_16Mar2021[ , summary(total_effort_1.1) ,]          
-              # well--- I don't know what to make of all this, but for now I'll be keeping both of these "total_effort" variables, and leaning on the one originating in the effort file
-              
-              
-              
-              #year
-              
-              mi_catch_eff_merge[ year_effort != year_mergedcatch , ,]
-              mi_catch_eff_merge[ , .N , .(is.na(year_effort), is.na(year_mergedcatch))]
-              mi_catch_eff_merge[is.na(year_effort), year_effort := year_mergedcatch , ]
-              mi_catch_eff_merge[ ,  year_mergedcatch := NULL , ]
-              setnames(mi_catch_eff_merge, "year_effort", "year")
-              
-              
-              # most of this is waste-of-time junk. Let's move the big ones left and leave this mess hang out there to the right.
-              notgarbage <-  c("county","lake_id", "lake_name.1", "date.1", "year", "survey_id",  #survey 
-                               "sampling_method_abbrev", "total_effort_1.1_effort", "effort_units.1", "nothing_caught",  #gear
-                               "species.1", "ident", "length.1", "length_unit.1", "ident_l" #fish
-                               )
-              
-              setcolorder(mi_catch_eff_merge, notgarbage)
-               
-              
-        #expand these data to cover all interested species in each surveyXgear
-                        
-                        #check behavior now:
-                        mi_catch_eff_merge[ species.1 == "WAE" , .N  , c("lake_name.1", "lake_id", "survey_id", "sampling_method_abbrev") ]
-                        #we can see that to gen a catch or CPUE dataset we can cast wide (like we did in MN)
-        
-        #generate a species obs matrix
-                        #clean dates:
-                        mi_catch_eff_merge[ , unique(date.1) , ]
-                        
-                        #execute
-                        mi_catch_eff_merge[ , date_clean := as.IDate(date.1) ,]
-                        mi_catch_eff_merge[ , summary(date_clean) , ]
-                        mi_catch_eff_merge[ is.na(date_clean) , .N , .(survey_id, lake_name.1)] #missing effort data here, thus the gap
-                        
-                        
-                        #tag codes with "taxon"
-                        mi_catch_eff_merge[ , species.1 := paste("taxon_",species.1, sep = "")  ,]
-                        
-                        #we called this "wide complete" in MN
-                        wide_complete <- dcast(mi_catch_eff_merge[ ,.N , by = c("county","lake_id", "lake_name.1", "date.1", "year", "survey_id",  #survey 
-                                                                           "sampling_method_abbrev", "total_effort_1.1_effort", "effort_units.1", "nothing_caught", 
-                                                                           "species.1"
-                                                                           )] , ... ~ species.1 , value.var = "N", fill = 0)
-                        
-                        wide_complete[ , c("county","lake_id", "lake_name.1", "date.1", "year", "survey_id",  #survey 
-                                                                           "sampling_method_abbrev", "total_effort_1.1_effort", "effort_units.1", "taxon_WAE") , ]
-                        
-                        wide_complete[taxon_NA >0]
-                        
-                        
-          # saveRDS(mi_catch_eff_merge, file = "Data_and_Scripts/Data/output/mi_flat_effort_indivfish_merge.rds")                
-                        
-                        
-                        
-                        
-```                        
-                        
  
-
 
 # Review & QC datasets
 ```{r}

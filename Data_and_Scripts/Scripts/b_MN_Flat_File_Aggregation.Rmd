@@ -7,16 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 # Preamble
-NOT COMPLETELY RESOLVED:        
-12.We have many TEIs tagged with nothing caught)
-          Large Lakes data R/R with Kristen [somethings]'s data that she agg'd 
-          Built a script in the project that lays out a few other cases of weirdness (white bear lake 2022 trap nets, Willard Lake, Cougar Lake) 
-          Corey sees the same un-entered data we do in their data entry dashboard
-          
-ACTION    Send all Nothing caught = True total efforts off to Jon Hansen
-
-CHECK:    Historical WAE survey duplication
-          - check on outcome of fixes (section name: sleuth out the MN duplicated data issues)
 
 
 libraries
@@ -2132,6 +2122,81 @@ mn_dat <- mn_dat %>%
   ) %>% 
   select(-flag_effort_2)
 rm(gill_nets)
+
+#Flagging Lura lake for a nothing caught survey that really never happened 
+mn_dat <- mn_dat %>% 
+  mutate(flag = case_when(lake_id == "7007900" & year == "2020" & survey_type == "Standard Survey" ~
+                            "database issue - standard survey did not happen",
+                          TRUE ~ flag)) 
+
+#cpue invalid 
+mn_dat %>% 
+  group_by(flag) %>% 
+  count() %>% 
+  print(n = nrow(.)) 
+
+mn_dat %>%
+  group_by(total_effort_ident) %>%
+  summarise(
+    n_samples = n(),
+    n_flagged = sum(str_detect(flag, "Do not use in CPUE") |
+    str_detect(flag, "Not representative sampling") |
+    str_detect(flag, "Questionable total effort") |
+    str_detect(flag, "database issue") |
+    str_detect(flag, "effort value error") |
+    str_detect(flag, "gear issue") |
+    str_detect(flag, "high effort") |
+    str_detect(flag, "likely") |
+    str_detect(flag, "very high catch"), na.rm = T),
+    flag_status = case_when(
+      n_flagged == 0 ~ "none",
+      n_flagged == n_samples ~ "all",
+      TRUE ~ "some"
+    ),
+    .groups = "drop"
+  ) %>% 
+  group_by(flag_status) %>% 
+  count()
+#sweet, all effort flags are uniform within a total effort ident
+
+mn_dat <- mn_dat %>% 
+  mutate(cpue_invalid = case_when(str_detect(flag, "Do not use in CPUE") |
+                                    str_detect(flag, "Not representative sampling") |
+                                    str_detect(flag, "Questionable total effort") |
+                                    str_detect(flag, "database issue") |
+                                    str_detect(flag, "effort value error") |
+                                    str_detect(flag, "gear issue") |
+                                    str_detect(flag, "high effort") |
+                                    str_detect(flag, "likely") |
+                                    str_detect(flag, "very high catch") ~ "y",
+                                  TRUE ~ "n")) 
+
+mn_dat %>% 
+  group_by(cpue_invalid, flag) %>% 
+  count() %>% 
+  print(n = nrow(.))
+
+
+#making sure we use total effort date for month generation 
+mn_dat %>% 
+  mutate(month_tei = month(date_total_effort_ident),
+         month_survey = month(date_survey),
+         tei_match = case_when(month == month_tei ~ "y",
+                               TRUE ~ "n"),
+         survey_match = case_when(month == month_survey ~ "y",
+                                  TRUE ~ "n")) %>% 
+  group_by(tei_match,
+           survey_match) %>% 
+  count()
+
+mn_dat %>% 
+  group_by(is.na(date_survey),
+           is.na(date_total_effort_ident),
+           is.na(date_sample)) %>% 
+  count()
+
+mn_dat <- mn_dat %>% 
+  mutate(month = lubridate::month(date_total_effort_ident)) 
 ```
 
 
@@ -2153,9 +2218,9 @@ mn_dat <- mn_dat %>%
     lake_id = as.character(lake_id),
     date_sub_effort_ident = as.IDate(NA),
     survey_id = as.character(NA),
-    survey_type_2 = as.character(NA),
-    survey_type_3 = as.character(NA),
-    survey_type_4 = as.character(NA),
+    #survey_type_2 = as.character(NA),
+    #survey_type_3 = as.character(NA),
+    #survey_type_4 = as.character(NA),
     total_effort_ident = as.character(total_effort_ident),
     total_effort_2 = as.numeric(NA),
     total_effort_2_units = as.character(NA),
@@ -2178,8 +2243,8 @@ mn_dat <- mn_dat %>%
     ind_fish_ident = as.character(ind_fish_ident),
     # lakesize = as.numeric(NA),
     # lakesize_units = as.numeric(NA),
-    lat_unspec = as.numeric(NA),
-    lon_unspec = as.numeric(NA),
+    #lat_unspec = as.numeric(NA),
+    #lon_unspec = as.numeric(NA),
     lakesize = as.numeric(NA),
     lakesize_units = as.character(NA)) %>% 
     select(state,
@@ -2197,9 +2262,9 @@ mn_dat <- mn_dat %>%
          month,
          survey_id,
          survey_type,
-         survey_type_2,
-         survey_type_3,
-         survey_type_4,
+         #survey_type_2,
+         #survey_type_3,
+         #survey_type_4,
          sampling_method_simple,
          sampling_method,
          sampling_method_2,
@@ -2244,13 +2309,14 @@ mn_dat <- mn_dat %>%
          sex,
          age_class,
          flag,
+         cpue_invalid,
          original_file_names,
          ind_fish_ident,
          lakesize,
          lakesize_units,
          #area_group,
-         lat_unspec,
-         lon_unspec,
+         #lat_unspec,
+         #lon_unspec,
          waterbody_type,
          location_notes_1,
          notes_1,

@@ -7,10 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Preamble
-6/25 - I have added code to explore the effort values associated with net samples. I have also added some code to calculate night nights from hours and number of nets within line 423. Now I need to apply the net night values to places where it should be. I will need to explore the "simple gears" of netting to ensure all of those should get that net nights (do seines make it in here). For places that have both number of nights and hours - flag?
-
-There is another issue where effort is based on the targeted species. An example would be Chippewa in 1990 fyke netting wehre walleye get all of the effort and then game fish are ten less due to not being included as a target species in ten of the nets. In our current total effort grouping framework, I am almost certain that we will split out those other 10 nets as their own total effort ident. I need to double check what is in our current total effort ident grouping - if it contains target species - make sure it contains secondary target species as well and see how they are being split out. How often is there multiple target species within a survey id (or in our case total effort ident)
 
 # libraries
 ```{r}
@@ -901,6 +897,7 @@ setnames(wi_inland_fishobservations_10Nov2023, old = "age_agedfish", new = "age"
 
 
 wi_inland_fishobservations_10Nov2023[ !is.na(age) , .("n_fish" = .N, "n_dates" = length(unique(date))) , .(lake_id, lake_name) ]
+###############################################
 
 # fwrite(crosscheck, file = "Data_and_Scripts/Data/output/crosscheck_cpue_fishobs_lengthage.csv")
 rm(wi_inland_lenage_10Nov2023, surveys)
@@ -1373,7 +1370,7 @@ wi_inland_fishobservations_10Nov2023 %>%
                              "fyke_net", "gill_net_bottom", 
                              "gill_net_vertical", 
                              "gill_net_floating")) %>% 
-  group_by(lake_name, year(date)) %>% 
+  group_by(lake_name, lubridate::year(date)) %>% 
   count() %>% 
   print(n = nrow(.))
 
@@ -2507,6 +2504,105 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
                                       TRUE ~ water_temp_units),
          survey_type = case_when(survey_type == "" ~ NA,
                                  TRUE ~ survey_type))
+
+############add in cpue invalid column########################
+
+wi_inland_fishobservations_10Nov2023 %>%
+  group_by(flag) %>%
+  count() %>%
+  print(n = nrow(.))
+
+wi_inland_fishobservations_10Nov2023 %>%
+  mutate(effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
+                                 str_detect(flag, "very high catch") ~ "y",
+                                 str_detect(flag, "bad_date") ~ "y",
+                                 str_detect(flag, "high effort") ~ "y",
+                                 str_detect(flag, "duplicate") ~ "y",
+                                 str_detect(flag, "umber of aged fish") ~ "y",
+                                 str_detect(flag, "reported as 0") ~ "y",
+                                 str_detect(flag, "multi types") ~ "y",
+                                 TRUE ~ "n")) %>%
+  group_by(effort_flag, flag) %>%
+  count() %>%
+  print(n = nrow(.))
+
+wi_inland_fishobservations_10Nov2023 %>%
+  group_by(total_effort_ident) %>%
+  summarise(n = n(),
+            n_efforts = sum(str_detect(flag, "bad_date") |
+                                 str_detect(flag, "very high catch") |
+                                 str_detect(flag, "bad_date") |
+                                 str_detect(flag, "high effort") |
+                                 str_detect(flag, "duplicate") |
+                                 str_detect(flag, "umber of aged fish") |
+                                 str_detect(flag, "reported as 0") |
+                                 str_detect(flag, "multi types"), na.rm = T),
+            flag_check = case_when(n_efforts == 0 ~ "none",
+                                   n_efforts == n ~ "all",
+                                   TRUE ~ "some"),
+            .groups = "drop") %>%
+  filter(flag_check == "some")
+#there is a flag that denotes more aged fish than observed fish at the speciesXsurvey level - thus it isn't applied to all records, for our sake in creating this column lets just applied a flag to all records within the TEI. These total efforts were extensively look at and all contain the case where there were more aged fish than there were observed 
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
+  group_by(total_effort_ident) %>%
+  mutate(flag = case_when(
+    any(str_detect(flag, "umber of aged fish"), na.rm = TRUE) ~ 
+      paste(coalesce(flag, ""), "at least one species in TEI reported more aged fish than observed", sep = if_else(is.na(flag), "", ";")),
+                          TRUE ~ flag)) %>%
+  ungroup()
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  group_by(total_effort_ident) %>%
+  summarise(n = n(),
+            n_efforts = sum(str_detect(flag, "bad_date") |
+                                 str_detect(flag, "very high catch") |
+                                 str_detect(flag, "bad_date") |
+                                 str_detect(flag, "high effort") |
+                                 str_detect(flag, "duplicate") |
+                                 str_detect(flag, "at least one species in TEI") |
+                                 str_detect(flag, "reported as 0") |
+                                 str_detect(flag, "multi types"), na.rm = T),
+            flag_check = case_when(n_efforts == 0 ~ "none",
+                                   n_efforts == n ~ "all",
+                                   TRUE ~ "some"),
+            .groups = "drop") %>%
+  filter(flag_check == "some")
+#the only place where an effort flag is not applied to all in a total effort ident is na total efforts, this is good
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  group_by(total_effort_ident) %>% 
+  mutate(has_tei_flag = case_when(any(str_detect(flag, "umber of aged fish")) ~ "y",
+                                  TRUE ~ "n")) %>% 
+  ungroup() %>% 
+  mutate(has_new_flag = case_when(str_detect(flag, "at least one species in TEI") ~ "y",
+                                  TRUE ~ "n"),
+         has_old_flag = case_when(str_detect(flag, "umber of aged fish") ~ "y",
+                                  TRUE ~ "n")) %>% 
+    group_by(has_tei_flag, has_new_flag, has_old_flag) %>% 
+    count()
+#we see here that not all records within a TEI had the original flag dispite at a record within the TEI having it, there is a new flag generated at the TEI level 
+
+#finally, the moment we have been waiting for
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
+  mutate(cpue_invalid = case_when(str_detect(flag, "bad_date") |
+                                 str_detect(flag, "very high catch") |
+                                 str_detect(flag, "bad_date") |
+                                 str_detect(flag, "high effort") |
+                                 str_detect(flag, "duplicate") |
+                                 str_detect(flag, "at least one species in TEI") |
+                                 str_detect(flag, "reported as 0") |
+                                 str_detect(flag, "multi types") ~ "y",
+                                 TRUE ~ "n")) 
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  group_by(cpue_invalid, flag) %>%
+  count() %>% 
+  print(n = nrow(.))
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  group_by(cpue_invalid) %>% 
+  count()
 ```
 
 #export as parquet file
@@ -2526,9 +2622,9 @@ wi_dat <- wi_dat %>%
   mutate(
     lake_id = as.character(lake_id),
     survey_id = as.character(survey_id),
-    survey_type_2 = as.character(NA),
-    survey_type_3 = as.character(NA),
-    survey_type_4 = as.character(NA),
+    #survey_type_2 = as.character(NA),
+    #survey_type_3 = as.character(NA),
+    #survey_type_4 = as.character(NA),
     total_effort_ident = as.character(total_effort_ident),
     length_bin = as.character(NA),
     length_bin_unit = as.character(NA), 
@@ -2555,9 +2651,9 @@ wi_dat <- wi_dat %>%
          month,
          survey_id,
          survey_type,
-         survey_type_2,
-         survey_type_3,
-         survey_type_4,
+         #survey_type_2,
+         #survey_type_3,
+         #survey_type_4,
          sampling_method_simple,
          sampling_method,
          sampling_method_2,
@@ -2602,13 +2698,14 @@ wi_dat <- wi_dat %>%
          sex,
          age_class,
          flag,
+         cpue_invalid,
          original_file_names,
          ind_fish_ident,
          lakesize,
          lakesize_units,
          #area_group,
-         lat_unspec,
-         lon_unspec,
+         #lat_unspec,
+         #lon_unspec,
          waterbody_type,
          location_notes_1,
          notes_1,

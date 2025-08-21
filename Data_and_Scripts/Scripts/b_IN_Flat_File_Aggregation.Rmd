@@ -1394,6 +1394,20 @@ gear_xwalk <- read_csv("gears_by_state.csv") %>%
          sampling_method_1,
          sampling_method_2)
 
+in_data_prep %>% 
+  group_by(sampling_method) %>% 
+  count()
+
+gear_xwalk %>% 
+  group_by(sampling_method_agency, sampling_method_2) %>% 
+  count()
+
+in_data_prep %>% 
+  rename(sampling_method_agency = sampling_method) %>% 
+  left_join(gear_xwalk, by = "sampling_method_agency", relationship = "many-to-one") %>% 
+  group_by( sampling_method_simple, sampling_method_1, sampling_method_2) %>% 
+  count()
+
 in_data_prep <- in_data_prep %>% 
   rename(sampling_method_agency = sampling_method) %>% 
   left_join(gear_xwalk, by = "sampling_method_agency", relationship = "many-to-one")

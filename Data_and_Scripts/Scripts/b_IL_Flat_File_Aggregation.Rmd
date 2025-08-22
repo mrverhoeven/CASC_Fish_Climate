@@ -817,7 +817,7 @@ il_aged_fish_surveys_12Dec2023_uncount <- il_aged_fish_surveys_12Dec2023 %>%
                                 TRUE ~ NA),
          length_bin = case_when(!is.na(length_bin) ~ paste0(length_bin, "-", length_bin+9.99),
                                 TRUE ~ NA),
-         length_bin_unit = case_when(!is.na(length_bin) ~ "mm",
+         length_bin_unit = case_when(!is.na(length_bin) ~ "millimeters",
                                      TRUE ~ NA),
          #making length.1 na for fish that have a bin length
          length.1 = case_when(!is.na(length_bin) ~ NA,
@@ -1137,7 +1137,7 @@ il_data.prep %>%
   summarise(min = min(weight.1), mean = mean(weight.1), max = max(weight.1))
 
 il_data.prep %>% 
-   mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
+   mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "grams",
                                    TRUE ~ NA)) %>% 
   group_by(weight_unit.1) %>% 
   count() %>% 
@@ -1554,13 +1554,25 @@ il_data.prep <- il_data.prep %>%
                                   str_detect(flag, "effort reported as 0") ~ "y",
                                             TRUE ~ "n"))
 
+#clean up aging sturcture column
+il_data.prep <- il_data.prep %>% 
+  mutate(aging_structure.1 = case_when(aging_structure.1 == "" ~ NA,
+                                       TRUE ~ aging_structure.1),
+         aging_structure.1 = tolower(aging_structure.1))
+
+il_data.prep %>% 
+  group_by(aging_structure.1) %>% 
+  count()
+
+
+
 ############################final tidy################################
 il_data <- il_data.prep %>% 
   #lower case with no spaces for species name
   mutate(species.1 = str_to_lower(species.1),
          species.1 = str_replace_all(species.1, " ", "_")) %>% 
   #shorten unit to just g
-  mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "g",
+  mutate(weight_unit.1 = case_when(weight_unit.1 == "col_name_Wt(g)" ~ "grams",
                                    TRUE ~ NA)) %>%
   #effort units
   mutate(total_effort_1_units = "minutes",
@@ -1570,7 +1582,7 @@ il_data <- il_data.prep %>%
          survey_type = gsub("Sample_Type:", "", survey_type)) %>%  #cleans up column name
   #adding in length units
   #no units were specified within data but general assumption is mm
-  mutate(length_unit.1 = "mm") %>% 
+  mutate(length_unit.1 = "millimeters") %>% 
   #renaming effort hierarchy
   #this renames the survey level effort as total_effort_1 with the effort grouping noted by survey_effort_1_id
   #sub-survey level effort is named sub_effort_1 with sub-survey ids as sub_effort_1_id

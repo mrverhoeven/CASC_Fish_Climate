@@ -477,7 +477,7 @@ il_catch_age_effort_30Nov23_uncount <- il_catch_age_effort_30Nov23 %>%
                                 TRUE ~ NA),
          length_bin = case_when(!is.na(length_bin) ~ paste0(length_bin, "-", length_bin+9.99),
                                 TRUE ~ NA),
-         length_bin_unit = case_when(!is.na(length_bin) ~ "mm",
+         length_bin_unit = case_when(!is.na(length_bin) ~ "millimeters",
                                      TRUE ~ NA),
          #making length.1 na for fish that have a bin length
          length.1 = case_when(!is.na(length_bin) ~ NA,
@@ -1554,17 +1554,16 @@ il_data.prep <- il_data.prep %>%
                                   str_detect(flag, "effort reported as 0") ~ "y",
                                             TRUE ~ "n"))
 
-#clean up aging sturcture column
+#clean up aging structure column
 il_data.prep <- il_data.prep %>% 
-  mutate(aging_structure.1 = case_when(aging_structure.1 == "" ~ NA,
-                                       TRUE ~ aging_structure.1),
-         aging_structure.1 = tolower(aging_structure.1))
+  mutate(aging_structure.1 = tolower(aging_structure.1),
+         aging_structure.1 = case_when(aging_structure.1 == "" ~ NA,
+                                       aging_structure.1 == "scales" ~ "scale",
+                                       TRUE ~ aging_structure.1)) 
 
 il_data.prep %>% 
   group_by(aging_structure.1) %>% 
   count()
-
-
 
 ############################final tidy################################
 il_data <- il_data.prep %>% 
@@ -1954,6 +1953,12 @@ il_data %>%
 il_data %>% 
   group_by(cpue_invalid, flag) %>% 
   count()
+
+il_data %>% 
+  distinct(aging_structure_1)
+
+il_data %>% 
+  distinct(length_unit_1, weight_unit_1, length_bin_unit, batch_weight_unit)
 ``` 
 
 
@@ -1968,5 +1973,10 @@ write_dataset(dataset = il_data, path = "Data_and_Scripts/Data/output/il_file_ar
 il_data <- open_dataset("Data_and_Scripts/Data/output/il_file_arrow")
 
 glimpse(il_data)
+
+il_data %>% 
+  group_by(length_bin_unit) %>% 
+  count() %>% 
+  collect()
 ```
 

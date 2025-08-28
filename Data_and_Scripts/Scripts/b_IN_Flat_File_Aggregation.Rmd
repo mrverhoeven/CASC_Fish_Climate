@@ -1640,6 +1640,15 @@ in_data_prep <- in_data_prep %>%
                                   str_detect(flag, "no sampling method") ~ "y",
                                   TRUE ~ "n")) 
 
+#cleaning up aging structure
+in_data_prep <- in_data_prep %>% 
+  mutate(aging_structure_1 = case_when(aging_structure_1 == "dorsal_spine" ~ "spine_dorsal",
+                                       TRUE ~ aging_structure_1))
+
+in_data_prep %>% 
+  group_by(aging_structure_1) %>% 
+  count()
+
 ##########################final column prep##################################
 in_data <- in_data_prep %>%
   #fixing species if it hasn't been already

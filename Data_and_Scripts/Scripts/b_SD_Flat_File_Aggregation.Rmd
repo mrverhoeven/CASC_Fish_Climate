@@ -664,6 +664,23 @@ sd_merged_ce <- sd_merged_ce %>%
 sd_merged_ce %>% 
   group_by(cpue_invalid, flag) %>% 
   count()
+
+#clean up units
+sd_merged_ce <- sd_merged_ce %>%
+  mutate(length_unit.1 = case_when(length_unit.1 == "mm" ~ "millimeters",
+                                   TRUE ~ length_unit.1),
+         weight_unit.1 = case_when(weight_unit.1 == "g" ~ "grams",
+                                   TRUE ~ weight_unit.1)) 
+
+#fix aging structure
+sd_merged_ce <- sd_merged_ce %>% 
+  mutate(aging_structure.1 = case_when(aging_structure.1 == "Otolith" ~ "otolith",
+                                       aging_structure.1 == "Scale" ~ "scale",
+                                       aging_structure.1 == "dorsal spine" ~ "spine_dorsal",
+                                       aging_structure.1 == "otollith" ~ "otolith",
+                                       aging_structure.1 == "ototlith" ~ "otolith",
+                                       aging_structure.1 == "pectoral spine" ~ "spine_pectoral",
+                                       TRUE ~ aging_structure.1)) 
 ```
 
 ## Match Columns to parquet schema
@@ -848,6 +865,12 @@ sd_merged_ce_trial %>%
   group_by(total_effort_ident) %>% 
   summarise(n_months = n_distinct(month)) %>% 
   filter(n_months > 1)
+
+sd_merged_ce_trial %>% 
+  distinct(aging_structure_1)
+
+sd_merged_ce_trial %>% 
+  distinct(length_unit_1, weight_unit_1)
 ```
 
 

@@ -1586,8 +1586,6 @@ mn_dat[ , ':=' (latitude_lake_centroid_USGS = NULL, longitude_lake_centroid_USGS
   
   #remaining unmatched lakes:
   mn_dat[is.na(nhdhr_id) | is.na(latitude_lake_centroid), .N , .(lake_id, lake_name, county_effort) ]
-
-
 ```
 
 #dates
@@ -2179,8 +2177,8 @@ mn_dat %>%
 
 #making sure we use total effort date for month generation 
 mn_dat %>% 
-  mutate(month_tei = month(date_total_effort_ident),
-         month_survey = month(date_survey),
+  mutate(month_tei = lubridate::month(date_total_effort_ident),
+         month_survey = lubridate::month(date_survey),
          tei_match = case_when(month == month_tei ~ "y",
                                TRUE ~ "n"),
          survey_match = case_when(month == month_survey ~ "y",
@@ -2197,6 +2195,42 @@ mn_dat %>%
 
 mn_dat <- mn_dat %>% 
   mutate(month = lubridate::month(date_total_effort_ident)) 
+
+##standardized aging structure 
+mn_dat %>% 
+  group_by(aging_structure_1) %>% 
+  count()
+
+mn_dat <- mn_dat %>% 
+  mutate(aging_structure_1 = case_when(aging_structure_1 == "FIELD" ~ "field",
+                               aging_structure_1 == "SCALE" ~ "scale",
+                               aging_structure_1 == "OTOLI" ~ "otolith",
+                               aging_structure_1 == "CLIET" ~ "cleithrum",
+                               aging_structure_1 == "Scale" ~ "scale",
+                               aging_structure_1 == "CALCI" ~ "calcified_structure",
+                               aging_structure_1 == "EXTRA" ~ "extra",
+                               aging_structure_1 == "DORSP" ~ "spine_dorsal",
+                               aging_structure_1 == "OTOTC" ~ "otolith",
+                               aging_structure_1 == "Dorsal spine" ~ "spine_dorsal",
+                               aging_structure_1 == "otolith" ~ "otolith",
+                               aging_structure_1 == "Fin ray" ~ "fin_ray",
+                               aging_structure_1 == "PECSP" ~ "spine_pectoral",
+                               aging_structure_1 == "FINRA" ~ "fin_ray",
+                               aging_structure_1 == "Cleithrum" ~ "cleithrum",
+                               aging_structure_1 == "Pectoral spine" ~ "spine_pectoral",
+                               aging_structure_1 == "FMARK" ~ "fin_mark",
+                               aging_structure_1 == "OPERC" ~ "opercle",
+                               aging_structure_1 == "Opercle" ~ "opercle",
+                               TRUE ~ aging_structure_1))
+
+mn_dat %>% 
+  group_by(aging_structure_1) %>% 
+  count()
+
+#adding nhdhr_ to the front of values
+mn_dat <- mn_dat %>% 
+  mutate(nhdhr_id = case_when(!is.na(nhdhr_id) ~ paste0("nhdhr_", nhdhr_id),
+                              TRUE ~ NA)) 
 ```
 
 

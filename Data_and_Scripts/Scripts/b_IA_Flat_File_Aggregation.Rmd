@@ -1501,6 +1501,56 @@ ia_fishobs <- ia_fishobs %>%
                                   str_detect(flag, "contrasting gears") ~ "y",
                                   TRUE ~ "n")) 
 
+#cleaning up aging structure and waterbody column
+ia_fishobs %>% 
+  distinct(aging_structure_1)
+
+ia_fishobs <- ia_fishobs %>% 
+  mutate(aging_structure_1 = case_when(aging_structure_1 == "" ~ NA,
+         aging_structure_1 == "OTOLITH (asteriscus)" ~ "otolith_asteriscus",
+         aging_structure_1 == "OTOLITH (sagittal)" ~ "otolith_sagittal",
+         aging_structure_1 == "DORSAL SPINE" ~ "spine_dorsal",
+         aging_structure_1 == "PECTORAL SPINE (articulating)" ~ "spine_pectoral_articulating",
+         aging_structure_1 == "FISH" ~ "fish",
+         aging_structure_1 == "PECTORAL SPINE (basal)" ~ "spine_pectoral_basal",
+         aging_structure_1 == "DORSAL SPINE|GENETIC SAMPLE" ~ "spine_dorsal_genetic_sample",
+         aging_structure_1 == "GENETIC SAMPLE" ~ "genetic_sample",
+         aging_structure_1 == "GENETIC SAMPLE|OTOLITH (sagittal)" ~ "otolith_sagittal_genetic_sample",
+         aging_structure_1 == "DORSAL SPINE|GENETIC SAMPLE|OTOLITH (sagittal)" ~ "spine_dorsal_otolith_sagittal_genetic_sample",
+         aging_structure_1 == "PELVIC FIN" ~ "fin_pelvic",
+         aging_structure_1 == "DORSAL SPINE|PELVIC FIN" ~ "spine_dorsal_fin_pelvic",
+         aging_structure_1 == "SCALE" ~ "scale",
+         aging_structure_1 == "FISH|OTOLITH (sagittal)" ~ "otolith_sagittal_fish",
+         aging_structure_1 == "CLEITHRA" ~ "cleithra",
+         aging_structure_1 == "OTOLITH (lapillus)" ~ "otolith_lapillus",
+         TRUE ~ aging_structure_1)) 
+
+#cleaning up waterbody_type 
+ia_fishobs <- ia_fishobs %>% 
+  mutate(lake_type = case_when(lake_type == "" ~ NA,
+                               TRUE ~ lake_type)) 
+
+#####cleaning up some total effort and sub effort items
+ia_fishobs %>% 
+  summarise(problem = sum(!is.na(sub_effort_ident) & is.na(sub_effort_1)),
+            problem_2 = sum(is.na(total_effort_ident) & !is.na(total_effort_nothing_caught)))
+
+ia_fishobs <- ia_fishobs %>% 
+  mutate(sub_effort_ident = case_when(is.na(sub_effort_1) ~ NA,
+                                      TRUE ~ sub_effort_ident),
+         total_effort_nothing_caught = case_when(is.na(total_effort_ident) ~ NA,
+                                                 TRUE ~ total_effort_nothing_caught)) 
+
+#now we have a problem with sub
+ia_fishobs %>% 
+  summarise(problem = sum(is.na(sub_effort_ident) & !is.na(sub_effort_nothing_caught)))
+
+ia_fishobs <- ia_fishobs %>% 
+  mutate(sub_effort_nothing_caught = case_when(is.na(sub_effort_ident) ~ NA,
+                                                 TRUE ~ sub_effort_nothing_caught)) 
+
+ia_fishobs %>% 
+  summarise(problem = sum(is.na(sub_effort_ident) & !is.na(sub_effort_nothing_caught)))
 ```
 
 #final cleaning

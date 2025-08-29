@@ -955,6 +955,23 @@ mi_catch_eff_merge <- mi_catch_eff_merge %>%
 mi_catch_eff_merge %>% 
   group_by(cpue_invalid, flag, is.na(effort_ident)) %>% 
   count()
+
+###cleaning up where we see na tei but still have nothing caught
+mi_catch_eff_merge %>% 
+  ungroup() %>% 
+  summarise(problem = sum(is.na(effort_ident) & !is.na(nothing_caught)),
+            na_ident = sum(is.na(effort_ident)),
+            na_effort = sum(is.na(total_effort_1_effort)))
+
+mi_catch_eff_merge %>% 
+  filter(is.na(total_effort_1_effort)) %>% 
+  group_by(nothing_caught) %>% 
+  count()
+
+mi_catch_eff_merge <- mi_catch_eff_merge %>% 
+  ungroup() %>% 
+  mutate(nothing_caught = case_when(is.na(effort_ident) ~ NA,
+                                    TRUE ~ nothing_caught)) 
 ```                        
 
 # Final clean up to match schema

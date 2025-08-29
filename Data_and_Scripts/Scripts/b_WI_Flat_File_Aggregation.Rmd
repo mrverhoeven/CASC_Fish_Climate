@@ -1143,8 +1143,6 @@ wi_inland_fishobservations_10Nov2023[ , c("original_file_name_indivfish", "origi
  
 ```
 
-
-
 ## Bind winnebago and inland data together
 ```{r}
 #prep for merge
@@ -1374,7 +1372,7 @@ wi_inland_fishobservations_10Nov2023 %>%
   count() %>% 
   print(n = nrow(.))
 
-# this notes is made on 6/26/25 - below had previously converted number of nets to gill nets. I have since vetted the total effort and calcuated night nets in the effort prep chunk. I still need to confirm that these efforts were drawn from lines 967-977 pulling number of nets in places where total effort 1 and 2 were both absent. If that is true, we cannot just convert to net_nights becuase we can't assume the duration that they were sent 
+# this notes is made on 6/26/25 - below had previously converted number of nets to gill nets. I have since vetted the total effort and calculated night nets in the effort prep chunk. We cannot just convert to net_nights because we can't assume the duration that they were sent 
 
 # wi_inland_fishobservations_10Nov2023[total.effort.1.units == "number_of_nets" & sampling_method %in% c("frame_net_miniature" ,"fyke_net", "gill_net_bottom", "gill_net_vertical","gill_net_floating" ) , total.effort.1.units := "net_nights" ]
 
@@ -1423,8 +1421,8 @@ wi_inland_fishobservations_10Nov2023 %>%
   distinct(effort_ident, sample_id, total.effort.1, site_id.1, site_id.2, site_id.3, site_id.4) %>% 
   print(n = nrow(.))
 #previously there was a creation of "effort ident" that included species in the grouping variable of the winnebago cpe data - this created several effort idents within a site (one for each species that was captured)
-#also below is code that creates a sample id based on date and sampling method - that doesn't appear to be correat either... I think each site is more representative of a sample_id - lets add that to the grouping
-#when looking below this is totally the case - total effort columns are transitioned into sub effort columns and sample_id gets shifted to sub effort ident. The old groupin of just date in winne makes it look like there is just a total effort of 5 for a given day when it is really 15*5. Thus, lets include site id as the sample id for these 
+#also below is code that creates a sample id based on date and sampling method - that doesn't appear to be correct either... I think each site is more representative of a sample_id - lets add that to the grouping
+#when looking below this is totally the case - total effort columns are transitioned into sub effort columns and sample_id gets shifted to sub effort ident. The old grouping of just date in winne makes it look like there is just a total effort of 5 for a given day when it is really 15*5. Thus, lets include site id as the sample id for these 
 
 wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
   mutate(site_group = paste0(site_id.1, site_id.2, site_id.3, site_id.4))
@@ -1516,9 +1514,8 @@ wi_inland_fishobservations_10Nov2023[ ,`:=` (total_effort_ident = .GRP)  , .(lak
 
 #quick check on winnebago data grouping
 wi_inland_fishobservations_10Nov2023 %>% 
-  filter(str_detect(lake_name, "innebag") & date == c("2014-08-06", "2014-08-07")) %>% 
+  filter(str_detect(lake_name, "innebag") & date %in% c("2014-08-06", "2014-08-07")) %>% 
   distinct(total_effort_ident, sample_id, total.effort.1, site_id.1, site_id.2, site_id.3, site_id.4)
-
 
 #any no catch data?
   wi_inland_fishobservations_10Nov2023[ , sum(is.na(species)) , .(sample_id) ][ ,hist(V1) ,] #yes! every sub_effort_ident (sample_id) with a zero here is a no catch
@@ -1562,7 +1559,7 @@ rm(tot_eff_1)
 
 #quick check on winnebago data grouping again
 wi_inland_fishobservations_10Nov2023 %>% 
-  filter(str_detect(lake_name, "innebag") & date == c("2014-08-06", "2014-08-07")) %>% 
+  filter(str_detect(lake_name, "innebag") & date %in% c("2014-08-06", "2014-08-07")) %>% 
   distinct(total_effort_ident, sub_effort_ident, total_effort_1, sub_effort_1)
 
 # Set no effort records to TEI == NA
@@ -1617,6 +1614,38 @@ wi_inland_fishobservations_10Nov2023 %>%
   ungroup() %>% 
   summarise(n_effort = sum(sub_effort_1),
             n_walleye = sum(n_walleye))
+
+#do we also need to eliminate the sub effort ident?
+wi_inland_fishobservations_10Nov2023 %>% 
+  summarise(n_no_tei = sum(is.na(total_effort_ident) & !is.na(sub_effort_ident)),
+            no_effort = sum(is.na(total_effort_ident) & !is.na(sub_effort_ident) & is.na(total_effort_1)),
+            no_sub_effort = sum(is.na(total_effort_ident) & !is.na(sub_effort_ident) & is.na(sub_effort_1)))
+#we can see here that we removed the total effort ident for where there was no reported total effort, we now must do the same thing at the sub effort level 
+check <- wi_inland_fishobservations_10Nov2023 %>% 
+  filter(is.na(total_effort_1)) %>% 
+  distinct(lake_name, date, total_effort_ident, total_effort_1, sub_effort_ident, sub_effort_1)
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(sub_effort_ident = case_when(is.na(sub_effort_1) ~ NA,
+                                      TRUE ~ sub_effort_ident))
+wi_inland_fishobservations_10Nov2023 %>% 
+  summarise(n_no_tei = sum(is.na(total_effort_ident) & !is.na(sub_effort_ident)),
+            no_effort = sum(is.na(total_effort_ident) & !is.na(sub_effort_ident) & is.na(sub_effort_1)),
+            sub_effort_no_total = sum(is.na(total_effort_ident) & !is.na(sub_effort_ident) & !is.na(sub_effort_1)))
+#we can see where, we have 40751 cases where total effort ident is NA due to missing total effort but a sub effort ident remains - non of the sub effort ident cases remaining have na sub effort and all of the cases where a total effort ident is missing but has a sub effort ident remaining is due to there being sub effort in one part but not the other
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  summarise(no_id_tf = sum(is.na(total_effort_ident) & !is.na(total_effort_nothing_caught)),
+            no_id_n = sum(is.na(total_effort_1)),
+            no_sub_tf = sum(is.na(sub_effort_ident) & !is.na(sub_nothing_caught)),
+            no_sub_n = sum(is.na(sub_effort_1)))
+#we can see here places where the effort idents are NA but the nothing caught columns are not - in all cases it is due to the effort being NA
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(total_effort_nothing_caught = case_when(is.na(total_effort_ident) ~ NA,
+                                                 TRUE ~ total_effort_nothing_caught),
+         sub_nothing_caught = case_when(is.na(sub_effort_ident) ~ NA,
+                                        TRUE ~ sub_nothing_caught)) 
 ```
 
 # NHDs & Lakes Only Trim
@@ -1718,9 +1747,15 @@ wi_inland_fishobservations_10Nov2023[ , .N , lake_name ]
 wi_inland_fishobservations_10Nov2023[ , .N , gsub(" ", "_", clean_strings(lake_name)) ]
 wi_inland_fishobservations_10Nov2023[ , lake_name  :=  gsub(" ", "_", clean_strings(lake_name)) ]
 
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(!is.na(nhdhr_id)) %>% 
+  summarise(tags = sum(str_detect(nhdhr_id, "nhdhr")),
+            total = n())
+#found some records in Wisconsin that do not pick up an nhdhr_id tag
 
-
-
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(nhdhr_id = case_when(!(str_detect(nhdhr_id, "nhdhr")) ~ paste0("nhdhr_", nhdhr_id),
+                              TRUE ~ nhdhr_id))
 ```
 
 #fix gears here, addding simple gear
@@ -2187,6 +2222,7 @@ flag_xwalk <- wi_inland_fishobservations_10Nov2023 %>%
          flag = NA, #creates a flag column so I can case_when the flag generation 
          flag = case_when(total_effort_1 < 0 ~ paste("invalid effort (negative)", coalesce(flag, "")),
                           total_effort_1 == 0 ~ paste("effort reported as 0", ";", coalesce(flag, "")),
+                          is.na(date_total_effort_ident) & !is.na(total_effort_ident) ~ paste("no date reported", ";", coalesce(flag, "")),
                           z_score > 10 ~ paste("high effort", ";", coalesce(flag, "")),
                           is.na(z_score) ~ coalesce(flag, ""),
                           TRUE ~ coalesce(flag, "")
@@ -2471,6 +2507,23 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
   mutate(month = case_when(!is.na(date_total_effort_ident) ~ lubridate::month(date_total_effort_ident),
                            TRUE ~ lubridate::month(date_sample)))
 
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(is.na(year)) %>% 
+  summarise(tei_date = sum(!is.na(date_total_effort_ident)),
+            sub_date = sum(!is.na(date_sub_effort_ident)),
+            sample_date = sum(!is.na(date_sample)),
+            total_na = sum(is.na(year)))
+#now lets fill year and month in places where we have a sample date 
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(year = case_when(is.na(year) & !is.na(date_sub_effort_ident) ~
+                            lubridate::year(date_sub_effort_ident),
+                          is.na(year) & is.na(date_sub_effort_ident) & !is.na(date_sample) ~ 
+                            lubridate::year(date_sample),
+                          TRUE ~ year)) 
+
+
+
 #add a flag for when there is more than one sampling method within a total effort ident 
 wi_inland_fishobservations_10Nov2023 %>% 
   group_by(total_effort_ident, sampling_method_simple) %>% 
@@ -2514,6 +2567,7 @@ wi_inland_fishobservations_10Nov2023 %>%
 
 wi_inland_fishobservations_10Nov2023 %>%
   mutate(effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
+                                 str_detect(flag, "no date reported") ~ "y",
                                  str_detect(flag, "very high catch") ~ "y",
                                  str_detect(flag, "bad_date") ~ "y",
                                  str_detect(flag, "high effort") ~ "y",
@@ -2530,6 +2584,7 @@ wi_inland_fishobservations_10Nov2023 %>%
   group_by(total_effort_ident) %>%
   summarise(n = n(),
             n_efforts = sum(str_detect(flag, "bad_date") |
+                              str_detect(flag, "no date reported") |
                                  str_detect(flag, "very high catch") |
                                  str_detect(flag, "bad_date") |
                                  str_detect(flag, "high effort") |
@@ -2556,6 +2611,7 @@ wi_inland_fishobservations_10Nov2023 %>%
   group_by(total_effort_ident) %>%
   summarise(n = n(),
             n_efforts = sum(str_detect(flag, "bad_date") |
+                              str_detect(flag, "no date reported") |
                                  str_detect(flag, "very high catch") |
                                  str_detect(flag, "bad_date") |
                                  str_detect(flag, "high effort") |
@@ -2581,11 +2637,12 @@ wi_inland_fishobservations_10Nov2023 %>%
                                   TRUE ~ "n")) %>% 
     group_by(has_tei_flag, has_new_flag, has_old_flag) %>% 
     count()
-#we see here that not all records within a TEI had the original flag dispite at a record within the TEI having it, there is a new flag generated at the TEI level 
+#we see here that not all records within a TEI had the original flag spite at a record within the TEI having it, there is a new flag generated at the TEI level 
 
 #finally, the moment we have been waiting for
 wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
   mutate(cpue_invalid = case_when(str_detect(flag, "bad_date") |
+                                 str_detect(flag, "no date reported") |
                                  str_detect(flag, "very high catch") |
                                  str_detect(flag, "bad_date") |
                                  str_detect(flag, "high effort") |
@@ -2603,6 +2660,19 @@ wi_inland_fishobservations_10Nov2023 %>%
 wi_inland_fishobservations_10Nov2023 %>% 
   group_by(cpue_invalid) %>% 
   count()
+
+wi_inland_fishobservations_10Nov2023 %>% 
+  filter(is.na(date_total_effort_ident) & !is.na(total_effort_ident)) %>% 
+  group_by(flag) %>% 
+  count()
+
+####updating aging structure####
+wi_inland_fishobservations_10Nov2023 %>% 
+  distinct(aging_structure_1)
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(aging_structure_1 = case_when(aging_structure_1 == "none" ~ NA,
+                                       TRUE ~ aging_structure_1))
 ```
 
 #export as parquet file
@@ -2733,59 +2803,5 @@ glimpse(wi_data)
     # wi_data <- open_dataset(file = "Data_and_Scripts/Data/output/wi_file_arrow" )
     # 
     # glimpse(wi_data)
-
-write_dataset(dataset = wi_dat, path = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update", "state=Wisconsin"), format = "parquet")
-
-mw_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
-glimpse(mw_data)
-
-mw_data %>% 
-  filter(state == "Wisconsin") %>% 
-  group_by(notes_1) %>% count() %>% 
-  collect()
-
-mw_data %>% 
-   #filter(state == "Wisconsin") %>% 
-   group_by(state, length_unit_1) %>% count() %>% 
-   collect()
-
-wi_dat %>% 
-  filter(lake_name == "lake_chippewa" & year == 1990 & sampling_method == "fyke_net") %>% 
-  distinct(date_total_effort_ident, 
-           target_species,
-           total_effort_ident, 
-           total_effort_1, 
-           total_effort_1_units,
-           sub_effort_ident, 
-           sub_effort_1, 
-           sub_effort_1_units) %>% 
-  collect()
-
-wi_dat %>% 
-  filter(str_detect(lake_name, "innebag") & date_total_effort_ident %in% c("2014-08-07", "2014-08-06")) %>% 
-  group_by(total_effort_ident, sub_effort_ident, site_id, total_effort_1, total_effort_1_units, sub_effort_1, sub_effort_1_units) %>% 
-  summarise(n_walleye_sub = sum(species_1 == "walleye")) %>%
-  group_by(total_effort_ident) %>% 
-  mutate(n_walleye_total = sum(n_walleye_sub)) %>% 
-  collect() %>% 
-  print(n = nrow(.))
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

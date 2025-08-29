@@ -1649,6 +1649,25 @@ in_data_prep %>%
   group_by(aging_structure_1) %>% 
   count()
 
+###total effort/nothing caught NA cleaning
+in_data_prep %>% 
+  summarise(problem = sum(!is.na(total_effort_ident) & is.na(total_effort_1)),
+            n_tei = n_distinct(total_effort_ident))
+#we have some total effort idents that do not have effort
+
+in_data_prep <- in_data_prep %>% 
+  mutate(total_effort_ident = case_when(is.na(total_effort_1) ~ NA,
+                                           TRUE ~ total_effort_ident))
+in_data_prep %>% 
+  summarise(problem = sum(!is.na(total_effort_ident) & is.na(total_effort_1)),
+            n_tei = n_distinct(total_effort_ident))
+
+in_data_prep <- in_data_prep %>% 
+  #creates nothing caught column
+  mutate(nothing_caught = if_else(is.na(species_1), T, F))%>%
+  mutate(nothing_caught = case_when(is.na(total_effort_ident) ~ NA,
+                                    TRUE ~ nothing_caught))
+
 ##########################final column prep##################################
 in_data <- in_data_prep %>%
   #fixing species if it hasn't been already
@@ -1662,8 +1681,6 @@ in_data <- in_data_prep %>%
                            TRUE ~ month),
          year = case_when(!is.na(date) ~ year(date),
                           TRUE ~ year)) %>% 
-  #creating nothing caught column
-  mutate(nothing_caught = if_else(is.na(species_1), T, F))%>%
   #cleaning up lake size units
   mutate(lakesize_units = case_when(c_lakesize_units == "col_name_SurfaceAcres" ~ "acres",
                                     TRUE ~ c_lakesize_units)) %>% 

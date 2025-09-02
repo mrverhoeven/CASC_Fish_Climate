@@ -594,7 +594,6 @@ This step is not essential, serves as a checkpoint
 
 ```
 
-
 #Gear codes, species codes, state, county, length age units, target spp
 ```{r}
 #we need to
@@ -2231,6 +2230,23 @@ mn_dat %>%
 mn_dat <- mn_dat %>% 
   mutate(nhdhr_id = case_when(!is.na(nhdhr_id) ~ paste0("nhdhr_", nhdhr_id),
                               TRUE ~ NA)) 
+
+######checking places where total effort is NA but total effort ident is not###
+mn_dat %>% 
+  summarise(problem_total = sum(is.na(total_effort_1) & !is.na(total_effort_ident)),
+            problem_sub = sum(is.na(sub_effort_1) & !is.na(sub_effort_ident)))
+
+mn_dat <- mn_dat %>% 
+  mutate(total_effort_ident = case_when(is.na(total_effort_1) ~ NA,
+                                        TRUE ~ total_effort_ident))
+
+#does this affect the nothing caught column?
+mn_dat %>% 
+  summarise(problem = sum(is.na(total_effort_ident) & !is.na(total_effort_nothing_caught)))
+
+mn_dat <- mn_dat %>% 
+  mutate(total_effort_nothing_caught = case_when(is.na(total_effort_ident) ~ NA,
+                                                 TRUE ~ total_effort_nothing_caught))
 ```
 
 

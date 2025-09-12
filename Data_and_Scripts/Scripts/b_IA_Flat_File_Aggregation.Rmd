@@ -1704,7 +1704,74 @@ ia_fishobs_trial %>%
   count()
 
 #fish obs unpacked and tidied, clean up ws
-rm(ia_fishobs_30Nov2023, b, cde, ia_age_length_21Aug2021, ia_BLG_age_length_21Aug2021,ia_CCF_age_length_21Aug2021, ia_diet_21Aug2021, ia_lake_characteristics_21Aug2021, names, unusedbits, samplestationlocationmap_drawrectangletofilterlocations, ia_renamer, addcols, dropcols, filei, files_list, first_word, i, maxn, n, dates, check)
+rm(ia_fishobs_30Nov2023, b, cde, ia_age_length_21Aug2021, ia_BLG_age_length_21Aug2021,ia_CCF_age_length_21Aug2021, ia_diet_21Aug2021, ia_lake_characteristics_21Aug2021, names, unusedbits, samplestationlocationmap_drawrectangletofilterlocations, filei, files_list, first_word, i, maxn, n, check)
+```
+
+# Adding HALK Ages
+```{r}
+halk <- read_csv(file.path("G:",
+                           "Shared drives",
+                           "Hansen Lab",
+                           "RESEARCH PROJECTS",
+                           "Fish Survey Data",
+                           "Parquet files",
+                           "Age-assigned Data",
+                           "d_link_2025_hive",
+                           "halked_fish_xwalk.csv")) 
+halk %>% 
+  group_by(state) %>% 
+  count()
+
+#filter for state halked fish
+halk <- halk %>% 
+  filter(state == "Iowa") %>% 
+  mutate(obs_id = as.character(obs_id))
+
+# gut check to make sure obs ids remained the same (checking if the length of the obs id is the same in halk and state data)
+random_check <- halk %>% 
+  slice_sample(n = 10)
+
+ia_fishobs_trial %>% 
+  select(obs_id, length_1, length_bin, age) %>% 
+  inner_join(random_check) %>% 
+  select(obs_id, length_1, length_bin, alk_length, age, everything())
+rm(random_check)
+
+#lets get it added 
+glimpse(halk)
+
+ia_fishobs_trial <- ia_fishobs_trial %>% 
+  left_join(halk, relationship = "one-to-one")
+
+ia_fishobs_trial %>% 
+  group_by(is.na(est_age)) %>% 
+  count()
+#total of false matches halk obs 
+
+ia_fishobs_trial %>% 
+  filter(is.na(est_age)) %>% 
+  summarise(na_length = sum(is.na(length_1) | is.na(length_bin)),
+            n = n())
+#all fish that did not get an estimated age did not have a length 
+
+ia_fishobs_trial %>% 
+  filter(species_1 %in% c("walleye",
+                        "northern_pike",
+                        "cisco",
+                        "bluegill",
+                        "black_crappie",
+                        "largemouth_bass",
+                        "smallmouth_bass",
+                        "yellow_perch")) %>% 
+  summarise(problem = sum((!is.na(length_1) | !is.na(length_bin)) & is.na(est_age)))
+
+#lets put these columns in order 
+glimpse(ia_fishobs_trial)
+
+ia_fishobs_trial <- ia_fishobs_trial %>% 
+  relocate(est_age:alk_n, .after = aging_structure_1) 
+
+glimpse(ia_fishobs_trial)
 ```
 
 

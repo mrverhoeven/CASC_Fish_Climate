@@ -1805,6 +1805,62 @@ in_data <- in_data_prep %>%
          obs_id)
 ```
 
+# Add in HALK Ages
+```{r}
+halk <- read_csv(file.path("G:",
+                           "Shared drives",
+                           "Hansen Lab",
+                           "RESEARCH PROJECTS",
+                           "Fish Survey Data",
+                           "Parquet files",
+                           "Age-assigned Data",
+                           "d_link_2025_hive",
+                           "halked_fish_xwalk.csv")) 
+halk %>% 
+  group_by(state) %>% 
+  count()
+
+#filter for state halked fish
+halk <- halk %>% 
+  filter(state == "Indiana") %>% 
+  mutate(obs_id = as.character(obs_id))
+
+# gut check to make sure obs ids remained the same (checking if the length of the obs id is the same in halk and state data)
+random_check <- halk %>% 
+  slice_sample(n = 10)
+
+in_data %>% 
+  select(obs_id, length_1, length_bin, age) %>% 
+  inner_join(random_check) %>% 
+  select(obs_id, length_1, length_bin, alk_length, age, everything())
+rm(random_check)
+
+#lets get it added 
+glimpse(halk)
+
+in_data <- in_data %>% 
+  left_join(halk, relationship = "one-to-one")
+
+in_data %>% 
+  group_by(is.na(est_age)) %>% 
+  count()
+#total of false matches halk obs 
+
+in_data %>% 
+  filter(is.na(est_age)) %>% 
+  summarise(na_length = sum(is.na(length_1) | is.na(length_bin)),
+            n = n())
+#all fish that did not get an estimated age did not have a length 
+
+#lets put these columns in order 
+glimpse(in_data)
+
+in_data <- in_data %>% 
+  relocate(est_age:alk_n, .after = aging_structure_1) 
+
+glimpse(in_data)
+```
+
 
 ```{r}
 glimpse(in_data)
@@ -1981,4 +2037,5 @@ in_hive <- as_arrow_table(in_data)
 write_dataset(dataset = in_data, path = "Data_and_Scripts/Data/output/in_file_arrow")
 
 in_data <- open_dataset("Data_and_Scripts/Data/output/in_file_arrow") 
+glimpse(in_data)
 ```

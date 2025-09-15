@@ -1718,9 +1718,14 @@ halk <- read_csv(file.path("G:",
                            "Age-assigned Data",
                            "d_link_2025_hive",
                            "halked_fish_xwalk.csv")) 
+
 halk %>% 
   group_by(state) %>% 
   count()
+
+halk %>%
+  filter(state == "Iowa") %>% 
+  summarise(n = sum(alk_length == 0, na.rm =T)) 
 
 #filter for state halked fish
 halk <- halk %>% 
@@ -1772,6 +1777,10 @@ ia_fishobs_trial <- ia_fishobs_trial %>%
   relocate(est_age:alk_n, .after = aging_structure_1) 
 
 glimpse(ia_fishobs_trial)
+
+ia_fishobs_trial %>% 
+  filter(alk_length == 0) %>% 
+  distinct(length_bin)
 ```
 
 

@@ -2373,7 +2373,14 @@ mn_dat <- mn_dat %>%
     #lat_unspec = as.numeric(NA),
     #lon_unspec = as.numeric(NA),
     lakesize = as.numeric(NA),
-    lakesize_units = as.character(NA)) %>% 
+    lakesize_units = as.character(NA),
+    obs_id = as.character(obs_id),
+    year = as.numeric(year),
+    month = as.numeric(month),
+    length_1 = as.numeric(length_1),
+    est_age = as.numeric(est_age),
+    alk_length = as.numeric(alk_length),
+    alk_n = as.numeric(alk_n)) %>% 
     select(state,
          county,
          lake_name,

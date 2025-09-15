@@ -2784,7 +2784,11 @@ wi_dat <- wi_dat %>%
     lakesize_units = as.character(NA),
     location_notes_1 = as.character(NA),
     sub_effort_ident = as.character(sub_effort_ident),
-    obs_id = as.character(obs_id)) %>% 
+    obs_id = as.character(obs_id),
+    year = as.numeric(year),
+    month = as.numeric(month),
+    est_age = as.numeric(est_age),
+    alk_n = as.numeric(alk_n)) %>% 
     select(state,
          county,
          lake_name,

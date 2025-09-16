@@ -15,7 +15,7 @@ library(arrow)
 
 #data
 ```{r}
-in_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
+in_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Indiana")
 glimpse(in_data)
 ```
@@ -26,8 +26,25 @@ in_data %>%
   group_by(flag) %>% 
   count() %>% 
   collect()
+
+in_data %>% 
+  summarise(n_effort_flags = sum(str_detect(flag, "high") |
+                                   str_detect(flag, "no sampling") |
+                                   str_detect(flag, "missing") |
+                                   str_detect(flag, "no match"), na.rm = T),
+            n_cpue_invalid = sum(cpue_invalid == "y", na.rm = T),
+            n_cpue_invalid_flags = sum(cpue_invalid == "y" & (str_detect(flag, "high") |
+                                   str_detect(flag, "no sampling") |
+                                   str_detect(flag, "missing")|
+                                     str_detect(flag, "no match")), na.rm = T)) %>% 
+  collect()
+
+in_data %>% 
+  filter(cpue_invalid == "y") %>% 
+  distinct(flag) %>% 
+  collect()
 ```
-Looks like we have some effort flags, some noting missing effort and some noting high effort. We will not have to worry about the missing effort as it will get weeded out naturally, but we will have to filter out the high effort case. We will create a y/n column that notes if there is an effort flag for filtering or not and then filter on this - similar to what we do with targeted species. 
+Looks like we have some effort flags, some noting missing effort and some noting high effort. We will not have to worry about the missing effort as it will get weeded out naturally, but we will have to filter out the high effort case. We can filter out records we don't want using the invalid cpue column, selecting "n" cases. 
 
 #filtering walleye
 ```{r}
@@ -42,9 +59,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(grepl("walleye", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(grepl("high effort", flag) ~ "y",
-                          TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "survey_type")) %>% 
@@ -59,12 +74,12 @@ good_surveys <- in_data %>%
            month_min,
            month_max,
            species_included,
-           effort_flag)%>% 
+           cpue_invalid)%>% 
   filter(total_effort_1 >= effort_min,
          month >= month_min,
          month <= month_max,
          species_included == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
   collect()
 
 adult_walleye <- in_data %>% 
@@ -167,9 +182,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(grepl("black_crappie", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(grepl("high effort", flag) ~ "y",
-                          TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "survey_type")) %>% 
@@ -184,12 +197,12 @@ good_surveys <- in_data %>%
            month_min,
            month_max,
            species_included,
-           effort_flag)%>% 
+           cpue_invalid)%>% 
   filter(total_effort_1 >= effort_min,
          month >= month_min,
          month <= month_max,
          species_included == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
   collect()
 
 adult_black_crappie <- in_data %>% 
@@ -290,9 +303,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(grepl("bluegill", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(grepl("high effort", flag) ~ "y",
-                          TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "survey_type")) %>% 
@@ -307,12 +318,12 @@ good_surveys <- in_data %>%
            month_min,
            month_max,
            species_included,
-           effort_flag)%>% 
+           cpue_invalid)%>% 
   filter(total_effort_1 >= effort_min,
          month >= month_min,
          month <= month_max,
          species_included == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
   collect()
 
 adult_bluegill <- in_data %>% 
@@ -418,9 +429,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(grepl("argemouth", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(grepl("high effort", flag) ~ "y",
-                          TRUE ~ "n")) %>%
+                                      TRUE ~ "n")) %>%
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "survey_type")) %>% 
@@ -435,12 +444,12 @@ good_surveys <- in_data %>%
            month_min,
            month_max,
            species_included,
-           effort_flag)%>% 
+           cpue_invalid)%>% 
   filter(total_effort_1 >= effort_min,
          month >= month_min,
          month <= month_max,
          species_included == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
   collect() 
 
 adult_largemouth_bass <- in_data %>% 
@@ -535,9 +544,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(grepl("mallmouth", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(grepl("high effort", flag) ~ "y",
-                          TRUE ~ "n")) %>%
+                                      TRUE ~ "n")) %>%
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "survey_type")) %>% 
@@ -552,12 +559,12 @@ good_surveys <- in_data %>%
            month_min,
            month_max,
            species_included,
-           effort_flag)%>% 
+           cpue_invalid)%>% 
   filter(total_effort_1 >= effort_min,
          month >= month_min,
          month <= month_max,
          species_included == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
   collect()
 
 adult_smallmouth_bass <- in_data %>% 
@@ -650,9 +657,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(grepl("pike", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(grepl("high effort", flag) ~ "y",
-                          TRUE ~ "n")) %>%
+                                      TRUE ~ "n")) %>%
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "survey_type")) %>% 
@@ -667,12 +672,12 @@ good_surveys <- in_data %>%
            month_min,
            month_max,
            species_included,
-           effort_flag)%>% 
+           cpue_invalid)%>% 
   filter(total_effort_1 >= effort_min,
          month >= month_min,
          month <= month_max,
          species_included == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
   collect()
 
 adult_northern_pike <- in_data %>% 
@@ -772,9 +777,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(grepl("yellow_perch", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(grepl("high effort", flag) ~ "y",
-                          TRUE ~ "n")) %>%
+                                      TRUE ~ "n")) %>%
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "survey_type")) %>% 
@@ -789,12 +792,12 @@ good_surveys <- in_data %>%
            month_min,
            month_max,
            species_included,
-           effort_flag)%>% 
+           cpue_invalid)%>% 
   filter(total_effort_1 >= effort_min,
          month >= month_min,
          month <= month_max,
          species_included == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
   collect()
 
 adult_yellow_perch <- in_data %>% 
@@ -894,9 +897,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- in_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(grepl("cisco", target_species) | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(grepl("high effort", flag) ~ "y",
-                          TRUE ~ "n")) %>%
+                                      TRUE ~ "n")) %>%
   right_join(filter_table_effort, by = c("state",
                                         "sampling_method",
                                         "survey_type")) %>% 
@@ -911,12 +912,12 @@ good_surveys <- in_data %>%
            month_min,
            month_max,
            species_included,
-           effort_flag)%>% 
+           cpue_invalid)%>% 
   filter(total_effort_1 >= effort_min,
          month >= month_min,
          month <= month_max,
          species_included == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
   collect()
 
 adult_cisco <- in_data %>% 

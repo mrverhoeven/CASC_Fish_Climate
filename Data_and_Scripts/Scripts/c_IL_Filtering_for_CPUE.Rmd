@@ -15,7 +15,7 @@ library(arrow)
 
 #data
 ```{r}
-il_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
+il_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Illinois")
 glimpse(il_data)
 ```
@@ -51,15 +51,11 @@ il_data %>%
   collect()
 
 il_data %>% 
-  mutate(effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                            TRUE ~ "n")) %>% 
-  group_by(flag, effort_flag) %>% 
+  group_by(flag, cpue_invalid) %>% 
   count() %>% 
   collect()
 ```
-Looks like we have surveys with effort reported as 0 - those will be taken care of with the min effort filter.
-We also have some flags for high effort - those could be taken care of with the max effort filter - but lets make another filter to be certain.
-The no zero catches flag is just warning no confirmed surveys with effort but no catch - a niche thing for Illinois where we do not have any confirmed non-catches and thus we may not have surveys that didn't catch any fish at all
+We can see here that all of our flags concerning effort have been spotted by the cpue_invalid column
 
 #walleye filtering 
 ```{r}
@@ -79,9 +75,7 @@ good_surveys <- il_data %>%
   mutate(walleye_relevant = case_when(is.na(target_species) ~ "y",
                                       str_detect(target_species, "walleyeY") ~ "y",
                                       str_detect(target_species, "N") & !str_detect(target_species, "walleyeN") ~ "y",
-                                      T ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      T ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
@@ -100,14 +94,14 @@ good_surveys <- il_data %>%
            month_max,
            target_species, 
            walleye_relevant,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
          walleye_relevant == "y",
-         effort_flag == "n"
+         cpue_invalid == "n"
          ) %>% 
     collect() 
 
@@ -206,7 +200,7 @@ adult_walleye %>%
            month_max,
            target_species, 
            walleye_relevant,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   glimpse()
 
 adult_walleye %>% 
@@ -269,9 +263,7 @@ good_surveys <- il_data %>%
   mutate(crappie_relevant = case_when(is.na(target_species) ~ "y",
                                       str_detect(target_species, "black_crappieY") ~ "y",
                                       str_detect(target_species, "N") & !str_detect(target_species, "black_crappieN") ~ "y",
-                                      T ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      T ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
@@ -290,14 +282,14 @@ good_surveys <- il_data %>%
            month_max,
            target_species, 
            crappie_relevant,
-           effort_flag) %>%
+           cpue_invalid) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
          crappie_relevant == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -452,9 +444,7 @@ good_surveys <- il_data %>%
   mutate(bluegill_relevant =case_when(is.na(target_species) ~ "y",
                                       str_detect(target_species, "bluegillY") ~ "y",
                                       str_detect(target_species, "N") & !str_detect(target_species, "bluegillN") ~ "y",
-                                      T ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      T ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
@@ -473,14 +463,14 @@ good_surveys <- il_data %>%
            month_max,
            target_species,
            bluegill_relevant,
-           effort_flag) %>%
+           cpue_invalid) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
          bluegill_relevant == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -634,9 +624,7 @@ good_surveys <- il_data %>%
   mutate(largemouth_relevant =case_when(is.na(target_species) ~ "y",
                                       str_detect(target_species, "largemouth_bassY") ~ "y",
                                       str_detect(target_species, "N") & !str_detect(target_species, "largemouth_bassN") ~ "y",
-                                      T ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      T ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
@@ -655,14 +643,14 @@ good_surveys <- il_data %>%
            month_max,
            target_species, 
            largemouth_relevant,
-           effort_flag) %>%
+           cpue_invalid) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
          largemouth_relevant == "y",
-         effort_flag == "n"
+         cpue_invalid == "n"
          ) %>% 
     collect() 
 
@@ -817,9 +805,7 @@ good_surveys <- il_data %>%
   mutate(smallmouth_relevant =case_when(is.na(target_species) ~ "y",
                                       str_detect(target_species, "smallmouth_bassY") ~ "y",
                                       str_detect(target_species, "N") & !str_detect(target_species, "smallmouth_bassN") ~ "y",
-                                      T ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      T ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
@@ -838,14 +824,14 @@ good_surveys <- il_data %>%
            month_max,
            target_species, 
            smallmouth_relevant,
-           effort_flag) %>%
+           cpue_invalid) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
          smallmouth_relevant == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -998,9 +984,7 @@ good_surveys <- il_data %>%
   mutate(pike_relevant =case_when(is.na(target_species) ~ "y",
                                       str_detect(target_species, "northern_pikeY") ~ "y",
                                       str_detect(target_species, "N") & !str_detect(target_species, "northern_pikeN") ~ "y",
-                                      T ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      T ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
@@ -1019,14 +1003,14 @@ good_surveys <- il_data %>%
            month_max,
            target_species, 
            pike_relevant,
-           effort_flag) %>%
+           cpue_invalid) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
          pike_relevant == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
     collect() 
 
 #grabbing the fish data
@@ -1185,9 +1169,7 @@ good_surveys <- il_data %>%
   mutate(perch_relevant =case_when(is.na(target_species) ~ "y",
                                       str_detect(target_species, "yellow_perchY") ~ "y",
                                       str_detect(target_species, "N") & !str_detect(target_species, "yellow_percheN") ~ "y",
-                                      T ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      T ~ "n")) %>% 
   #joining the filter table and data - this will select survey types and methods that are appropriate 
   right_join(filter_table_effort, by = c("state",
                                          "survey_type",
@@ -1206,14 +1188,14 @@ good_surveys <- il_data %>%
            month_max,
            target_species, 
            perch_relevant,
-           effort_flag) %>%
+           cpue_invalid) %>%
   #filtering on certain columns 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
          month(date_total_effort_ident) <= month_max,
          perch_relevant == "y",
-         effort_flag == "n") %>% 
+         cpue_invalid == "n") %>% 
     collect() 
 
 #grabbing the fish data

@@ -7,24 +7,6 @@ editor_options:
   chunk_output_type: console
 ---
 
-General Overview of the Script:
-1. load packages
-2. Load fish data from Michigan 
-3. Check for any effort flags
-4. Load in inclusion table
-     -this has survey characteristics that surveys must have to remain 
-5. join the inclusion table based to fish data based on sampling method and survey type for representative cpe
-6. filter based on numeric inclusion parameters (effort max and min)
-7. join our the fish data to our good surveys so that we collect the fish from those surveys 
-8. count species of interest from the good surveys and calculate cpe
-   -if specific individual fish level cpes (length bins) are desired they can be counted here
-9. check filters and the cpe generated 
-    -no na cpes
-    -did our nothing caught surveys remain in with 0 counts?
-    -do we have the same number of cpe obs as we do good surveys
-    -are they there any cpe surveys outside of the bound of our incusion table?
-
-
 #Library
 ```{r}
 library(tidyverse)
@@ -33,7 +15,7 @@ library(arrow)
 
 #data
 ```{r}
-mi_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
+mi_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Michigan")
 glimpse(mi_data)
 ```
@@ -48,8 +30,13 @@ mi_data %>%
 mi_data %>% 
   filter(flag == "no effort data") %>% 
   glimpse()
+
+mi_data %>% 
+  summarise(n_flag_effort = sum(str_detect(flag, "no effort"), na.rm = T),
+            n_invalid = sum(str_detect(flag, "no effort") & cpue_invalid == "y", na.rm = T)) %>% 
+  collect()
 ```
-There are no effort flags outside of there being no effort data in a survey. We will not have to worry about filtering those out because they do not have total effort idents and will not show up in our good surveys generation 
+There are no effort flags outside of there being no effort data in a survey. We will not have to worry about filtering those out because they do not have total effort idents and will not show up in our good surveys generation. We could filter out by the column, cpue_invalid but it is an unnessary step here. 
 
 #walleye filtering 
 ```{r}

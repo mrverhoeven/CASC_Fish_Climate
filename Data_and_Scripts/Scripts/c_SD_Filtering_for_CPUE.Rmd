@@ -16,7 +16,7 @@ library(arrow)
 
 #data
 ```{r}
-sd_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
+sd_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "South_Dakota")
 glimpse(sd_data)
 ```
@@ -29,13 +29,11 @@ sd_data %>%
   collect()
 
 sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
-  group_by(flag, effort_flag) %>% 
+  group_by(flag, cpue_invalid) %>% 
   count() %>% 
   collect()
 ```
-Looks like we have some high effort surveys that we need to be sure to remove 
+Looks like we have some high effort surveys that we need to be sure to remove, this is acccomplished by the cpue invalid column
 
 #filtering walleye
 ```{r}
@@ -52,8 +50,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   rename(sampling_method_2 = sampling_method)
 
 good_surveys <- sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("sampling_method_2")) %>% 
   distinct(total_effort_ident,
            date_total_effort_ident,
@@ -63,12 +59,12 @@ good_surveys <- sd_data %>%
           effort_max,
           month_min,
           month_max,
-          effort_flag) %>% 
+          cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() 
 
 adult_walleye <- sd_data %>% 
@@ -239,8 +235,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   rename(sampling_method_2 = sampling_method)
 
 good_surveys <- sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("sampling_method_2")) %>% 
   distinct(total_effort_ident,
            date_total_effort_ident,
@@ -250,12 +244,12 @@ good_surveys <- sd_data %>%
           effort_max,
           month_min,
           month_max,
-          effort_flag) %>% 
+          cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() 
 
 adult_black_crappie <- sd_data %>% 
@@ -372,8 +366,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   rename(sampling_method_2 = sampling_method)
 
 good_surveys <- sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("sampling_method_2")) %>% 
   distinct(total_effort_ident,
            date_total_effort_ident,
@@ -383,12 +375,12 @@ good_surveys <- sd_data %>%
           effort_max,
           month_min,
           month_max,
-          effort_flag) %>% 
+          cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() 
 
 adult_bluegill <- sd_data %>% 
@@ -505,8 +497,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   rename(sampling_method_2 = sampling_method)
 
 good_surveys <- sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("sampling_method_2")) %>% 
   distinct(total_effort_ident,
            date_total_effort_ident,
@@ -516,12 +506,12 @@ good_surveys <- sd_data %>%
           effort_max,
           month_min,
           month_max,
-          effort_flag) %>% 
+          cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() 
 
 adult_largemouth_bass <- sd_data %>% 
@@ -638,8 +628,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   rename(sampling_method_2 = sampling_method)
 
 good_surveys <- sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("sampling_method_2")) %>% 
   distinct(total_effort_ident,
            date_total_effort_ident,
@@ -649,12 +637,12 @@ good_surveys <- sd_data %>%
           effort_max,
           month_min,
           month_max,
-          effort_flag) %>% 
+          cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() 
 
 adult_smallmouth_bass <- sd_data %>% 
@@ -771,8 +759,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   rename(sampling_method_2 = sampling_method)
 
 good_surveys <- sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("sampling_method_2")) %>% 
   distinct(total_effort_ident,
            date_total_effort_ident,
@@ -782,12 +768,12 @@ good_surveys <- sd_data %>%
           effort_max,
           month_min,
           month_max,
-          effort_flag) %>% 
+          cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() 
 
 adult_northern_pike <- sd_data %>% 
@@ -905,8 +891,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   rename(sampling_method_2 = sampling_method)
 
 good_surveys <- sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("sampling_method_2")) %>% 
   distinct(total_effort_ident,
            date_total_effort_ident,
@@ -916,12 +900,12 @@ good_surveys <- sd_data %>%
           effort_max,
           month_min,
           month_max,
-          effort_flag) %>% 
+          cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() 
 
 adult_yellow_perch <- sd_data %>% 
@@ -1039,8 +1023,6 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
   rename(sampling_method_2 = sampling_method)
 
 good_surveys <- sd_data %>% 
-  mutate(effort_flag = case_when(flag == "high effort ; " ~ "y",
-                                 TRUE ~ "n")) %>% 
   right_join(filter_table_effort, by = c("sampling_method_2")) %>% 
   distinct(total_effort_ident,
            date_total_effort_ident,
@@ -1050,12 +1032,12 @@ good_surveys <- sd_data %>%
           effort_max,
           month_min,
           month_max,
-          effort_flag) %>% 
+          cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() 
 
 adult_cisco <- sd_data %>% 

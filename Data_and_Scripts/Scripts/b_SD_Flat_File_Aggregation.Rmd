@@ -34,7 +34,7 @@ This could readily be changed into a function that takes a filepath and returns 
 * note Holly has to change file paths to "D" 
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -47,7 +47,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/SD_Data/sd_raw_disaggregated_data/",
                                           files_list[i]),
          drop = c("V1")))
   
@@ -133,7 +133,6 @@ for(i in 1:n) {
 #Data Ag
 This section has some data review and implementation of basic commands to get the data in fish per row format
 ```{r}
-
 #clean out some file import stuff-
 rm(cde,names, unusedbits, cols, filei, files_list, i, maxn, n)
 
@@ -337,12 +336,10 @@ unique(sd_merged_ce$lake_id)
 
 # mwlaxeref::lake_id_xref %>% filter(state == "sd") %>% 
 #   group_by(local.id) %>% count() %>% print(n = nrow(.))
-
 ```
 
 ## Revise after lake loc import sucess
 ```{r}
-
 #most have matches in the lake locations file
 sd_locs <- sd_lakelocations_1Dec2023
 
@@ -672,6 +669,7 @@ sd_merged_ce <- sd_merged_ce %>%
          weight_unit.1 = case_when(weight_unit.1 == "g" ~ "grams",
                                    TRUE ~ weight_unit.1)) 
 
+
 #fix aging structure
 sd_merged_ce <- sd_merged_ce %>% 
   mutate(aging_structure.1 = case_when(aging_structure.1 == "Otolith" ~ "otolith",
@@ -877,7 +875,7 @@ sd_merged_ce_trial %>%
 
 # Adding HALK ages
 ```{r}
-halk <- read_csv(file.path("G:",
+halk <- read_csv(file.path("D:",
                            "Shared drives",
                            "Hansen Lab",
                            "RESEARCH PROJECTS",
@@ -892,8 +890,9 @@ halk %>%
 
 #filter for state halked fish
 halk <- halk %>% 
-  filter(state == "South_Dakota") %>% 
-  mutate(obs_id = as.character(obs_id))
+  filter(state == "South Dakota") %>% 
+  mutate(obs_id = as.character(obs_id),
+         state = "South_Dakota")
 
 # gut check to make sure obs ids remained the same (checking if the length of the obs id is the same in halk and state data)
 random_check <- halk %>% 
@@ -919,7 +918,6 @@ halk %>%
 
 sd_merged_ce_trial <- sd_merged_ce_trial %>% 
   left_join(halk, relationship = "one-to-one")
-
 
 sd_merged_ce_trial %>% 
   group_by(is.na(est_age)) %>% 
@@ -958,6 +956,10 @@ sd_merged_ce_trial <- sd_merged_ce_trial %>%
   relocate(est_age:alk_n, .after = aging_structure_1) 
 
 glimpse(sd_merged_ce_trial)
+
+sd_merged_ce_trial <- sd_merged_ce_trial %>% 
+  mutate(aging_structure_1 = case_when(is.na(age) ~ NA,
+                                       TRUE ~ aging_structure_1)) 
 ```
 
 

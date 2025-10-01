@@ -15,7 +15,7 @@ library(arrow)
 
 #data
 ```{r}
-ia_data <- open_dataset(sources = file.path("D:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
+ia_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) %>% 
   filter(state == "Iowa")
 glimpse(ia_data)
 ```
@@ -47,16 +47,13 @@ ia_data %>%
   print(n = nrow(.))
 
 ia_data %>% 
-  mutate(effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "Agency flagged") ~ "y",
-                                            TRUE ~ "n")) %>% 
-  group_by(flag, effort_flag) %>% 
+  group_by(cpue_invalid, flag) %>%
   count() %>% 
-  arrange(flag) %>%
+  arrange(cpue_invalid) %>% 
   collect() %>% 
   print(n = nrow(.))
 ```
-There are several flags in Iowa that we will want to weed out for relative abundance. Any fish level flag is fine because we are just counting. Here are two flags that are concerning - high effort and agency flagged surveys. We will make a y or n record when filtering and make sure that there are no effort flags in the remaining observations. 
+There are several flags in Iowa that we will want to weed out for relative abundance. Any fish level flag is fine because we are just counting. Here are two flags that are concerning - high effort and agency flagged surveys. We see that our invalid cpue flags do a good job picking up all survey level flags.
 
 #effort units filtering
 ```{r}
@@ -67,7 +64,7 @@ ia_data %>%
   arrange(sampling_method) %>% 
   print(n = nrow(.))
 ```
-Hours is the standard Iowan effort unit - we need to make sure only do not use distance. There appear to be some NA unit values, all of those have an adequacy flag tagged on them and it is not nessary to worry about filtering on that.
+Hours is the standard Iowan effort unit - we need to make sure that we do not use distance. There appear to be some NA unit values, all of those have an adequacy flag tagged on them and it is not needed to worry about filtering on that.
 
 #filtering walleye
 ```{r}
@@ -83,12 +80,8 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
-  #creating a y or n for if there is flag for the effort associated with the catch
   mutate(species_included = case_when(str_detect(target_species, "walleye") | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "Agency flagged") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -107,14 +100,14 @@ good_surveys <- ia_data %>%
            total_effort_1_units,
            species_included,
            survey_type_filter,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
         species_included == "y",
         survey_type_filter == "y",
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() %>% 
   filter(total_effort_1_units == "hours")
 
@@ -155,7 +148,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included, effort_flag) %>% 
+  group_by(survey_type_filter, species_included, cpue_invalid) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -168,8 +161,8 @@ adult_walleye %>%
             n = n())
 
 adult_walleye %>% 
-  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, effort_flag) %>%
-  group_by(target_species, species_included,survey_type, survey_type_filter, effort_flag) %>% 
+  distinct(total_effort_ident,target_species, species_included,survey_type, survey_type_filter, cpue_invalid) %>%
+  group_by(target_species, species_included,survey_type, survey_type_filter, cpue_invalid) %>% 
    collect() %>% 
    count() 
 
@@ -224,10 +217,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(str_detect(target_species, "black crappie") | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "Agency flagged") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -246,14 +236,14 @@ good_surveys <- ia_data %>%
            total_effort_1_units,
            species_included,
            survey_type_filter,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
         species_included == "y",
         survey_type_filter == "y",
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() %>% 
   filter(total_effort_1_units == "hours")
 
@@ -291,7 +281,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included, effort_flag) %>% 
+  group_by(survey_type_filter, species_included, cpue_invalid) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -360,10 +350,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(str_detect(target_species, "bluegill") | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "Agency flagged") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -382,14 +369,14 @@ good_surveys <- ia_data %>%
            total_effort_1_units,
            species_included,
            survey_type_filter,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
         species_included == "y",
         survey_type_filter == "y",
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() %>% 
   filter(total_effort_1_units == "hours")
 
@@ -427,7 +414,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included, effort_flag) %>% 
+  group_by(survey_type_filter, species_included, cpue_invalid) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -497,10 +484,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(str_detect(target_species, "largemouth") | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "Agency flagged") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -519,14 +503,14 @@ good_surveys <- ia_data %>%
            total_effort_1_units,
            species_included,
            survey_type_filter,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
         species_included == "y",
         survey_type_filter == "y",
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() %>% 
   filter(total_effort_1_units == "hours")
 
@@ -633,10 +617,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(str_detect(target_species, "smallmouth") | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "Agency flagged") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -655,14 +636,14 @@ good_surveys <- ia_data %>%
            total_effort_1_units,
            species_included,
            survey_type_filter,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
         species_included == "y",
         survey_type_filter == "y",
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() %>% 
   filter(total_effort_1_units == "hours")
 
@@ -700,7 +681,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included, effort_flag) %>% 
+  group_by(survey_type_filter, species_included, cpue_invalid) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -769,10 +750,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(str_detect(target_species, "pike") | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "Agency flagged") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -791,14 +769,14 @@ good_surveys <- ia_data %>%
            total_effort_1_units,
            species_included,
            survey_type_filter,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
         species_included == "y",
         survey_type_filter == "y",
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() %>% 
   filter(total_effort_1_units == "hours")
 
@@ -836,7 +814,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included, effort_flag) %>% 
+  group_by(survey_type_filter, species_included, cpue_invalid) %>% 
   count() 
 
 #is each sampling method correct for the filter?
@@ -906,10 +884,7 @@ filter_table_effort <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-
 good_surveys <- ia_data %>% 
   #creating a y or n for if we could even expect the species to be present in the survey
   mutate(species_included = case_when(str_detect(target_species, "perch") | is.na(target_species) ~ "y",
-                                      TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "Agency flagged") ~ "y",
-                                            TRUE ~ "n")) %>% 
+                                      TRUE ~ "n")) %>% 
   #filter for good survey type
   mutate(survey_type_filter = case_when(survey_type %in% c("General", 
                                                            "Comprehensive", 
@@ -928,14 +903,14 @@ good_surveys <- ia_data %>%
            total_effort_1_units,
            species_included,
            survey_type_filter,
-           effort_flag) %>% 
+           cpue_invalid) %>% 
   filter(total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
         month(date_total_effort_ident) >= month_min,
         month(date_total_effort_ident) <= month_max,
         species_included == "y",
         survey_type_filter == "y",
-        effort_flag == "n") %>% 
+        cpue_invalid == "n") %>% 
   collect() %>% 
   filter(total_effort_1_units == "hours")
 
@@ -973,7 +948,7 @@ good_surveys %>%
             n = n())
 
 good_surveys %>% 
-  group_by(survey_type_filter, species_included, effort_flag) %>% 
+  group_by(survey_type_filter, species_included, cpue_invalid) %>% 
   count() 
 
 #is each sampling method correct for the filter?

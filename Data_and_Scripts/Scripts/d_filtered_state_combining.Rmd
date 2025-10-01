@@ -16,7 +16,7 @@ library(arrow)
 # read in filtered state cpue data and select for appropriate columns
 ```{r}
 #MI
-mi <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Data for Collaborators", "CPUE_Data", "filter_update_spring_2025", "MI_all_cpue_filtered.csv")) %>% 
+mi <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "manuscript_products", "abundance", "data", "output", "MI_all_cpue_filtered.csv")) %>% 
   select(state,
        nhdhr_id,
        lake_id,
@@ -39,7 +39,7 @@ mi <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS
   mutate(total_effort_ident = as.character(total_effort_ident))
 
 #IA
-ia <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Data for Collaborators", "CPUE_Data", "filter_update_spring_2025", "IA_all_cpue_filtered.csv")) %>% 
+ia <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "manuscript_products", "abundance", "data", "output", "IA_all_cpue_filtered.csv")) %>% 
   select(state,
        nhdhr_id,
        lake_id,
@@ -62,7 +62,7 @@ ia <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS
   mutate(total_effort_ident = as.character(total_effort_ident))
 
 #SD
-sd <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Data for Collaborators", "CPUE_Data", "filter_update_spring_2025", "SD_all_cpue_filtered.csv")) %>% 
+sd <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "manuscript_products", "abundance", "data", "output", "SD_all_cpue_filtered.csv")) %>% 
   select(state,
        nhdhr_id,
        lake_id,
@@ -85,7 +85,7 @@ sd <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS
   mutate(total_effort_ident = as.character(total_effort_ident))
 
 #IL
-il <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Data for Collaborators", "CPUE_Data", "filter_update_spring_2025", "IL_all_cpue_filtered.csv")) %>% 
+il <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "manuscript_products", "abundance", "data", "output", "IL_all_cpue_filtered.csv")) %>% 
   select(state,
        nhdhr_id,
        lake_id,
@@ -108,7 +108,7 @@ il <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS
   mutate(lake_id = as.character(lake_id))
 
 #IN
-indy <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Data for Collaborators", "CPUE_Data", "filter_update_spring_2025", "IN_all_cpue_filtered.csv")) %>% 
+indy <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "manuscript_products", "abundance", "data", "output", "IN_all_cpue_filtered.csv")) %>% 
   select(state,
        nhdhr_id,
        lake_id,
@@ -129,7 +129,7 @@ indy <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJEC
        count,
        cpue)
 
-mn <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Data for Collaborators", "CPUE_Data", "filter_update_spring_2025", "MN_all_cpue_filtered.csv")) %>% 
+mn <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "manuscript_products", "abundance", "data", "output", "MN_all_cpue_filtered.csv")) %>% 
   mutate(month = month(as.Date(date_total_effort_ident))) %>% 
   select(state,
        nhdhr_id,
@@ -154,7 +154,7 @@ mn <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS
          total_effort_ident = as.character(total_effort_ident))
 
 #wi
-wi <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Data for Collaborators", "CPUE_Data", "filter_update_spring_2025", "WI_all_cpue_filtered.csv")) %>% 
+wi <- read_csv(file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "manuscript_products", "abundance", "data", "output", "WI_all_cpue_filtered.csv")) %>% 
   select(state,
        nhdhr_id,
        lake_id,
@@ -225,14 +225,16 @@ mw_cpue %>%
 
 mw_cpue %>% 
   distinct(total_effort_ident, state, nhdhr_id) %>% 
-  group_by(state, is.na(nhdhr_id)) %>% 
-  count()
+  group_by(state) %>% 
+  summarise(missing_nhd = sum(is.na(nhdhr_id)),
+            n = n())
 #how many missing NHDHRIDs?
 
 mw_cpue %>% 
   distinct(total_effort_ident, state, total_effort_ident, latitude_lake_centroid, longitude_lake_centroid) %>% 
-  group_by(state, is.na(latitude_lake_centroid)) %>% 
-  count()
+  group_by(state) %>% 
+  summarise(missing_coords = sum(is.na(latitude_lake_centroid)),
+            n = n())
 #better coverage with just lat and lon
 
 mw_cpue %>% 
@@ -277,27 +279,8 @@ mw_cpue %>%
   facet_grid(species_1 ~ state_gear, scales = "free")
 ```
 
-# addtional filtering not needed after future fix
-6/27/2025
-In QC checking, I noted some Iowan surveys that had units of distance rather than time. Lets filter them out for this product and fix the filtering script for the future 
-```{r}
-mw_cpue <- mw_cpue %>% 
-  filter(!(state == "Iowa" & total_effort_1_units == "distance"))
-```
-
 # saving
 ```{r}
-write_csv(mw_cpue, "subset_cpue_27Jun2025.csv")
-```
-
-
-
-# QC that can be deleted 
-```{r}
-#total number of surveys for each species-state
-mw_cpue %>% 
-  group_by(state, species_1) %>% 
-  count() %>% 
-  pivot_wider(names_from = species_1, values_from = n, values_fill = 0)
+write_csv(mw_cpue, "abundance_product.csv")
 ```
 

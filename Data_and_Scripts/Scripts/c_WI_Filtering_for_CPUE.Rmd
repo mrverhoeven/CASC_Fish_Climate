@@ -58,7 +58,7 @@ wi_data %>%
   collect() %>% 
   print(n = nrow(.))
 ```
-Wisconsin is heavy on the targeted sampling, so we need to be savvy in picking the surveys in which would be valid for abundance measures. See the example above that will be applied to in various forms to all species filtering below. This code creates a yes or no if we should keep that survey for a cpe calculation based on if the species was targeted. We have to be a little creative with the string detection because we want to collect "gamefish" and "gamefish_species" but we DONT want to collect "non-gamefish" - if searching for walleye. Note that we are more picky here, we do not include if the the survey is NA for targeted species - a Wisconsin type of thing were we cannot just assume that a survey would be good to measure walleye cpe if it were not stated 
+Wisconsin is heavy on the targeted sampling, so we need to be savvy in picking the surveys that would be valid for abundance measures. See the example above that will be applied to in various forms to all species filtering below. This code creates a yes or no if we should keep that survey for a cpe calculation based on if the species was targeted. We have to be a little creative with the string detection because we want to collect "gamefish" and "gamefish_species" but we DONT want to collect "non-gamefish" if searching for yellow perch. Note that we are more picky here, we do not include if the the survey is NA for targeted species - a Wisconsin type of thing were we cannot just assume that a survey would be good to measure walleye cpe if it were not stated 
 
 #effort flags
 ```{r}
@@ -70,20 +70,13 @@ wi_data %>%
   print(n = nrow(.))
 
 wi_data %>% 
-  mutate(effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>% 
-  distinct(flag, effort_flag) %>% 
-  arrange(effort_flag) %>% 
+  distinct(cpue_invalid, flag) %>% 
+  arrange(cpue_invalid) %>% 
   collect() %>% 
   print(n = nrow(.))
 ```
+We see here that the cpue invalid filtering will keep only good abundance measures 
+
 
 #effort units
 ```{r}
@@ -114,7 +107,7 @@ wi_data %>%
   arrange(sampling_method) %>% 
   collect()
 ```
-For fyke nets it is really obvious that it is standard to report in net_nights and we will proceed only using hours for that gear. For electrofishing the most used unit is minutes, we will need to make sure that only minutes show up for electrofishing and only hours for fykes.
+For fyke nets it is really obvious that it is standard to report in net_nights and we will proceed only that for that gear. For electrofishing the most used unit is minutes, we will need to make sure that only minutes show up for electrofishing and only hours for fykes.
 
 #Walleye filtering
 ```{r}
@@ -132,16 +125,7 @@ good_surveys <- wi_data %>%
                                         str_detect(target_species, "all_species") ~ "y",
                                         str_detect(target_species, "(^|,)(gamefish|gamefish_species)(,|$)") ~ "y",
                                         str_detect(target_species, "escocid_percid") ~ "y",
-                                        TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -167,7 +151,7 @@ good_surveys <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag)  %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -177,7 +161,7 @@ good_surveys <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect() 
@@ -320,16 +304,7 @@ good_surveys <- wi_data %>%
                                         str_detect(target_species, "black_crappie")~ "y",
                                         str_detect(target_species, "gamefish") ~ "y",
                                         str_detect(target_species, "panfish") ~ "y",
-                                        TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -354,7 +329,7 @@ good_surveys <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -364,7 +339,7 @@ good_surveys <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect() 
@@ -472,16 +447,7 @@ good_surveys <- wi_data %>%
                                         str_detect(target_species, "bluegill")~ "y",
                                         str_detect(target_species, "gamefish") ~ "y",
                                         str_detect(target_species, "panfish") ~ "y",
-                                        TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -506,7 +472,7 @@ good_surveys <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -516,7 +482,7 @@ good_surveys <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()
@@ -649,16 +615,7 @@ good_surveys_standard <- wi_data %>%
                                         str_detect(target_species, "largemouth_bass")~ "y",
                                         str_detect(target_species, "gamefish") ~ "y",
                                         str_detect(target_species, "basses") ~ "y",
-                                        TRUE ~ "n"), 
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -681,7 +638,7 @@ good_surveys_standard <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -691,7 +648,7 @@ good_surveys_standard <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()
@@ -703,16 +660,7 @@ good_surveys_extra <- wi_data %>%
                                         str_detect(target_species, "largemouth_bass")~ "y",
                                         str_detect(target_species, "gamefish") ~ "y",
                                         str_detect(target_species, "basses") ~ "y",
-                                        TRUE ~ "n"), 
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -735,7 +683,7 @@ good_surveys_extra <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -745,7 +693,7 @@ good_surveys_extra <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()
@@ -899,16 +847,7 @@ good_surveys_standard <- wi_data %>%
                                         str_detect(target_species, "smallmouth_bass")~ "y",
                                         str_detect(target_species, "gamefish") ~ "y",
                                         str_detect(target_species, "basses") ~ "y",
-                                        TRUE ~ "n"), 
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -931,7 +870,7 @@ good_surveys_standard <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -941,7 +880,7 @@ good_surveys_standard <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()
@@ -953,16 +892,7 @@ good_surveys_extra <- wi_data %>%
                                         str_detect(target_species, "smallmouth_bass")~ "y",
                                         str_detect(target_species, "gamefish") ~ "y",
                                         str_detect(target_species, "basses") ~ "y",
-                                        TRUE ~ "n"), 
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -985,7 +915,7 @@ good_surveys_extra <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -995,7 +925,7 @@ good_surveys_extra <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()
@@ -1122,16 +1052,7 @@ good_surveys <- wi_data %>%
   mutate(targeted_in_survey = case_when(str_detect(target_species, "cisco") ~ "y",
                                         str_detect(target_species, "all_species") ~ "y",
                                         is.na(target_species) ~ "y",
-                                        TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   filter(!is.na(total_effort_ident)) %>% 
   mutate(units_flag = case_when(sampling_method == "gill_net_vertical" & total_effort_1_units == "net_nights" ~ "y",
                                 TRUE ~ "n")) %>%
@@ -1152,7 +1073,7 @@ good_surveys <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -1162,7 +1083,7 @@ good_surveys <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()
@@ -1259,16 +1180,7 @@ good_surveys <- wi_data %>%
                                         str_detect(target_species, "all_species") ~ "y",
                                         str_detect(target_species, "escocid_percid") ~ "y",
                                         str_detect(target_species, "gamefish") ~ "y",
-                                        TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -1291,7 +1203,7 @@ good_surveys <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey, 
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -1301,7 +1213,7 @@ good_surveys <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()
@@ -1422,16 +1334,7 @@ good_surveys <- wi_data %>%
                                         str_detect(target_species, "all_species") ~ "y",
                                         str_detect(target_species, "escocid_percid") ~ "y",
                                         str_detect(target_species, "gamefish") ~ "y",
-                                        TRUE ~ "n"),
-         effort_flag = case_when(str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "very high catch") ~ "y",
-                                 str_detect(flag, "bad_date") ~ "y",
-                                 str_detect(flag, "high effort") ~ "y",
-                                 str_detect(flag, "duplicate") ~ "y",
-                                 str_detect(flag, "umber of aged fish") ~ "y",
-                                 str_detect(flag, "reported as 0") ~ "y",
-                                 str_detect(flag, "multi types") ~ "y",
-                                 TRUE ~ "n")) %>%
+                                        TRUE ~ "n")) %>%
   #units check 
   mutate(units_flag = case_when(sampling_method == "fyke_net" & total_effort_1_units == "net_nights" ~ "y",
                                 str_detect(sampling_method, "boat_electrofishing") & total_effort_1_units == "minutes" ~ "y",
@@ -1454,7 +1357,7 @@ good_surveys <- wi_data %>%
     effort_min,
     effort_max,
     targeted_in_survey,
-    effort_flag,
+    cpue_invalid,
     units_flag) %>% 
   #filter surveys that meet criteria for a species 
   filter(month(date_total_effort_ident) >= month_min,
@@ -1464,7 +1367,7 @@ good_surveys <- wi_data %>%
          total_effort_1 >= effort_min,
          total_effort_1 <= effort_max,
          targeted_in_survey == "y",
-         effort_flag == "n",
+         cpue_invalid == "n",
          units_flag == "y") %>% 
   #select(-water_temp) %>% 
   collect()

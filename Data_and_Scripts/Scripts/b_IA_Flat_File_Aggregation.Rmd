@@ -27,7 +27,7 @@ options(scipen = 999)
 ##Data
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -40,7 +40,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IA_Data/ia_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -132,9 +132,14 @@ for(i in 1:n) {
 
 # We've got a new fish file from Iowa! It looks (kinda) like the old one, but they have added a crap-ton of info 
 
-
 #fish obs
 glimpse(ia_fishobs_30Nov2023)
+
+#right from the start there are 7183 fish that have an aging strcuture that do not have an age
+ia_fishobs_30Nov2023 %>% 
+  mutate(aging_structure.1 = case_when(aging_structure.1 == "" ~ NA,
+                                       TRUE ~ aging_structure.1)) %>% 
+  filter(is.na(age) & !is.na(aging_structure.1))
 
 #do these data contain any no_fish_caught surveys?
 ia_fishobs_30Nov2023[total_count.1 == 0, .N] #Coool. 12k zeros! Later we'll see a bunch of these are erroneous.(Line 231 -  Line 303)
@@ -513,8 +518,6 @@ ia_fishobs[ , .N ,  .(date.1, lake_name.1, county,  sampling_method.1, lat_unspe
 # 
 # ia_BLG_age_length_21Aug2021[  ,  , .(lake_name.1, yea) ]
 # ia_fishobs[str_detect() , , ]
-# 
-
 ```
 
 
@@ -953,7 +956,7 @@ ia_fishobs <- ia_fishobs %>%
 rm(gear_corrections, gear_xwalk)
 
 ####recover lake ids from old version of data sent by Iowa#################
-ia_dat_old <-  fread("G:\\Shared drives\\Hansen Lab\\RESEARCH PROJECTS\\Fish Survey Data\\IA_Data\\ia_raw_disaggregated_data\\Archived\\ia_fishlengths_24Oct2023.csv")
+ia_dat_old <-  fread("D:\\Shared drives\\Hansen Lab\\RESEARCH PROJECTS\\Fish Survey Data\\IA_Data\\ia_raw_disaggregated_data\\Archived\\ia_fishlengths_24Oct2023.csv")
 
 ialakecodekey <- ia_dat_old[ , .("Lat" = mean(Station_Lat), "Lon" = mean(Station_Long)) , .(County, LakeName, LakeID)]
 
@@ -1525,6 +1528,10 @@ ia_fishobs <- ia_fishobs %>%
          aging_structure_1 == "OTOLITH (lapillus)" ~ "otolith_lapillus",
          TRUE ~ aging_structure_1)) 
 
+ia_fishobs <- ia_fishobs %>% 
+  mutate(aging_structure_1 = case_when(is.na(age) ~ NA,
+                                       TRUE ~ aging_structure_1)) 
+
 #cleaning up waterbody_type 
 ia_fishobs <- ia_fishobs %>% 
   mutate(lake_type = case_when(lake_type == "" ~ NA,
@@ -1590,7 +1597,7 @@ ia_fishobs_trial <- ia_fishobs %>%
          date_sub_effort_ident = date_1,
          date_sample = as.Date(NA)) %>% 
   group_by(total_effort_ident) %>% 
-  mutate(date_total_effort_ident = first(date_1),
+  mutate(date_total_effort_ident = min(date_1, na.rm = T),
          month = lubridate::month(date_total_effort_ident),
          year = lubridate::year(date_total_effort_ident)) %>% 
   ungroup() %>% 
@@ -1709,7 +1716,7 @@ rm(ia_fishobs_30Nov2023, b, cde, ia_age_length_21Aug2021, ia_BLG_age_length_21Au
 
 # Adding HALK Ages
 ```{r}
-halk <- read_csv(file.path("G:",
+halk <- read_csv(file.path("D:",
                            "Shared drives",
                            "Hansen Lab",
                            "RESEARCH PROJECTS",
@@ -1753,11 +1760,6 @@ ia_fishobs_trial %>%
   count()
 #total of false matches halk obs 
 
-ia_fishobs_trial %>% 
-  filter(is.na(est_age)) %>% 
-  summarise(na_length = sum(is.na(length_1) | is.na(length_bin)),
-            n = n())
-#all fish that did not get an estimated age did not have a length 
 
 ia_fishobs_trial %>% 
   filter(species_1 %in% c("walleye",
@@ -1769,6 +1771,7 @@ ia_fishobs_trial %>%
                         "smallmouth_bass",
                         "yellow_perch")) %>% 
   summarise(problem = sum((!is.na(length_1) | !is.na(length_bin)) & is.na(est_age)))
+#this matches the number of fish removed due to length
 
 #lets put these columns in order 
 glimpse(ia_fishobs_trial)
@@ -1777,10 +1780,6 @@ ia_fishobs_trial <- ia_fishobs_trial %>%
   relocate(est_age:alk_n, .after = aging_structure_1) 
 
 glimpse(ia_fishobs_trial)
-
-ia_fishobs_trial %>% 
-  filter(alk_length == 0) %>% 
-  distinct(length_bin)
 ```
 
 

@@ -74,7 +74,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -87,7 +87,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/mn_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -1249,7 +1249,7 @@ mn_dat %>%
 #other notes  
   mn_dat[ , .N , notes.2] #send to workshop
   # workship results
-  note_revisions <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_comments_notes_reviewed.csv")
+  note_revisions <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/MN_Data/MN_comments_notes_reviewed.csv")
   
   note_revisions[ , .N , flag]
   
@@ -1490,7 +1490,7 @@ mn_dat[ , .N , gear_data_notes ]
     
     
 #gear xwalk
-gear_xwalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
+gear_xwalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
   filter(state == "Minnesota")
 
 setnames(mn_dat, old = c("sampling_method", "sampling_method_desc"), new = c("gear_1", "gear_2"))
@@ -1542,7 +1542,7 @@ rm(gear_xwalk, gear_table_mn, species_codes_mn, note_revisions, a, cde)
   
 
 
-msu_xwalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv") %>% 
+msu_xwalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv") %>% 
   filter(STATE == "MN") 
 setDT(msu_xwalk)
 
@@ -1567,7 +1567,7 @@ mn_dat[msu_xwalk, on = .(lake_id = lake_id) , ':=' (nhdhr_id_MSU = gsub("nhdhr_"
   mn_dat[ , nhdhr_id_MSU:= NULL , ]
 
 # more lat/lons?
-usgs <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/usgs_lake_metadata.csv") %>% 
+usgs <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/usgs_lake_metadata.csv") %>% 
   filter(state == "MN")
 
 usgs[ , nhdhr_id := gsub("nhdhr_", "", site_id ) , ]  
@@ -1605,8 +1605,8 @@ mn_dat[ , length(unique(date_sample)) , total_effort_ident ][order(-V1)]
 #to create the total effort ident date, lets create a grouping variable 
 mn_dat <- mn_dat %>% 
   group_by(total_effort_ident) %>% 
-  mutate(date_total_effort_ident = case_when(any(!is.na(date_sample)) ~ first(date_sample, na.rm = T),
-                                             TRUE ~ first(date_survey))) %>% 
+  mutate(date_total_effort_ident = case_when(any(!is.na(date_sample)) ~ min(date_sample, na.rm = T),
+                                             TRUE ~ min(date_survey, na.rm = T))) %>% 
   ungroup()
 
 mn_dat %>% 
@@ -1620,6 +1620,13 @@ mn_dat %>%
            date_sample) %>% 
   print(n = nrow(.))
 #here we can see two lakes with many sampling gears in a lake-year. All gears share a survey date. Total effort ident date varys by gear but is the same within a total effort ident, sample date is more refined - the date a specific fish was actually caught. This is a good example because now with total effort ident we know that ice fishing did not take place in May... that would be a tough spring. We also see a historical survey that retains date_survey in the place of date_total_effort_ident
+
+mn_dat %>% 
+  filter(lake_name == "Leech" & lubridate::year(date_survey) == 2022) %>% 
+  distinct(total_effort_ident, sampling_method_simple, date_survey, date_total_effort_ident, date_sample) %>% 
+  print(n = nrow(.))
+
+#we can also just fill sub date with date sample
 ```
 
 #Column Names
@@ -2251,7 +2258,7 @@ mn_dat <- mn_dat %>%
 
 # Adding HALK Ages
 ```{r}
-halk <- read_csv(file.path("G:",
+halk <- read_csv(file.path("D:",
                            "Shared drives",
                            "Hansen Lab",
                            "RESEARCH PROJECTS",
@@ -2310,20 +2317,6 @@ mn_dat %>%
                           "smallmouth_bass",
                           "yellow_perch")) %>% 
   summarise(problem = sum(!(is.na(length_1) | is.na(length_bin)) & is.na(est_age)))
-
-mn_dat %>% 
-  filter(species_1 %in% c("walleye",
-                          "northern_pike",
-                          "cisco",
-                          "bluegill",
-                          "black_crappie",
-                          "largemouth_bass",
-                          "smallmouth_bass",
-                          "yellow_perch")) %>% 
-  filter(is.na(est_age)) %>% 
-  summarise(na_length = sum(is.na(length_1) | is.na(length_bin)),
-            n = n())
-#all fish that did not get an estimated age did not have a length 
 ```
 
 
@@ -2343,7 +2336,7 @@ mn_dat <- fread("Data_and_Scripts/Data/output/mn_data.csv",
 mn_dat <- mn_dat %>% 
   mutate(
     lake_id = as.character(lake_id),
-    date_sub_effort_ident = as.IDate(NA),
+    date_sub_effort_ident = date_sample,
     survey_id = as.character(NA),
     #survey_type_2 = as.character(NA),
     #survey_type_3 = as.character(NA),

@@ -33,7 +33,7 @@ options(scipen = 999)
 ##Data
 ```{r}
 #generate a file list to import
-files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 
@@ -46,7 +46,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/IL_Data/il_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -1600,10 +1600,10 @@ il_data <- il_data.prep %>%
   #cleaning up dates
   mutate(date_sample = mdy(date.1)) %>% 
   group_by(sub_effort_ident) %>% 
-  mutate(date_sub_effort_ident = first(date_sample)) %>% 
+  mutate(date_sub_effort_ident = min(date_sample, na.rm = T)) %>% 
   ungroup() %>% 
   group_by(total_effort_ident) %>% 
-  mutate(date_total_effort_ident = first(date_sample)) %>% 
+  mutate(date_total_effort_ident = min(date_sample, na.rm = T)) %>% 
   ungroup() %>% 
   mutate(date_survey = date_total_effort_ident) %>% 
   #migrates the designation if a surveys is associated with subsampling to gear_data_notes
@@ -1768,7 +1768,7 @@ il_data <- il_data %>%
    
 # Adding in HALK ages
 ```{r}
-halk <- read_csv(file.path("G:",
+halk <- read_csv(file.path("D:",
                            "Shared drives",
                            "Hansen Lab",
                            "RESEARCH PROJECTS",
@@ -1820,6 +1820,10 @@ il_data <- il_data %>%
   relocate(est_age:alk_n, .after = aging_structure_1) 
 
 glimpse(il_data)
+
+il_data %>% 
+  group_by(is.na(est_age)) %>% 
+  count()
 ```
 
                         
@@ -2016,6 +2020,10 @@ il_data %>%
 
 il_data %>% 
   distinct(length_unit_1, weight_unit_1, length_bin_unit, batch_weight_unit)
+
+il_data %>% 
+  filter(total_effort_ident == "1112.2") %>% 
+  distinct(date_survey, date_total_effort_ident, date_sub_effort_ident, date_sample)
 ``` 
 
 

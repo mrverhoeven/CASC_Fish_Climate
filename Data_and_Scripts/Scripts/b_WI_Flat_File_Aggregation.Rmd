@@ -73,7 +73,7 @@ remove_unnecessary_suffixes_2 <- function(dt) {
 }
 
 #generate a file list to import
-files_list <- list.files(path = "G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
+files_list <- list.files(path = "D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/", pattern = ".+\\.csv") #grabs only.csv files
 files_list
 
 #object for use in loop (simple length of file list)
@@ -86,7 +86,7 @@ for(i in 1:n) {
   filei <- word(gsub(".csv","", files_list[i]), start = -1, sep = fixed("/"))
   #this does those two steps in one package
   assign(filei ,
-          fread(paste0("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
+          fread(paste0("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_raw_disaggregated_data/",
                                           files_list[i])))
   
   # if the file is a crosswalk, do not rename anything, just loop to the confirm import line
@@ -193,8 +193,6 @@ Inland effort data exploration ([2] "wi_inland_effort_10Nov2023.csv"~ True Effor
 # wi_winnebago_cpue_23Apr2021.csv ~ only has CPUE and CPUE units. No catch or effort
     # effort for all winnebago surveys is "5 min trawl"
     
-
-
 #investigate the one true effort file we have
 
 # gears present
@@ -1179,7 +1177,7 @@ rm(wi_winnebago_fishobservations_23April2021 )
 ## Get targeted cisco data worked in
 ```{r}
 
-wi_target_cisco8nov2023 <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_target_cisco8nov2023.csv")
+wi_target_cisco8nov2023 <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_target_cisco8nov2023.csv")
 
 #clean WI targeted cisco data so that it can match the format of the regular wi data
 wi_cisco_clean <- wi_target_cisco8nov2023 %>%
@@ -1652,7 +1650,7 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
 ```{r}
 # add NHDids
 #here using the MSU-provided crosswalk
-MGLP_crosswalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv")
+MGLP_crosswalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/MGLP_FISH_LAKES_12Aug24.csv")
 
 MGLP_crosswalk <- MGLP_crosswalk[STATE == "WI"]
 MGLP_crosswalk[ , STATE_ID := as.numeric(STATE_ID) , ]
@@ -1687,7 +1685,7 @@ wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>%
 
 #sifting for lakes (so our data does not contain lakes/stream)
 
-wi_lat_long <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
+wi_lat_long <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/wi_lake_wbic_lat_long_PNF.csv")%>%
   mutate(lake.id = as.character(lake.id))%>%
   setDT()
 
@@ -1696,7 +1694,7 @@ wi_inland_fishobservations_10Nov2023[ , lake_id:= as.character(lake_id) , ]
 wi_inland_fishobservations_10Nov2023[wi_lat_long, on = .(lake_id= lake.id), `:=` ("latitude_lake_centroid" = lat, "longitude_lake_centroid" = long)  ]
 
 # downloaded list from https://data-wi-dnr.opendata.arcgis.com/datasets/31f1f67253074ef9afe46cd905bff07a/explore to try to get list of wbics that are associated with rivers
-WI_hydro_list <- read_csv("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_Rivers_Info/24k_Hydro_Waterbodies_(Open_Water).csv")
+WI_hydro_list <- read_csv("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/WI_Data/WI_Rivers_Info/24k_Hydro_Waterbodies_(Open_Water).csv")
 
 WI_hydro_list <- as.data.table(WI_hydro_list)
 
@@ -1843,7 +1841,7 @@ wi_inland_fishobservations_10Nov2023[sampling_method == "vertical_gill_net", .N 
   
 #this file lives in the crosswalk folder in the drive
 #here we read in a gear cross walk, the file contains each unique gear and assigns it new labels that are consistent across states
-gear_xwalk <- fread("G:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
+gear_xwalk <- fread("D:/Shared drives/Hansen Lab/RESEARCH PROJECTS/Fish Survey Data/crosswalks/gears_by_state.csv", na.strings = "")%>% 
   filter(state == "Wisconsin") 
 
 #NA's chocke the match, so fill with chr string
@@ -1938,7 +1936,7 @@ wi_inland_fishobservations_10Nov2023 %>%
 
 #doing the same thing as above, only taking the first date where total effort ident is not NA
 wi_inland_fishobservations_10Nov2023[!is.na(total_effort_ident), 
-                                     date_survey := first(date), 
+                                     date_survey := min(date, na.rm = T), 
                                      by = survey_id] 
 
 #sub effort date
@@ -1950,7 +1948,7 @@ wi_inland_fishobservations_10Nov2023 %>%
   count()
 
 wi_inland_fishobservations_10Nov2023[!is.na(sub_effort_ident), 
-  date_sub_effort_ident := first(date), 
+  date_sub_effort_ident := min(date, na.rm = T), 
   by = sub_effort_ident]
 
 wi_inland_fishobservations_10Nov2023 %>% 
@@ -2673,11 +2671,15 @@ wi_inland_fishobservations_10Nov2023 %>%
 wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
   mutate(aging_structure_1 = case_when(aging_structure_1 == "none" ~ NA,
                                        TRUE ~ aging_structure_1))
+
+wi_inland_fishobservations_10Nov2023 <- wi_inland_fishobservations_10Nov2023 %>% 
+  mutate(aging_structure_1 = case_when(is.na(age) ~ NA,
+                                       TRUE ~ aging_structure_1))
 ```
 
 # Adding HALK Ages
 ```{r}
-halk <- read_csv(file.path("G:",
+halk <- read_csv(file.path("D:",
                            "Shared drives",
                            "Hansen Lab",
                            "RESEARCH PROJECTS",
@@ -2735,21 +2737,9 @@ wi_inland_fishobservations_10Nov2023 %>%
                           "largemouth_bass",
                           "smallmouth_bass",
                           "yellow_perch")) %>% 
-  summarise(problem = sum(!(is.na(length_1) | is.na(length_bin)) & is.na(est_age)))
+  summarise(problem = sum(!is.na(length_1) & is.na(est_age)))
+#this is the number of fish we filtered out due to not making the ALK length cut
 
-wi_inland_fishobservations_10Nov2023 %>% 
-  filter(species_1 %in% c("walleye",
-                          "northern_pike",
-                          "cisco",
-                          "bluegill",
-                          "black_crappie",
-                          "largemouth_bass",
-                          "smallmouth_bass",
-                          "yellow_perch")) %>% 
-  filter(is.na(est_age)) %>% 
-  summarise(na_length = sum(is.na(length_1) | is.na(length_bin)),
-            n = n())
-#all fish that did not get an estimated age did not have a length 
 rm(halk)
 ```
 

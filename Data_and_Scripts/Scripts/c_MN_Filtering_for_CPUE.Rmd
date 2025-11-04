@@ -25,8 +25,7 @@ mn_data <- open_dataset(sources = file.path("G:",
                                             "RESEARCH PROJECTS",
                                             "Fish Survey Data",
                                             "Parquet files",
-                                            "hive_update"), partitioning = c("state")) %>% 
-  filter(state == "Minnesota")
+                                            "mn_update"))
 glimpse(mn_data)
 
 #area data for filtering
@@ -199,6 +198,13 @@ mn_data %>%
   collect() %>% 
   arrange(year) %>% 
   print(n = nrow(.))
+
+mn_data %>% 
+  filter(lake_name == "Leech" & !is.na(total_effort_ident)) %>% 
+  distinct(total_effort_ident, survey_type, date_survey, date_total_effort_ident, year, month, sampling_method) %>% 
+  collect() %>% 
+  arrange(year) %>% 
+  print(n = nrow(.))
 ```
 
 
@@ -356,6 +362,30 @@ adult_walleye %>%
            survey_type_filter) %>% 
   glimpse()
 
+adult_walleye %>% 
+  distinct(lake_id,
+           date_total_effort_ident,
+           sampling_method,
+           total_effort_ident,
+           total_effort_1,
+           area_group,
+           effort_min,
+           effort_max,
+           month_min,
+           month_max,
+           survey_type_filter) %>% 
+  group_by(lake_id,
+           date_total_effort_ident,
+           sampling_method,
+           total_effort_1,
+           area_group,
+           effort_min,
+           effort_max,
+           month_min,
+           month_max,
+           survey_type_filter) %>% 
+  count() %>% 
+  filter(n >1)
 
 #85 nothing caught surveys, but they were removed from the cpe product
 adult_walleye %>% 
@@ -406,7 +436,7 @@ multi <- adult_walleye %>%
 
 check <- adult_walleye %>% 
   semi_join(multi, by = c("lake_id", "sampling_method", "year")) %>% 
-  group_by(lake_id, survey_type, year, date_total_effort_ident, total_effort_1, total_effort_ident) %>% 
+  group_by(lake_id, survey_type, year, date_total_effort_ident, total_effort_1, sampling_method, date_survey, total_effort_ident) %>% 
   count() %>% 
   arrange(lake_id, survey_type, year, date_total_effort_ident, total_effort_1)
 #all lake-gear-year duplicates have valid splits (varying total efforts, survey type, or date)
@@ -1569,5 +1599,5 @@ mn_filtered_species <- bind_rows(adult_walleye_cpue %>%
                                    mutate(species_1 = "northern_pike"), 
                                  adult_yellow_perch_cpue %>% 
                                    mutate(species_1 = "yellow_perch"))
-write_csv(mn_filtered_species, "MN_all_cpue_filtered.csv")
+#write_csv(mn_filtered_species, "MN_all_cpue_filtered_4nov2025.csv")
 ```

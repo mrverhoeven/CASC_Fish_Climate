@@ -2411,7 +2411,7 @@ halk <- read_csv(file.path("G:",
                            "Parquet files",
                            "Age-assigned Data",
                            "d_link_2025_hive",
-                           "halked_fish_xwalk.csv")) %>% 
+                           "halked_fish_xwalk_mn_update.csv")) %>% 
   filter(state == "Minnesota") %>% 
   mutate(obs_id = as.character(obs_id))
 
@@ -2609,7 +2609,6 @@ glimpse(mn_data)
 
 #sleuth out the MN duplicated/missing erroneously data issues:
 ```{r}
-
 #we have a number of cases where we ended up with >1 record for a single survey. Some are clearly effed up. Historical surveys that sometimes had the data sometimes not, and match to a "population assessment" that sometimes has the data, sometimes not. The following code works tyowards a flagging system, but does not accomplish what we want. 
 
 

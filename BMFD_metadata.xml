@@ -1,0 +1,1255 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<metadata>
+  <idinfo>
+    <citation>
+      <citeinfo>
+        <origin>Gretchen J. A. Hansen</origin>
+        <origin>Michael Verhoeven</origin>
+        <origin>Denver Link</origin>
+        <origin>Holly K. Masui</origin>
+        <origin>Jenna K. R. Nelson</origin>
+        <pubdate/>
+        <title>Big Midwestern Fish Data</title>
+        <geoform>tabular digital data</geoform>
+        <onlink>https://doi.org/10.5066/xxxxxxxx</onlink>
+      </citeinfo>
+    </citation>
+    <descript>
+      <abstract/>
+      <purpose/>
+    </descript>
+    <timeperd>
+      <timeinfo>
+        <rngdates>
+          <begdate>19400624</begdate>
+          <enddate>20231120</enddate>
+        </rngdates>
+      </timeinfo>
+      <current>ground condition</current>
+    </timeperd>
+    <status>
+      <progress>Complete</progress>
+      <update>None planned</update>
+    </status>
+    <spdom>
+      <descgeog/>
+      <bounding>
+        <westbc>-104.0200</westbc>
+        <eastbc>-83.0899</eastbc>
+        <northbc>49.0520</northbc>
+        <southbc>37.1494</southbc>
+      </bounding>
+    </spdom>
+    <keywords>
+      <theme>
+        <themekt>ISO 19115 Topic Category</themekt>
+        <themekey>biota</themekey>
+        <themekey>environment</themekey>
+        <themekey>inlandWaters</themekey>
+      </theme>
+      <theme>
+        <themekt>None</themekt>
+        <themekey/>
+      </theme>
+      <place>
+        <placekt>None</placekt>
+        <placekey/>
+      </place>
+    </keywords>
+    <accconst>None.  Please see 'Distribution Info' for details.</accconst>
+    <useconst>None.  Users are advised to read the dataset's metadata thoroughly to understand appropriate use and data limitations.</useconst>
+    <ptcontac>
+      <cntinfo>
+        <cntperp>
+          <cntper>Gretchen Hansen</cntper>
+          <cntorg>University of Minnesota </cntorg>
+        </cntperp>
+        <cntpos>Associate Professor</cntpos>
+        <cntaddr>
+          <addrtype>mailing and physical</addrtype>
+          <address>2003 Upper Buford Cir</address>
+          <city/>
+          <state>Saint Paul, MN</state>
+          <postal>55108</postal>
+        </cntaddr>
+        <cntvoice/>
+        <cntemail>ghansen@umn.edu</cntemail>
+      </cntinfo>
+    </ptcontac>
+  </idinfo>
+  <dataqual>
+    <attracc>
+      <attraccr/>
+    </attracc>
+    <logic></logic>
+    <complete/>
+    <lineage>
+      <procstep>
+        <procdesc></procdesc>
+        <procdate></procdate>
+      </procstep>
+    </lineage>
+  </dataqual>
+  <eainfo>
+    <detailed>
+      <enttyp>
+        <enttypl>metadata_example.csv</enttypl>
+        <enttypd>Comma Separated Value (CSV) file containing data.</enttypd>
+        <enttypds>Producer Defined</enttypds>
+      </enttyp>
+      <attr>
+        <attrlabl>state</attrlabl>
+        <attrdef>U.S. state responsible for collecting and providing the fisheries data</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <udom>Full state names, spelled out with an initial capital letter. Underscores (_) are used in places of spaces where applicable (e.g., North_Dakota). Values correspond to the reporting state, samples could be taken from outside state boarders, especially on border waters.  </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>county</attrlabl>
+        <attrdef>County (or counties) within the reporting state where the survey data were collected</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No county data provided by agency and could not be retrieved</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>County names are spelled out in full with standard capitalization and spaces, format may subtly between states. If a waterbody spans multiple counties, county names are separated by commas. </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lake_name</attrlabl>
+        <attrdef>Name of the lake or waterbody as reported by the state agency. This typically reflects the common or official lake name. In some cases, additional clarifying information is appended to indicate a basin, lake segment, or specific part of a larger lake system.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Lake name not provided by agency and unable to retrieve</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Names are provided as reported by the agency and may not follow a standardized naming convention across states. Users should be aware that the same lake may appear under slightly different names in different state datasets.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lake_id</attrlabl>
+        <attrdef>Unique identifier assigned to the lake or waterbody by the reporting state agency. This ID is intended to link data records to the specific lake. Users seeking to understand the structure or creation of these IDs should consult the documentation provided by the respective state agency. Lake IDs are not standardized across states, so the same lake in different states may have different IDs.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No lake id provided by state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Retained exactly as provided by each state agency. Each state may use its own format, numbering system, or coding rules. Leading 0s are not retained in states where that may be important (e.g. Minnesota). </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>nhdhr_id</attrlabl>
+        <attrdef>Identifier for the lake or waterbody derived from the National Hydrography Dataset High Resolution (NHDPlus HR; USGS, 2017). This ID is based on the Prmnn_I field from NHD HR, with a source prefix added (formatted as nhdhr_[Prmnn_I]). Users should consult NHDPlus HR documentation for details on the Prmnn_I field and the structure of NHD identifiers.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No nhdhr_id exists or could not be generated for the system</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Alphanumeric strings, which may include special characters such as { and }.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>latitude_lake_centroid</attrlabl>
+        <attrdef>Latitude of the lake centroid, expressed in decimal degrees. Coordinates represent the approximate center of the lake. Values are primarily retained from state-provided data. If a state did not provide coordinates, values were extracted from USGS lake temperature data (https://doi.org/10.5066/P9EQQER7). Decimal degrees (WGS84 datum). Users should be aware that centroid coordinates may not capture the full spatial extent of irregularly shaped lakes. Where coordinates were estimated, they may differ slightly from state-reported values.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No latitude was given or could be generated</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>37.14942</rdommin>
+            <rdommax>49.05203</rdommax>
+            <attrunit>Decimal degrees (WGS84 datum)</attrunit>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>longitude_lake_centroid</attrlabl>
+        <attrdef>Longitude of the lake centroid, expressed in decimal degrees. Coordinates represent the approximate center of the lake. Values are primarily retained from state-provided data. If a state did not provide coordinates, values were extracted from USGS lake temperature data (https://doi.org/10.5066/P9EQQER7). Decimal degrees (WGS84 datum). Users should be aware that centroid coordinates may not capture the full spatial extent of irregularly shaped lakes. Where coordinates were estimated, they may differ slightly from state-reported values.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Longitude was not given and could not be generated</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>-104.0197386</rdommin>
+            <rdommax>-83.08994</rdommax>
+            <attrunit>Decimal degrees (WGS84 datum)</attrunit>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>date_survey</attrlabl>
+        <attrdef>Date of the first sampling event of any type conducted on a given lake within a specific year. This date reflects the earliest survey activity for that lake in that year, regardless of sampling method, making it standard across all sampling methods within a year.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No date provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>values take form: yyyy-mm-dd
+
+This date will always be the same as or earlier than the total effort date for the lake-year. For example, if the first survey was electrofishing and a later survey involved gill netting, date_survey will reflect the electrofishing date. Users should interpret this field as the starting point of lake-level survey activity within the year.
+
+min: 1940-06-24
+max: 2023-11-20</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>date_total_effort_ident</attrlabl>
+        <attrdef>Date for which a specific sampling method was started within a total effort grouping within a lake. This date serves as one of the grouping variable for constructing the total effort identification, allowing effort records to be combined within a unique lake X sampling method X time period</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>no date given by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>value take form: yyyy-mm-dd
+
+Unlike date_survey (which represents the earliest survey in a lake-year), this field corresponds directly to the date of sampling effort for the method recorded. As this date is gear specific, multiple date_total_effort_ident values may exist within the same lake X year
+
+min: 1940-06-24
+max: 2023-11-20</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>date_sub_effort_ident</attrlabl>
+        <attrdef>Date on which the start of a sub-effort (e.g., individual net set, electrofishing run, or other sampling unit) was completed. This date is nested within the total effort identification and reflects the timing of specific parts within a total effort ident grouping. Not all states reported sub parts of a total effort. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>no date given by agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>values take from: yyyy-mm-dd
+
+This date will always be the same as or later than the corresponding date_total_effort_ident. If sub-effort dates were not provided or sub-effort information was unavailable, the date_total_effort_ident was retained in this field. 
+
+min: 1937-03-09
+max: 2023-11-20</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>date_sample</attrlabl>
+        <attrdef>Date on which individual samples were collected. This generally corresponds to the date when a net was pulled or an equivalent sampling action was completed, if such information was provided by the state agency.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Date not provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>data takes form: yyyy-mm-dd
+
+If sample-specific collection dates were not reported by the agency, this field is recorded as NA.
+
+Dates reflect the finest available resolution of sampling activity and may differ from date_sub_effort_ident if sub-effort timing was not provided. Users should interpret this field as the most precise sampling date available, but completeness varies across agencies. Dates were retained as specified by the agency, flags were created in cases of obvious errors
+
+min: 1900-01-16
+max: 2023-11-02</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>year</attrlabl>
+        <attrdef>Calendar year in which the sampling effort for fish collection occurred. This value corresponds directly to the year extracted from the date_total_effort_ident field. Records without efforts may contain year information in the date_sample column</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>no year data provided by agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>1940</rdommin>
+            <rdommax>2023</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>month</attrlabl>
+        <attrdef>Month in which the sampling effort for fish collection occurred. This value is derived from the date_total_effort_ident field. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>no month data provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>1</rdommin>
+            <rdommax>12</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>survey_id</attrlabl>
+        <attrdef>Identifier assigned by state agencies to represent a fisheries survey. Retained exactly as provided by each state agency. A single survey ID may encompass multiple gear types, sampling events, or date ranges within the same lake, depending on the state’s system. The format and structure of survey IDs are state-specific and may vary widely. Survey IDs are not standardized across states. Users interested in understanding survey ID construction or methodology should consult the documentation provided by the respective state agency. Please see total_effort_ident for appropriate lake X gear X year groupings for effort</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>no survey id provided by agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>This is a character field reported as specified by the reporting agency. Numeric values hold no significance. There is no standard reporting system across states. </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>survey_type</attrlabl>
+        <attrdef>State agency–reported type or stated purpose of the survey. This field indicates whether a survey was designed to target specific species or conducted as a general assessment of the fish community. Users should carefully distinguish between targeted and community survey types when calculating fisheries metrics such as abundance, biomass, or diversity. For detailed definitions or methodologies associated with survey types, users should consult documentation from the relevant state agency.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No survey type reported by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Reported exactly as provided by each state agency. Terminology and classification may vary among agencies.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>survey_type_2</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>
+  </edomv>
+  <edomvd>
+  </edomvd>
+  <edomvds>
+  </edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom/>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>survey_type_3</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>
+  </edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom/>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>survey_type_4</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>no survey type reported or only up to 3 survey types were given by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom/>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sampling_method_simple</attrlabl>
+        <attrdef>Generalized description of the gear or method used to capture fish. This field provides broad groupings of sampling gear types that were standardized across states to enable regional comparisons. Users should consult sampling_method and sampling_method_2 for further detail. Because sampling gears may differ slightly across jurisdictions (e.g., mesh size, deployment duration), users should verify that gear groupings are appropriate for their analysis, particularly for cross-state comparisons.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Sampling method not provided or were ambiguously provided by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>General gear categories (e.g., gill_net, trap_net, electrofishing, fyke_net). Specific terms may vary by state but were aggregated into consistent, simplified categories here.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sampling_method</attrlabl>
+        <attrdef>Moderately detailed description of the gear or method used to capture fish. This column provides a finer grouping of gear types than sampling_method_simple, distinguishing among methods that share general similarities but differ in specific deployment or design. Users are encouraged to refer to the fully detailed sampling_method_2 and gear_data_notes columns for state-specific terminology, gear dimensions, and deployment protocols. As gear characteristics may vary between agencies (e.g., net mesh size, electrofishing voltage, length, etc.), users should assess whether these distinctions are sufficient for their intended analysis, particularly for cross-state or long-term studies.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Sampling method not provided or were ambiguously provided by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>The general format is: sampling_method_simple + additional detail. Typically an extension of the sampling_method_simple category with additional specificity. For example, gill_net (simple) may be split into gill_net_experimental, gill_net_standard, or gill_net_multifilament. </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sampling_method_2</attrlabl>
+        <attrdef>Most detailed description of the gear or method used to capture fish, capturing all information provided by the state agency. This field represents the finest level of resolution in the dataset for gear type. This column retains most available detail from the state, including gear characteristics, deployment methods, or additional descriptors. Lack of detail does not imply all gears within a category are equivalent; it may simply reflect limitations in state-provided information. Users should carefully examine these detailed values when generalizing or grouping gear types for analyses, particularly in cross-state comparisons. Additional detail may be provided in the gear_data_notes column</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv><udom>The general format is sampling_method_simple + sampling_method + additional detail, but state-specific variations may exist. Typically builds upon sampling_method_simple and sampling_method by adding state-provided specifics. Values may include numbers or special characters if provided by the agency.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>gear_data_notes</attrlabl>
+        <attrdef>Notes and additional information about how a sampling method or gear type was used during a survey. This field contains contextual details not captured in the gear naming columns.This column can help users fully understand survey gear for synthesis across jurisdictions. Absence of notes does not imply gear types are equivalent; it may simply indicate that detailed information was not provided by the agency. This field is intended as supplemental context to the standardized sampling_method_simple, sampling_method, and sampling_method_2 columns. Users should develop search or filtering strategies to extract information relevant to their analyses, as the type and format of notes vary by state.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No additional notes provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Free-text notes aggregated from multiple sources within each state agency’s data. Examples of information included: gear placement relative to the waterbody, gear settings or dimensions, number of personnel operating the gear, or other deployment specifics.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>target_species</attrlabl>
+        <attrdef>List of fish species targeted in a survey designed as a targeted survey. This field is empty for community surveys, which are intended to be unbiased toward any species. Users should interpret this field in conjunction with survey_type to distinguish between targeted and community surveys. This column provides guidance for which species were intended targets, thus species not targeted would not be expected in catch. States still may record catch of non-target species, but may not represent a representative population abundance. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Not a targeted survey or no targeted survey provided by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Species common names, separated by commas if multiple species were targeted (e.g., walleye, largemouth_bass). For Illinois surveys, species names may include a Y or N suffix indicating whether the species was targeted (Y) or avoided (N). Species with an N designation should not be included in catch metric calculations, as doing so may produce erroneous zeros.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>target_species_2</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No Data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>nan</rdommin>
+            <rdommax>nan</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>total_effort_ident</attrlabl>
+        <attrdef>Unique identifier linking all fish collected within the same lake, using the same sampling method, and within a defined time period. This identifier represents a single unit of sampling effort, allowing aggregation of individual fish records for effort-based analyses. Specific grouping varies by state insuring effort grouping are spilt accordingly. For example, if an electrofishing survey targets different species in separate runs within the same day, the total effort ID may include all target species from those runs in a single grouping. Construction of total effort IDs considered periods where fish catchability is unlikely to change. Each total effort ID is composed of one or more sub-effort units (e.g., net sets or sampling runs), which are additive to calculate total effort when sub effort levels are provided by the state. Users should consult the associated flag column for warnings about potential issues within a total effort grouping (e.g., erroneous values or inconsistencies). Not all fish records, particularly aged fish, may be associated with a total effort.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv><udom>The value of this column is for assigning fish to a particular effort, thus hold no numerical value. Values may include special characters such as "_" or ".". </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>total_effort_1</attrlabl>
+        <attrdef>Total amount of effort associated with a specific lake, sampling method, and time period, as defined by the total_effort_ident. This value may be either directly reported by the state agency or calculated by summing sub-effort units. Units differ between sampling methods and may vary in precision. Users should consult the total_effort_1_units column for the appropriate units.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No effort data were associated with the fish or the agency did not provide effort data.</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>-3592</rdommin>
+            <rdommax>9999990</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>total_effort_2</attrlabl>
+        <attrdef>Additional measure of total effort associated with a specific lake, sampling method, and time period (total_effort_ident). This field is used when multiple types of effort are recorded for the same total effort grouping (e.g., time and distance). Values may be directly reported by the state agency or calculated by summing sub-effort units. Units and precision differ between sampling methods. Users should consult the total_effort_2_units column to determine the appropriate units. This field complements total_effort_1 to provide additional measures of sampling effort for analyses such as catch-per-unit-effort.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No secondary total effort provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>9999</rdommin>
+            <rdommax>0</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>total_effort_3</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No Data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin/>
+            <rdommax/>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>total_effort_1_units</attrlabl>
+        <attrdef>Units corresponding to the values in total_effort_1. Users should carefully consider unit differences when comparing or standardizing effort across lakes or sampling methods. Time-based units (e.g., hours, minutes, seconds) differ from count-based units (e.g., sets, night_nets) and are not directly interchangeable without conversion.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No effort unit provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Units are listed in lower case with a "_" used as spaces</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>total_effort_2_units</attrlabl>
+        <attrdef>Units corresponding to the values in total_effort_2. Users should carefully consider unit differences when comparing or standardizing effort across lakes or sampling methods. Time-based units (e.g., hours, minutes, seconds) differ from count-based units (e.g., sets, night_nets) and are not directly interchangeable without conversion.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No effort unit provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Units are listed in lower case with a "_" used as spaces</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>total_effort_3_units</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No Data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>nan</rdommin>
+            <rdommax>nan</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>total_effort_nothing_caught</attrlabl>
+        <attrdef>Logical value of if the survey caught fish, denoting where there was effort for catch but did not catch any fish at all. Users should include this column when calculating catch-per-unit-effort to ensure that surveys with zero catch contribute 0 values appropriately. Nothing caught surveys were vetted to ensure missingness wasn't caused from incomplete data. Again, users should refernce the flag column to scope any issues</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv><udom>TRUE = No fish were caught during the survey effort.
+FALSE = One or more fish were caught.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>water_temp</attrlabl>
+        <attrdef>Surface water temperature recorded by the state agency during a sampling event. This measurement may be taken multiple times within a total_effort_ident or only once, depending on the survey protocol. Multiple temperature values within a total effort may correspond to different sub-efforts or sampling events within that total effort grouping. Users should refer to the water_temp_units column to interpret the measurement correctly (e.g., °C or °F). Timing and frequency of temperature measurements vary by state and survey; users are encouraged to consult state-specific documentation if precise timing is important. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No water temperature data provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>0</rdommin>
+            <rdommax>999</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>water_temp_units</attrlabl>
+        <attrdef>Units corresponding to the water_temp measurements recorded during a survey.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No water temp/water temp unit provided by agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Temperature unit is all lower case, fully spelt out. </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>water_clarity</attrlabl>
+        <attrdef>Water clarity measurement recorded by the state agency during a sampling event. Users should consult water_clarity_units when interpreting values, as units may differ by state (e.g., meters, feet). The timing of the measurement may vary across agencies. In some cases, multiple clarity values may be associated with a single total_effort_ident, suggesting that clarity was recorded at the time fish were collected, or at multiple points during the survey period. Users are encouraged to refer to state-specific documentation for details on how and when water clarity was measured.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Water clarity data not provided by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>0</rdommin>
+            <rdommax>20</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>water_clarity_units</attrlabl>
+        <attrdef>Unit of measurement associated with the water_clarity record. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No water clarity/water clarity units reported by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Water clarity units all lower case and fully spelt out</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lat_start</attrlabl>
+        <attrdef>Latitude (decimal-degrees) of the starting location of a survey. Provided by state agencies when available. Please consult state level guidance for any procedural questions. Values are directly reported by state agencies and may contain erroneous values</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Latitude of the starting location not provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>0.0000361</rdommin>
+            <rdommax>85.7</rdommax>
+            <attrunit>decimal-degrees</attrunit>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lon_start</attrlabl>
+        <attrdef>Longitude (decimal-degrees) of the starting location of a survey. Provided by state agencies when available. Please consult state level guidance for any procedural questions. Values are directly reported by state agencies and may contain erroneous values</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No longitude starting location provided by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>-9.20e15</rdommin>
+            <rdommax>91.7</rdommax>
+            <attrunit>decimal-degrees</attrunit>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lat_end</attrlabl>
+        <attrdef>Latitude (decimal-degrees) of the ending location of a survey. Provided by state agencies when available. Please consult state level guidance for any procedural questions. Values are directly reported by state agencies and may contain erroneous values</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No survey ending location provided by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>-91.0</rdommin>
+            <rdommax>46.9</rdommax>
+            <attrunit>decimal-degrees</attrunit>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lon_end</attrlabl>
+        <attrdef>Longitude (decimal-degrees) of the ending location of a survey. Provided by state agencies when available. Please consult state level guidance for any procedural questions. Values are directly reported by state agencies and may contain erroneous values</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No longitude survey end provided by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>-9238207</rdommin>
+            <rdommax>91.7</rdommax>
+            <attrunit>decimal-degrees</attrunit>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>site_id</attrlabl>
+        <attrdef>State agency–defined site identification code. The meaning and structure of site_id values vary across states and lakes. In many cases, site_id refers to specific sampling locations or net sets within a survey. Some values may be descriptive (e.g., naming the part of the lake or location of the survey), while others may be strictly coded identifiers. Users should review the composition of site IDs and/or consult state agency documentation to determine the spatial or methodological granularity represented.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>state identification number not give by state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>May include letters, numbers, and special characters</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sub_effort_ident</attrlabl>
+        <attrdef>A unique identifier that links all fish collected in the same lake, total_effort_ident, and specific unit of a gear to share a measure of sampling effort. Represents smaller units of effort (e.g., individual net sets or runs) that are additive to a total_effort_ident where such data exist. The format of identifiers varies across states. Sub effort identifiers were carefully constructed to ensure they are additive to the correct total_effort_ident at appropriate temporal and spatial scales. In most cases, sub effort identifiers represent the most granular unit of effort available from state agencies.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No sub units of effort are given by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>No numeric value within this column, strictly used for grouping. May include letters, numbers, and special characters such as _ or .</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sub_effort_1</attrlabl>
+        <attrdef>The total amount of effort associated with a sampling method, lake, time period, and the sub-unit of a total effort identification (sub_effort_ident). Effort values may have been directly reported by the state agency or calculated from finer-level details. Units vary by sampling method and level of precision; users should refer to the sub_effort_1_units column for clarification. The group of sub_effort_1 values within a total_effort_1 value create the total_effort_1 for the overarching total_effort_ident Total effort identifications with missing sub effort values indicate that no sub-survey level information was provided by the agency.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>no sub effort reported by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>0</rdommin>
+            <rdommax>999999</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sub_effort_1_units</attrlabl>
+        <attrdef>Unit associated with the total effort reported in sub_effort_1. Users should carefully consider differences in unit type when comparing or standardizing effort across lakes or sampling methods.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No sub effort/sub effort unit reported by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Units are listed in lower case with a "_" used as spaces. Users should note the difference between time (hours, seconds, minutes), sets, and night_nets.  </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sub_effort_2</attrlabl>
+        <attrdef>An additional record of sub effort if multiple types exists for the sub effort ident (time and distance). Users should note that units vary between sampling methods and precision, please consult the sub_effort_1_units column. Total effort idents with missing sub effort information relates to no sub-survey leveAdditional measure of effort associated with a sub_effort_ident when multiple types of sub-effort are recorded (e.g., time and distance). Units and precision vary depending on the sampling method; users should consult sub_effort_2_units for the appropriate units. Missing values indicate that no sub-survey level information was provided by the agency. Sub_effort_2 values combine for the total_effort_2 column for all sub effort idents that share a total effort ident. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No sub effort/units reported by the agency or just a primary sub effort was recorded</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>0</rdommin>
+            <rdommax>99999</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sub_effort_2_units</attrlabl>
+        <attrdef>Unit associated with the total effort reported in sub_effort_2. Users should carefully consider differences in unit type when comparing or standardizing effort across lakes or sampling methods.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No secondary sub effort/effort unit given by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Units are listed in lower case with a "_" used as spaces. Users should note the difference between time (hours, seconds, minutes), sets, and night_nets.  </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sub_effort_nothing_caught</attrlabl>
+        <attrdef>Logical indicator of whether a sub-survey (sub_effort_ident) recorded no fish caught despite sampling effort. This is necessary in the fish-as-rows dataset to retain sub-efforts with zero catch. At the sub-effort level, some sub-surveys may have no catch even if the overall total_effort_ident recorded fish. If a total_effort_ident has zero catch, all associated sub-efforts are necessarily zero-catch (TRUE).</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No Data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>TRUE = No fish were caught in the sub-survey
+
+FALSE = One or more fish were caught</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>species_1</attrlabl>
+        <attrdef>Common name for the species captured. Hybrids are listed with an "x" between species. General common names (e.g., cisco) may have multiple listings for distinct types. Names may vary slightly between states or surveys (e.g., muskie vs. muskellunge). Users should check the distinct species list to retain the level of detail needed for analysis.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>NA rows typically suggest that it is a row place holder for effort that did not catch fish (total effort or sub effort nothing caught is TRUE).</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Names are lowercase with underscores (_) instead of spaces. Hybrids are listed with an "x" between species.</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>length_1</attrlabl>
+        <attrdef>Individual fish length recorded by the state agency. If a value exists in this column, the fish was measured individually to the nearest recorded unit. Units are specified in the length_unit_1 column. Some agencies batch measure fish, making it impossible to assign specific lengths to individual fish without estimation. In such cases, length_1 may be NA, and users should check the length_bin column for batch measurement information. If both length_1 and length_bin are NA, the fish was not given a length by the agency. Records with unlikely lengths or lengths recorded as 0 were flagged. Unlikely lengths were typically flagged due to the length being +/- 10 SD of the average for the species within the state. Users should consider their comfort of potential erroneous length values.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Fish were batch measured (see length bin column) OR no length was give by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>0.0</rdommin>
+            <rdommax>9999</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>length_unit_1</attrlabl>
+        <attrdef>Unit of measure for fish lengths recorded by the agency. This column corresponds directly to the value in length_1. Users should ensure that all length-based calculations or comparisons account for unit consistency. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No individual fish length recorded, users are encouraged to check the length bin units column</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Units are listed in all lower case and fully spelt out (inches, millimeter, etc.)</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>length_bin</attrlabl>
+        <attrdef>Range of values in which fish were batch measured. Commonly, fisheries surveys group fish of the same species and survey into length ranges to save time. This column leaves users the flexibility in choosing how to generate individual fish lengths from bins (e.g., midpoint assignment, random assignment within the range, etc.). Corresponding units are provided in the length_bin_units column. If length_bin is NA fish many have an individual measurement in length_1. If both are NA, no length measurement was provided.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Fish has been individually measured (see length_1 column) OR no length was provided by the agency if both are NA</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Values show the range of possible lengths in which a fish can take. For example, Illinois typically records fish in 10 millimeter length bins, making the smallest bin 0-9.99. </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>length_bin_unit</attrlabl>
+        <attrdef>Unit of measure for fish length bins as recorded by the agency, corresponding directly to the length_bin column. This column provides both the measurement unit and descriptions of how the bin is specified (including bin width).</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Fish were individually measured or no length was attributed to the individual</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Units are fully spelt out in lower case</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>age</attrlabl>
+        <attrdef>The observed age of a fish, determined from physical structures (e.g., scales, otoliths, spines, fin rays). Users should consult the aging_structure columns to understand how the age was determined. Not all fish in surveys have corresponding age data, as aging is often done on subsamples. In many cases, we could not directly link an fish from fisheries surveys to aged fish data. In those cases, aged fish are "extra" records that do not have associated effort with them. Accuracy and comparability of ages depend on the structure and methods used by each state agency.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No aging data provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>0</rdommin>
+            <rdommax>465</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>aging_structure_1</attrlabl>
+        <attrdef>The physical structure used to determine the age of an individual fish. Common examples include scales, otoliths, spines, and fin rays. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No age or aged structure data provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Structures reported identical from agency files. Users should be careful when filtering for capitalization, slight miss-spelling, and various special characters. </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>aging_structure_2</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No Data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>nan</rdommin>
+            <rdommax>nan</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>weight_1</attrlabl>
+        <attrdef>Weight of the fish recorded by the agency for an individual fish. This represents the direct measurement provided by the agency to the nearest reported unit. Units are specified in the weight_unit_1 column. If weight_1 is populated, the fish was weighed individually. In some surveys, fish are batch-weighed for efficiency; in these cases, individual weights cannot be assigned, and users should consult the weight_bin column. If both weight_1 and weight_bin are NA, the fish was not weighed. Users should review the flag column for potential issues such as unrealistic or erroneous weights. Precision varies by agency and sampling method (e.g., grams vs. kilograms).</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>Fish were batch weighted (see length bin column) OR no length was give by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><rdom>
+            <rdommin>0</rdommin>
+            <rdommax>2.56e13</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>weight_unit_1</attrlabl>
+        <attrdef>Unit of measure for which fish weights were recorded by the agency. This column corresponds directly to the weight_1 value for each row. Users should always confirm units when working across states, as unit systems and precision can vary. This column does not apply when fish were batch weighed, see weight_bin and weight_bin_unit.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No Data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Units are listed in all lower case and fully spelt out</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>batch_weight</attrlabl>
+        <attrdef>Total weight of a known number of fish. This value represents batch-measured fish where individual weights were not recorded. See the batch_weight_units column for the unit in which the weight is reported. Used in cases where agencies measure fish collectively rather than individually. Provides a way to estimate average individual weight if combined with the count of fish in the batch. Missing values (NA) indicate that no batch weight was recorded. In some cases, a batch weight grouping variable provided by the state agency was retained in the "notes_1" column. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No batch weight provided by or conducted by the state agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Numeric value</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>batch_weight_unit</attrlabl>
+        <attrdef>Unit of measure in which fish were batch weighted. This column corresponds to the batch_weight value for each row.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No Data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>units in lower case, short hand </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>sex</attrlabl>
+        <attrdef>Sex of the fish as determined and reported by the state agency.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No Data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Female
+Male
+Unknown</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>age_class</attrlabl>
+        <attrdef>Categorical age classification of a fish as determined by the state agency. Typically used to distinguish between young-of-year and adult fish.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>no age class data provided by the agency</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>All lower case and fully spelt out, underscores used in places of spaces</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>flag</attrlabl>
+        <attrdef>Flags and notes generated by the aggregation team to indicate potentially erroneous or questionable data at the survey or fish level. Typical survey-level flags may indicate unreliable effort measurements or catch-per-unit-effort calculations. Fish-level flags may identify extremely high or low lengths, weights, or other anomalies. Users should carefully review this column to determine whether to include specific surveys or fish in their analyses. Flags do not automatically indicate that data should be excluded; they serve as warnings for user interpretation. Please see cpue_invalid column as a pre-made shortcut for collecting surveys relevant for abundance measures. Due to the long nature of some flags, users should consider search strategies to locate desired strings.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+  <edomv>NA</edomv>
+  <edomvd>No flags generated by the aggregation team about the use of the data</edomvd>
+  <edomvds>Producer defined</edomvds>
+</edom>
+        </attrdomv>
+        <attrdomv><udom>Strings of notes. Multiple flags may be present in which a ; separates the different flags. </udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>original_file_names</attrlabl>
+        <attrdef>Names of the original source files from which the data in a row were derived. A single row may be populated from multiple files (e.g., catch, effort, age). This column is primarily for tracking provenance and troubleshooting during aggregation. This column provides little to no use for data users. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <udom>string with multiple file names separated by , or ;</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>ind_fish_ident</attrlabl>
+        <attrdef>Individual fish identification number as assigned by the state agency. Used to track a fish through processing if the agency provided such information. This column differs from obs_id, which is the aggregated observation identifier in the dataset. NA values indicate that the agency did not provide individual fish tracking for that record. Users should consult state-specific documentation if detailed tracking of individual fish is required.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd>No individual fish id</edomvd>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <udom>strings of text that may contain numbers and special characters that vary across states</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lakesize</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd>No Data</edomvd>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <rdom>
+            <rdommin/>
+            <rdommax/>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lakesize_units</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd/>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <udom/>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>area_group</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd>No Data</edomvd>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <rdom>
+            <rdommin>nan</rdommin>
+            <rdommax>nan</rdommax>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lat_unspec</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd>No latitude data provided by the state agency</edomvd>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <rdom>
+            <rdommin/>
+            <rdommax/>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>lon_unspec</attrlabl>
+        <attrdef/>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd/>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <rdom>
+            <rdommin/>
+            <rdommax/>
+          </rdom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>waterbody_type</attrlabl>
+        <attrdef>Classification of the lake type as reported by the state agency. Reporting values may differ between states. Users should consult state agencies for clarification or additional details to ensure consistent interpretation across the region.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd>No lake type reported by the state agency</edomvd>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <udom>strings that may contain special characters</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>location_notes_1</attrlabl>
+        <attrdef>Additional notes provided by the state agency that help describe the survey location. Notes are specific to each state and may include short descriptions of sampling locations or codes for sampling sites. Users should consult the state agency for clarification on specific values if needed. Please also reference site_id column for additional information. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd>No location notes reported by the agency</edomvd>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <udom>strings that may contain special characters</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>notes_1</attrlabl>
+        <attrdef>General survey notes provided by the state agency. Notes may include weather conditions during sampling, water quality observations, or details on how the gear performed. The aggregation team reviewed notes within each state to flag surveys that may not be representative for abundance. This column contains information about a wide range of information, users should develop searches for the information they desire. </attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <edom>
+            <edomv>NA</edomv>
+            <edomvd>No notes reported by the state agency</edomvd>
+            <edomvds>Producer defined</edomvds>
+          </edom>
+        </attrdomv>
+        <attrdomv>
+          <udom>Typical structure is [type of information: specific information for that value]. Types of information are generally separated by ";". Values can contain any text, including special characters, and typically appear as sentences or phrases. Formatting may vary between states</udom>
+        </attrdomv>
+      </attr>
+      <attr>
+        <attrlabl>obs_id</attrlabl>
+        <attrdef>Denotes each unique row in the dataset within a state. Values range from 1 to n, where n is the total number of rows for that state. Stored as a string (character) because the numbers have no numerical significance. Each row represents a unique identifier within its state.</attrdef>
+        <attrdefs>Producer Defined</attrdefs>
+        <attrdomv>
+          <udom>character value, numeric value holds no significance  </udom>
+        </attrdomv>
+      </attr>
+    </detailed>
+  </eainfo>
+  <distinfo>
+    <distrib>
+      <cntinfo>
+        <cntperp>
+          <cntper>GS ScienceBase</cntper>
+          <cntorg>U.S. Geological Survey</cntorg>
+        </cntperp>
+        <cntaddr>
+          <addrtype>mailing address</addrtype>
+          <address>Denver Federal Center, Building 810, Mail Stop 302</address>
+          <city>Denver</city>
+          <state>CO</state>
+          <postal>80225</postal>
+          <country>United States</country>
+        </cntaddr>
+        <cntvoice>1-888-275-8747</cntvoice>
+        <cntemail>sciencebase@usgs.gov</cntemail>
+      </cntinfo>
+    </distrib>
+    <distliab>Unless otherwise stated, all data, metadata and related materials are considered to satisfy the quality standards relative to the purpose for which the data were collected. Although these data and associated metadata have been reviewed for accuracy and completeness and approved for release by the U.S. Geological Survey (USGS), no warranty expressed or implied is made regarding the display or utility of the data for other purposes, nor on all computer systems, nor shall the act of distribution constitute any such warranty.</distliab>
+    <stdorder>
+      <digform><digtinfo>
+          <formname>Digital Data</formname>
+        </digtinfo>
+        <digtopt><onlinopt><computer><networka><networkr>https://doi.org/10.5066/xxxxxxxx</networkr></networka></computer></onlinopt></digtopt></digform>
+      <fees>None</fees>
+    </stdorder>
+  </distinfo>
+  <metainfo>
+    <metd>20250820</metd>
+    <metc>
+      <cntinfo>
+        <cntperp>
+          <cntper>Gretchen Hansen</cntper>
+        </cntperp>
+        <cntaddr>
+          <addrtype>mailing and physical</addrtype>
+          <address>2003 Upper Buford Cir</address>
+          <city>Saint Paul</city>
+          <state>MN</state>
+          <postal>55108</postal>
+        </cntaddr>
+        <cntvoice>612-624-4228</cntvoice>
+        <cntemail>ghansen@umn.edu</cntemail>
+      </cntinfo>
+    </metc>
+    <metstdn>FGDC Biological Data Profile of the Content Standard for Digital Geospatial Metadata</metstdn>
+    <metstdv>FGDC-STD-001.1-1999</metstdv>
+  </metainfo>
+</metadata>

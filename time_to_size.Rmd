@@ -1,0 +1,871 @@
+---
+title: "time_to_size"
+author: "Denver Link"
+date: "2025-09-19"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Library
+```{r}
+library(tidyverse)
+library(arrow)
+```
+
+# Data
+```{r}
+mw_data <- open_dataset(sources = file.path("G:", 
+                                            "Shared drives", 
+                                            "Hansen Lab", 
+                                            "RESEARCH PROJECTS", 
+                                            "Fish Survey Data", 
+                                            "Parquet files", 
+                                            "hive_update"), partitioning = c("state"))
+```
+
+# Data prep for Analysis 
+```{r}
+# first we filter for where the alk level is lake-year, filter for species, and select columns of interest
+aged_fish <- mw_data %>% 
+  filter(alk == "year" &
+           species_1 == "walleye") %>% 
+    select(state,
+         lake_id,
+         lake_name,
+         nhdhr_id,
+         latitude_lake_centroid,
+         longitude_lake_centroid,
+         date_survey,
+         date_total_effort_ident,
+         date_sub_effort_ident,
+         date_sample,
+         species_1,
+         length_1,
+         length_unit_1,
+         weight_1,
+         sampling_method_simple,
+         sampling_method,
+         sampling_method_2,
+         age,
+         aging_structure_1,
+         est_age,
+         alk,
+         alk_age_str,
+         alk_length,
+         alk_n) %>% 
+  collect() 
+
+#what is the best date for aging?
+aged_fish %>% 
+  group_by(state) %>% 
+  summarise(has_survey_date = sum(!is.na(date_survey)),
+            has_tei_date = sum(!is.na(date_total_effort_ident)),
+            has_sub_date = sum(!is.na(date_sub_effort_ident)),
+            has_sample_date = sum(!is.na(date_sample)),
+            n = n(),
+            prop_sample = has_sample_date /n,
+            prop_sub = has_sub_date / n,
+            prop_tei = has_tei_date/n)
+
+#creating an aged date for fish,
+#we typically can use the sample date (corresponding to the date the fish were sampled)
+#SD and IA we use sub effort ident, which corresponds to when the net was pulled up
+#MI our best date is total effort ident 
+aged_fish <- aged_fish %>% 
+  mutate(date_age = case_when(state == "Illinois" ~ date_sample,
+                              state == "Iowa" ~ date_sub_effort_ident,
+                              state == "Michigan" ~ date_total_effort_ident,
+                              state == "Minnesota" ~ date_sample,
+                              state == "South_Dakota" ~ date_sub_effort_ident,
+                              state == "Wisconsin" ~ date_sample)) 
+  
+
+aged_fish %>% 
+  group_by(state) %>% 
+  summarise(n_na = sum(is.na(date_age)),
+            n = n(),
+            prop = n_na/n)
+
+#have to remove fish without date (Wisconsin fish that we can't fill with any date)
+aged_fish <- aged_fish %>% 
+  filter(!is.na(date_age))
+
+#adding decimal age
+aged_fish %>% 
+  group_by(state, length_unit_1) %>% 
+  count()
+
+aged_fish <- aged_fish %>% 
+  mutate(year = year(date_age),
+         doy = yday(date_age),
+         days_in_year = case_when(leap_year(year) ~ 366,
+                                  TRUE ~ 365),
+         decimal_age = est_age + (doy/days_in_year),
+         alk_length = case_when(length_unit_1 == "millimeters" ~ alk_length/25.4,
+                                TRUE ~ alk_length))
+
+#In the first version of the HALK, I found some cases of small fish being assigned to a likely erroneously age class (< 100mm walleye called age 3)
+#this stemmed from only age class 3+ being present in a lake-year and every small fish being assigned to age-3
+#I amended HALKed fish to only include assigned lengths that were within the ALK lengths
+
+aged_fish %>% 
+  group_by(state) %>% 
+  slice_sample(n = 1) %>% 
+  select(state, lake_id, length_1, length_unit_1, alk_length) %>% 
+  print(n = nrow(.))
+```
+
+We now have almost 1.1 million fish with estimated ages at the lake-year level with a created "decimal age" to account for the growth that may happen within the summer prior to when the fish was sampled. Let's look at a few things:
+1.) What is the average length of fish at a given age?
+1.) What is the decimal age of a 15 in fish +/- .5 inches. 
+2.) How does growth look for age-0 fish 
+
+# Length at age
+```{r}
+#generate the average length of fish at a given age for each lake
+bin_summary <- aged_fish %>% 
+  group_by(state, lake_id, year, est_age) %>% 
+  summarise(mean_length_at_age = mean(alk_length))
+
+#mean by state
+state_sum_3 <- bin_summary %>% 
+  group_by(state, est_age) %>% 
+  summarise(mean_length_at_age = mean(mean_length_at_age),
+            n_lakes = n_distinct(lake_id),
+            n_lake_years = n_distinct(lake_id, year),
+            n_fish = n()) %>% 
+  filter(est_age == 3)
+
+#histogram of age 3 fish lengths - each value represents a lake average 
+bin_summary %>% 
+  filter(est_age == 3) %>% 
+  ggplot() +
+  geom_histogram(aes(mean_length_at_age)) +
+  geom_vline(data = state_sum_3, aes(xintercept = mean_length_at_age)) +
+  facet_wrap(~ state, scales = "free")
+rm(state_sum_3,
+   bin_summary)
+
+#what might be causing the differences?
+
+#first we see the crazy difference in sample sizes
+aged_fish %>% 
+  group_by(state, est_age) %>% 
+  summarise(n_lakes = n_distinct(lake_id),
+            n_lake_years = n_distinct(lake_id, year),
+            n_fish = n()) %>% 
+  filter(est_age == 3)
+#IL only has 18 fish from 2 lake-years from a single lake. WI has over 128K with over 615 lake-years from 301 lakes
+
+#second, what structure are the alks built on?
+bin_summary <- aged_fish %>% 
+  group_by(state, lake_id, year, est_age, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3)
+
+bin_summary %>% 
+  group_by(state) %>% 
+  summarise(n_otolith = sum(alk_age_str == "otolith"),
+            n_scale = sum(alk_age_str == "scale"),
+            n_spine = sum(alk_age_str == "spine"))
+#super variable across states
+
+#does the length differ within state where we can compare?
+bin_summary %>% 
+  group_by(state, alk_age_str) %>% 
+  summarise(mean_length_state = mean(mean_length_at_age)) %>% 
+  ggplot() +
+  geom_col(aes(x = alk_age_str, y =mean_length_state, fill = alk_age_str)) +
+  facet_wrap(~state)
+#looks pretty consistent 
+
+aged_fish %>% 
+  group_by(state, lake_id, year, est_age, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3) %>% 
+  group_by(state, alk_age_str) %>% 
+  summarise(length = mean(mean_length_at_age)) 
+
+#do the lengths in structures compare across states?
+bin_summary %>% 
+  group_by(state, alk_age_str) %>% 
+  summarise(mean_length_state = mean(mean_length_at_age)) %>% 
+  ggplot() +
+  geom_col(aes(x = state, y =mean_length_state, fill = state)) +
+  facet_wrap(~alk_age_str)
+#not really
+
+#does sampling method have anything to do with this?
+
+#first lets look at just the difference overall 
+aged_fish %>% 
+  group_by(state, lake_id, year, est_age, sampling_method_simple, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3) %>% 
+  group_by(state, sampling_method_simple) %>% 
+  summarise(mean_length_at_age = mean(mean_length_at_age)) %>% 
+  print(n = nrow(.))
+
+aged_fish %>% 
+  group_by(state, lake_id, year, est_age, sampling_method_simple, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3) %>% 
+  group_by(state, sampling_method_simple) %>% 
+  summarise(mean_length_at_age = mean(mean_length_at_age)) %>% 
+  ggplot() +
+  geom_histogram(aes(mean_length_at_age, fill = sampling_method_simple)) +
+  facet_wrap(~state)
+
+
+##############################################################################
+#what is going on with the super small age 3 in SD
+aged_fish %>% 
+  group_by(state, lake_id, year, est_age, sampling_method_simple, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3) %>% 
+  filter(state == "South_Dakota" & mean_length_at_age < 13) 
+
+aged_fish %>% 
+  filter(lake_id == "ANR-Lake-4-000" & year == "2001" & !is.na(age)) %>% 
+  ggplot() +
+  geom_density(aes(length_1, fill = as.factor(age)))
+
+aged_fish %>%
+  filter(lake_id == "ANR-Lake-4-000", year == 2001, !is.na(age)) %>%
+  summarise(max_age_0 = max(if_else(age == 0, length_1, NA_real_), na.rm = TRUE),
+            min_age_1 = min(if_else(age == 1, length_1, NA_real_), na.rm = TRUE))
+
+aged_fish %>% 
+  filter(lake_id == "ANR-Lake-4-000" & year == "2001" & est_age == "3" & alk_length < 8) %>% 
+  select(length_1, sampling_method_simple,age, est_age)
+#this makes sense, all of the small fish assigned to age 3 fall between the max of age_0 and the min of age_1 and some how they aged some fish at 3 in that range so they get that age 
+
+#whats going on with angling in Minnesota?
+aged_fish %>% 
+  group_by(state, lake_id, year, est_age, sampling_method_simple, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3) %>% 
+  filter(state == "Minnesota" & sampling_method_simple == "angling" & mean_length_at_age > 17) 
+
+
+aged_fish %>% 
+  filter(lake_id == "25000100" & year == 2008 & !is.na(age)) %>% 
+  ggplot() +
+  geom_density(aes(length_1, fill = as.factor(age)))
+
+aged_fish %>% 
+  filter(lake_id == "25000100" & year == 2008 & !is.na(age)) %>%
+  filter(age == c(1, 2, 3, 4)) %>% 
+  ggplot() +
+  geom_density(aes(length_1, fill = as.factor(age)), alpha = .5)
+
+aged_fish %>% 
+  filter(lake_id == "25000100" & year == 2008 & sampling_method_simple == "angling" & est_age == 3) %>% 
+  select(length_1, alk_length, age, est_age)
+#based on the ALk, we can see why there were estimated the way they were
+#################################################################################
+#####figure example###############################
+
+#get the average length for estimated age 3 fish for standard gillnetted walleye from MN lakes
+#lakes that have more than one lake year are averaged
+bin_summary <- aged_fish %>% 
+  group_by(state, lake_id, year, sampling_method, est_age, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3 & sampling_method == "gill_net_standard") %>% 
+  group_by(state, lake_id) %>%
+  #now summarize across time
+  summarise(mean_length_at_age = mean(mean_length_at_age))
+
+#make map
+lake_ids <- aged_fish %>% 
+  distinct(state, lake_id, latitude_lake_centroid, longitude_lake_centroid)
+
+bin_summary <- bin_summary %>% 
+  left_join(lake_ids)
+rm(lake_ids)
+
+library(sf)
+library(maps)
+
+mn <- st_as_sf(map("state", plot = FALSE, fill = TRUE)) %>%
+  filter(ID == "minnesota")
+
+bin_summary_sf <- bin_summary %>%
+  filter(!is.na(latitude_lake_centroid)) %>% 
+  st_as_sf(coords = c("longitude_lake_centroid", "latitude_lake_centroid"), 
+           crs = 4326) 
+
+ggplot() +
+  geom_sf(data = mn, fill = "white", color = "black") +
+  geom_sf(data = bin_summary_sf, aes(color = mean_length_at_age), size = 2) +
+  scale_color_viridis_c(option = "plasma", name = "Mean length age 3") +
+  theme_minimal() +
+  theme(legend.position = c(.8,.4))
+ggsave("map_length_age.jpg", height = 5, width = 5, dpi = 600)
+
+#pull out the example with the most lake years of data (winni)
+bin_summary <- aged_fish %>% 
+  group_by(state, lake_id, year, sampling_method, est_age, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3 & sampling_method == "gill_net_standard") 
+
+bin_summary %>% 
+  group_by(lake_id) %>% 
+  count() %>% 
+  arrange(desc(n))
+
+#make plot showing the number of fish each year colored by the age class
+aged_fish %>% 
+  filter(lake_id == "69037800", sampling_method == "gill_net_standard") %>%
+  mutate(
+    year = as.factor(year),
+    est_age = forcats::fct_rev(as.factor(est_age))
+  ) %>% 
+  ggplot(aes(x = year, fill = est_age)) +
+  geom_bar(color = "white", position = "stack") +
+  scale_fill_viridis_d(
+    option = "plasma", 
+    name = "Estimated Age",
+    guide = guide_legend(reverse = TRUE, ncol = 12, title.position = "top")
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Year",
+    y = "Count of Fish"
+  ) +
+  theme(
+    legend.position = "bottom",
+    legend.title.align =  0.5,
+    axis.text.x = element_text(angle = 30, hjust = 1))
+ggsave("winni_age_summary.jpg", height = 5, width = 6, dpi = 600)
+
+#plot showing one year of data within a lake
+aged_fish %>% 
+  filter(
+    lake_id == "69037800",
+    sampling_method == "gill_net_standard",
+    year == 2022
+  ) %>%
+  mutate(est_age = fct_rev(as.factor(est_age))) %>% 
+  ggplot(aes(x = length_1, fill = est_age)) +
+  geom_density(alpha = 0.7, color = NA, adjust = 1) +
+  scale_fill_viridis_d(
+    option = "plasma",
+    name = "Estimated Age",
+    guide = guide_legend(reverse = TRUE, ncol = 2)  # 2-column legend
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Fish Length (mm)",
+    y = "Density"
+  ) +
+  theme(
+    legend.position = c(0.7, 0.65),   # place legend inside plot
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+ggsave("winni_2022_age_distribution.jpg", height = 5, width = 6, dpi = 600)
+
+#this is an option set of code that shows the fish that the ALK was constructed on 
+aged_fish %>% 
+  filter(
+    lake_id == "69037800",
+    sampling_method == "gill_net_standard",
+    year == 2022 ,
+    !is.na(age)
+  ) %>%
+  mutate(age = fct_rev(as.factor(age))) %>% 
+  ggplot(aes(x = length_1, fill = age)) +
+  geom_density(alpha = 0.7, color = NA, adjust = 1) +
+  scale_fill_viridis_d(
+    option = "plasma",
+    name = "Age",
+    guide = guide_legend(reverse = TRUE, ncol = 2)  # 2-column legend
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Fish Length (mm)",
+    y = "Density"
+  ) +
+  theme(
+    legend.position = c(0.75, 0.75),   # place legend inside plot
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+```
+
+# Age at size 
+To control for when a fish was sample over the summer, lets do an age at size. We will look at walleye that are 14.5-15.5 and see what their decimal age is
+```{r}
+#how many 15 inch walleye do we have across states, how many lakes, how many lake years?
+aged_fish %>% 
+  filter(alk_length >= 14.5 & alk_length <= 15.5) %>% 
+  filter(alk_age_str %in% c("otolith", "spine")) %>% 
+  group_by(state) %>% 
+  summarise(mean_dec_age = mean(decimal_age),
+            n_lakes = n_distinct(lake_id),
+            n_lake_years = n_distinct(lake_id, year),
+            n_fish = n()) 
+
+mw_data %>% 
+  filter(state == "Wisconsin") %>% 
+  filter(!is.na(aging_structure_1)) %>% 
+  summarise(sum_o = sum(aging_structure_1 == "otolith"),
+            sum_s = sum(aging_structure_1 %in% c("spine", "scale")),
+            n = n(),
+            prop_o = sum_o/n,
+            prop_s = sum_s/n) %>% 
+  collect()
+
+#how many fish per lake do we get?
+aged_fish %>% 
+  filter(alk_length >= 14.5 & alk_length <= 15.5) %>% 
+  filter(alk_age_str %in% c("otolith", "spine")) %>%
+  group_by(state, lake_id, year) %>% 
+  summarise(n_fish = n()) %>% 
+  ggplot() +
+  geom_histogram(aes(n_fish)) +
+  facet_wrap(~state, scales = "free")
+#over 1000 walleye of 15ish inches seems pretty crazy in one year
+
+mw_data %>% 
+  filter(state == "Wisconsin" & lake_id == "2294900" & year == 2009) %>% 
+  filter(species_1 == "walleye") %>% 
+  summarise(min = min(date_sample, na.rm = T),
+            max = max(date_sample, na.rm = T),
+            n_tei = n_distinct(total_effort_ident),
+            n_gears = n_distinct(sampling_method),
+            n_fish_15 = sum(alk_length >= 14.5 & alk_length <= 15.5, na.rm = T),
+            n_fish = n()) %>% 
+  collect()
+
+mw_data %>% 
+  filter(state == "Wisconsin" & lake_id == "2294900" & year == 2009) %>% 
+  filter(species_1 == "walleye") %>% 
+  collect() %>% 
+  ggplot() +
+  geom_histogram(aes(length_1, fill = as.factor(est_age)))
+#appears to be just a crazy population estimate that they do in wisconsin
+
+#okay lets find the mean decimal age of these fish, for cases where a lake has more than one year of data, we will average the mean decimal age acorss years
+#lets ignore sampling method for now so that we can be more complete across the region
+bin_summary <- aged_fish %>% 
+  filter(alk_age_str %in% c("otolith", "spine")) %>% 
+  filter(alk_length >= 14.5 & alk_length <= 15.5) %>% 
+  group_by(state, lake_id, year) %>% 
+  summarise(mean_dec_age = mean(decimal_age)) %>% 
+  group_by(state, lake_id) %>%
+  #now summarize across time
+  summarise(mean_dec_age= mean(mean_dec_age))
+
+#make map
+lake_ids <- aged_fish %>% 
+  distinct(state, lake_id, latitude_lake_centroid, longitude_lake_centroid)
+
+bin_summary <- bin_summary %>% 
+  left_join(lake_ids)
+rm(lake_ids)
+
+library(sf)
+library(maps)
+
+mn <- st_as_sf(map("state", plot = FALSE, fill = TRUE)) %>%
+  filter(ID %in% c("minnesota", 
+                   "wisconsin", 
+                   "south dakota",
+                   "iowa", 
+                   "michigan"
+                   #"illinois"
+                   ))
+
+bin_summary_sf <- bin_summary %>%
+  filter(!is.na(latitude_lake_centroid)) %>% 
+  st_as_sf(coords = c("longitude_lake_centroid", "latitude_lake_centroid"), 
+           crs = 4326) 
+
+ggplot() +
+  geom_sf(data = mn, fill = "white", color = "black") +
+  geom_sf(data = bin_summary_sf, aes(color = mean_dec_age), size = 2) +
+  scale_color_viridis_c(option = "plasma", name = "Decimal Age", direction = -1) +
+  theme_minimal() +
+  theme(legend.position = c(.1,.75),
+        legend.title.align =  0.5,
+        legend.key.height = unit(0.3, "cm"),
+        legend.key.width  = unit(0.3, "cm"),
+        legend.text = element_text(size = 7),
+        legend.title = element_text(size = 8))
+ggsave("map_dec_age_otolith.jpg", height = 4, width = 6, dpi = 600)
+
+############################################################################
+bin_summary <- aged_fish %>% 
+  filter(alk_age_str %in% c("otolith", "spine")) %>% 
+  filter(alk_length >= 14.5 & alk_length <= 15.5) %>% 
+  group_by(state, lake_id, year) %>% 
+  summarise(mean_dec_age = mean(decimal_age))
+
+bin_summary %>% 
+  group_by(lake_id) %>% 
+  count() %>% 
+  arrange(desc(n))
+
+#make plot showing the number of fish each year colored by the age class
+aged_fish %>% 
+  filter(lake_id == "69037800",
+         alk_length >= 14.5, alk_length <= 15.5) %>% 
+  group_by(year) %>% 
+  summarise(
+    mean_dec_age = mean(decimal_age, na.rm = TRUE),
+    sd_dec_age = sd(decimal_age, na.rm = TRUE),
+    n = n(),
+    se_dec_age = sd_dec_age / sqrt(n)
+  ) %>% 
+  ggplot(aes(x = as.factor(year), y = mean_dec_age)) +
+  geom_point(aes(size = n), color = "darkblue") +
+  scale_size_continuous(name = "Number of fish") +
+  geom_errorbar(aes(ymin = mean_dec_age - se_dec_age,
+                    ymax = mean_dec_age + se_dec_age),
+                width = 0.2) +
+  theme_minimal() +
+  labs(
+    y = "Decimal Age at 15 inches",
+    x = element_blank()
+  ) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 30, hjust = 1)
+        )
+#error bars show 1 standard error
+ggsave("winni_dec_age_summary.jpg", height = 5, width = 6, dpi = 600)
+
+#plot showing the ALK
+aged_fish %>% 
+  filter(
+    lake_id == "69037800",
+    year == 2022 ,
+    !is.na(age)
+  ) %>%
+  mutate(age = fct_rev(as.factor(age))) %>% 
+  ggplot(aes(x = alk_length, fill = age)) +
+  geom_density(alpha = 0.7, color = NA, adjust = 2) +
+  scale_fill_viridis_d(
+    option = "plasma",
+    name = "Age",
+    guide = guide_legend(reverse = TRUE, ncol = 2)  # 2-column legend
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Fish Length (in)",
+    y = "Density"
+  ) +
+  theme(
+    legend.position = c(0.75, 0.75),   # place legend inside plot
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+ggsave("winni_2022_ALK.jpg", height = 5, width = 6, dpi = 600)
+
+#####################checking some extreme cases###########################
+bin_summary %>%
+  ungroup() %>%
+  filter(mean_dec_age == min(mean_dec_age) | mean_dec_age == max(mean_dec_age))
+
+aged_fish %>% 
+  filter((lake_id == "38039600" & year == 2016)) %>% 
+  filter(!is.na(age)) %>% 
+   mutate(age = fct_rev(as.factor(age))) %>% 
+  ggplot() +
+  geom_density(aes(x = alk_length, fill = age), alpha = 0.7, color = NA, adjust = 2) +
+  geom_vline(xintercept = 15) +
+  facet_wrap(~lake_id, scales = "free") +
+  scale_fill_viridis_d(
+    option = "plasma",
+    name = "Age",
+    guide = guide_legend(reverse = TRUE, ncol = 2)  # 2-column legend
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Fish Length (in)",
+    y = "Density"
+  ) +
+  theme(
+    legend.position = c(0.75, 0.75),   # place legend inside plot
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+
+aged_fish %>% 
+  filter((lake_id == "38039600" & year == 2016)) %>% 
+  filter(alk_length >= 14.5, alk_length <= 15.5) %>% 
+  summarise(mean_dec_age = mean(decimal_age),
+            mean_length = mean(alk_length),
+            est_age = est_age,
+            age = mean(age),
+            aging_structure_1,
+            n = n())
+#we see here that this extreme value appears legit, an age 9 walley via scale that was 15 inches
+
+aged_fish %>% 
+  filter((lake_id == "66000800" & year == 2020)) %>% 
+  filter(!is.na(age)) %>% 
+   mutate(age = fct_rev(as.factor(age))) %>% 
+  ggplot() +
+  geom_density(aes(x = alk_length, fill = age), alpha = 0.7, color = NA, adjust = 2) +
+  geom_vline(xintercept = 15) +
+  facet_wrap(~lake_id, scales = "free") +
+  scale_fill_viridis_d(
+    option = "plasma",
+    name = "Age",
+    guide = guide_legend(reverse = TRUE, ncol = 2)  # 2-column legend
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Fish Length (in)",
+    y = "Density"
+  ) +
+  theme(
+    legend.position = c(0.75, 0.75),   # place legend inside plot
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+
+aged_fish %>% 
+  filter((lake_id == "66000800" & year == 2020)) %>% 
+  filter(alk_length >= 14.5, alk_length <= 15.5) %>% 
+  summarise(mean_dec_age = mean(decimal_age),
+            mean_length = mean(alk_length),
+            est_age = est_age,
+            age = mean(age),
+            aging_structure_1,
+            n = n())
+#we also see at this extreme an age-1 walleye aged at 1 years old
+
+aged_fish %>% 
+  filter(lake_id == "439800" & year == 2008) %>%  
+  filter(!is.na(age)) %>% 
+   mutate(age = fct_rev(as.factor(age))) %>% 
+  ggplot() +
+  geom_density(aes(x = alk_length, fill = age), alpha = 0.7, color = NA, adjust = 2) +
+  geom_vline(xintercept = 15) +
+  facet_wrap(~lake_id, scales = "free") +
+  scale_fill_viridis_d(
+    option = "plasma",
+    name = "Age",
+    guide = guide_legend(reverse = TRUE, ncol = 2)  # 2-column legend
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Fish Length (in)",
+    y = "Density"
+  ) +
+  theme(
+    legend.position = c(0.75, 0.75),   # place legend inside plot
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+
+aged_fish %>% 
+  filter((lake_id == "439800" & year == 2008)) %>% 
+  filter(alk_length >= 14.5, alk_length <= 15.5) %>% 
+  summarise(mean_dec_age = mean(decimal_age),
+            min = min(decimal_age),
+            max = max(decimal_age),
+            mean_length = mean(alk_length),
+            n = n())
+
+aged_fish %>% 
+  filter((lake_id == "439800" & year == 2008)) %>% 
+  glimpse()
+#this example in Wisconsin also appears legit
+
+bin_summary %>%
+  ungroup() %>% 
+  filter(state == "South_Dakota") %>% 
+  filter(mean_dec_age == min(mean_dec_age) | mean_dec_age == max(mean_dec_age))
+
+aged_fish %>% 
+  filter(lake_id == "UJA-Lake-866-000" & year == 2018)  %>% 
+  filter(!is.na(age)) %>% 
+   mutate(age = fct_rev(as.factor(age))) %>% 
+  ggplot() +
+  geom_density(aes(x = alk_length, fill = age), alpha = 0.7, color = NA, adjust = 2) +
+  geom_vline(xintercept = 15) +
+  facet_wrap(~lake_id, scales = "free") +
+  scale_fill_viridis_d(
+    option = "plasma",
+    name = "Age",
+    guide = guide_legend(reverse = TRUE, ncol = 2)  # 2-column legend
+  ) +
+  theme_minimal() +
+  labs(
+    x = "Fish Length (in)",
+    y = "Density"
+  ) +
+  theme(
+    legend.position = c(0.75, 0.75),   # place legend inside plot
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8)
+  )
+```
+
+
+
+Below I found some nuances of the data:
+1. age 0 walleye exploration
+-I found a 9 inch fish was applied an age-0 tag because the ALk is based on fall fish and the likely age-1 fish was caught in the spring of the same year (this gave the fall fish all year to grow and then when you apply to fish within the same year it can get messy)
+
+2. ALKs that do not include all age classes (Winni 2010 walleye example)
+-This ALK for otoliths only includes ages 3+, when it is assigned to the whole dataset, it assigns all smaller fish age 3 when they are likely a make up of age 0, 1, and 2
+
+3. There are some cases of obvious error in aging and/or length of fish
+-2001 south dakota, lake ANR-Lake-4-000
+-all of the small walleye that were unexpectedly assigned to age 3 fall between the max of age 0 and the min of age 1. Ironically in the ALK, there are some fish at 3 in that range. they get assigned age 3 becuase of that
+
+# 1. interesting case study looking at age-0 fish
+```{r}
+aged_fish %>% 
+  filter(state == "Minnesota" & alk_age_str == "otolith" & est_age == "0") %>% 
+  ggplot() +
+  geom_point(aes(decimal_age, alk_length))
+#this is pretty sweet, lets explore the 9 inch walleye captured early season
+
+aged_fish %>% 
+  filter(state == "Minnesota" & alk_age_str == "otolith" & est_age == "0" & decimal_age < 0.4) %>%
+  glimpse()
+#pepin 2011
+
+aged_fish %>% 
+  filter(lake_id == "25000100" & year == "2011") %>% 
+  filter(!is.na(age)) %>% 
+  ggplot() +
+  geom_point(aes(age, alk_length, color = as.factor(month(date_sample))))
+#we see here that the alk is based on fish captured in Oct and it was applied to fish caught in May - makes sense why it thought the 9 incher was age-0 when it was really an early season age-1 (this will be important to consider)
+
+#let's only look at fish where the alk was created +/- 1 month from the sampled fish 
+alk_month <- aged_fish %>% 
+  filter(state == "Minnesota" & alk_age_str == "otolith" & est_age == "0" & !is.na(age)) %>% 
+  group_by(lake_id, year) %>% 
+  summarise(alk_month = round(mean(month(date_sample)), 0))
+
+aged_fish_age0 <- aged_fish %>% 
+  left_join(alk_month) %>% 
+  filter(!is.na(alk_month) & est_age == "0") %>% 
+  mutate(month_sample = month(date_sample),
+         diff_month = abs(month_sample - alk_month)) %>% 
+  filter(diff_month <= 1)
+
+aged_fish_age0 %>% 
+  ggplot() +
+  geom_point(aes(decimal_age, alk_length))
+
+aged_fish_age0 %>% 
+  group_by(month(date_sample)) %>% 
+  summarise(n = n())
+
+aged_fish_age0 %>% 
+  filter(lake_name == "Leech") %>% 
+  group_by(year = year(date_sample)) %>% 
+  summarise(mean_length = mean(alk_length),
+            mean_age = mean(decimal_age)) %>%
+  ggplot() +
+  geom_point(aes(mean_age, mean_length, color = as.factor(year)))
+```
+This is pretty cool, it shows the growth of age-0 walleye within the year from July to November. This is tricky because I imagine that a lake typically gets sampled around the same time of year. Thus, we may not have great lake representation at the takes of our data and those tails could be more of a product of the lake that was sampled. 
+
+2. Missing lower alk years, Winni 2010 walleye example
+```{r}
+aged_fish %>% 
+  group_by(state, lake_id, year, est_age, sampling_method_simple, alk_age_str) %>% 
+  summarise(mean_length_at_age = mean(alk_length)) %>% 
+  filter(est_age == 3) %>% 
+  filter(sampling_method_simple == "seine")
+
+aged_fish %>% 
+  filter(lake_id == "11014700" & year == "2010") %>% 
+  filter(est_age == 3) %>% 
+  ggplot() +
+  geom_density(aes(alk_length, fill = sampling_method_simple))
+#why are some trawled MN fish that are ~4 inches long getting assigned to age 3?
+
+aged_fish %>% 
+  filter(lake_id == "11014700" & year == "2010") %>%
+  filter(!is.na(age)) %>% 
+  filter(age < 5) %>% 
+  ggplot() +
+  geom_density(aes(length_1, fill = as.factor(age)))
+
+aged_fish %>% 
+  filter(lake_id == "11014700" & year == "2010") %>%
+  filter(age == 3 | sampling_method_simple == "seine") %>%
+  ggplot() +
+  geom_histogram(aes(length_1, fill = sampling_method_simple))
+
+mw_data %>% 
+  filter(lake_id == "11014700" & year == 2010 & aging_structure_1 == "otolith") %>% 
+  group_by(age) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(age) %>% 
+  print(n = nrow(.))
+#we see here for otoliths, only age 3 and above were samples, so anything with a small length is likely just assigned age 3
+
+########################################################################
+
+#creating a work-around
+aged_fish %>% 
+  filter(!is.na(age)) %>% 
+  group_by(lake_id, year) %>% 
+  summarise(min_age = min(age, na.rm = T),
+            max_age = max(age, na.rm = T))
+#we can see where a slew of surveys that do not have a min of 0
+
+cut_off <- aged_fish %>% 
+  filter(!is.na(age)) %>% 
+  group_by(lake_id, year) %>% 
+  summarise(alk_min_length = min(alk_length, na.rm = T),
+            alk_max_length = max(alk_length, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(buffer = 0.05*(alk_max_length - alk_min_length),
+         low_cut = alk_min_length - buffer,
+         high_cut = alk_max_length + buffer)
+  
+#join the cut to the dataframe
+aged_fish_trial <- aged_fish %>% 
+  left_join(cut_off, by = c("lake_id", "year"))
+
+aged_fish_trial %>% 
+  #removes some records that do not get a cut off due to differences in year between sample and year created during aggregation
+  filter(!is.na(low_cut)) %>% 
+  group_by(state) %>% 
+  summarise(n_fish_out_range = sum(alk_length > alk_max_length | alk_length < alk_min_length),
+            n_fish_out_cut = sum(alk_length > high_cut | alk_length < low_cut),
+            n = n(),
+            prop_cut_range = n_fish_out_range/n,
+            prop_cut = n_fish_out_cut/n) %>% 
+  mutate(all_cut = sum(n_fish_out_cut),
+         all_fish = sum(n),
+         all_prop = all_cut/all_fish)
+
+aged_fish_trial %>% 
+  filter(lake_id == "11014700" & year == "2010" & sampling_method_simple %in% c("seine", "trawl")) %>% 
+  filter(est_age == 3) %>% 
+  mutate(cut = case_when(alk_length > high_cut | alk_length < low_cut ~ "y",
+                         TRUE ~ "n")) %>% 
+  filter(cut == "n") %>% 
+  summarise(min = min(alk_length)) %>%  
+  print(n = nrow(.))
+# we can see here the problematic MN fish would be cut, although an 8 in age-3 walleye? eh idk but this is probably the best we can do
+
+#remove the fish
+aged_fish_trial <- aged_fish %>% 
+  left_join(cut_off, by = c("lake_id", "year")) %>% 
+  filter(alk_length >= low_cut,
+         alk_length <= high_cut)
+```
+

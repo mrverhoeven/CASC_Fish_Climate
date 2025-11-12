@@ -1,0 +1,135 @@
+---
+title: "cisco_mn_cpue"
+author: "Denver Link"
+date: "2025-10-03"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# library
+```{r}
+library(tidyverse)
+library(arrow)
+```
+
+# data
+```{r}
+mn_data <- open_dataset(sources = file.path("G:", 
+                                            "Shared drives", 
+                                            "Hansen Lab", 
+                                            "RESEARCH PROJECTS", 
+                                            "Fish Survey Data", 
+                                            "Parquet files", 
+                                            "hive_update"), partitioning = c("state")) %>% 
+  filter(state == "Minnesota")
+```
+
+# cisco sampling methods
+```{r}
+mn_data %>% 
+  filter(!is.na(sampling_method)) %>% 
+  filter(sampling_method_simple == "gill_net") %>% 
+  distinct(sampling_method, sampling_method_2) %>% 
+  arrange(sampling_method, sampling_method_2) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+# sampling_method filter
+mn_data %>% 
+  filter(sampling_method %in% c("gill_net_vertical", 
+                                "gill_net_suspended", 
+                                "gill_net_stratified_deep", 
+                                "gill_net_stratified_shallow")) %>% 
+  filter(!is.na(total_effort_ident)) %>% 
+  distinct(total_effort_ident, lake_name, sampling_method) %>% 
+  summarise(n_tei = n_distinct(total_effort_ident),
+            n_lakes = n_distinct(lake_name),
+            n = n()) %>% 
+  collect()
+#looks like we have 657 total effort idents, any flags?
+
+#flags, cpue?
+mn_data %>% 
+  filter(sampling_method %in% c("gill_net_vertical", 
+                                "gill_net_suspended", 
+                                "gill_net_stratified_deep", 
+                                "gill_net_stratified_shallow")) %>% 
+  mutate(has_flag = case_when(!is.na(flag) ~ "y",
+                              TRUE ~ "n")) %>%
+  distinct(total_effort_ident, has_flag) %>% 
+  filter(has_flag == "y") %>% 
+  collect()
+
+mn_data %>% 
+  filter(sampling_method %in% c("gill_net_vertical", 
+                                "gill_net_suspended", 
+                                "gill_net_stratified_deep", 
+                                "gill_net_stratified_shallow")) %>%
+  group_by(flag, cpue_invalid) %>% 
+  count() %>% 
+  collect()
+```
+
+# surveys - select
+```{r}
+surveys <- mn_data %>% 
+  #nets for cisco
+  filter(sampling_method %in% c("gill_net_vertical", 
+                                "gill_net_suspended", 
+                                "gill_net_stratified_deep", 
+                                "gill_net_stratified_shallow")) %>% 
+  #filter out any na total effort idents
+  filter(!is.na(total_effort_ident)) %>% 
+  distinct(lake_id,
+           total_effort_ident) %>% 
+  collect()
+```
+
+# grab back the fish - reterive
+```{r}
+fish <- mn_data %>% 
+  right_join(surveys) %>% 
+  collect()
+
+fish %>% 
+  group_by(species_1) %>% 
+  count() %>% 
+  arrange(species_1) %>% 
+  print(n = nrow(.))
+```
+
+# cpue - collapse 
+```{r}
+cisco_cpue <- fish %>% 
+  group_by(total_effort_ident) %>% 
+  mutate(count_cisco = sum(str_detect(species_1, "cisco")),
+         count_whitefish = sum(str_detect(species_1, "whitefish")),
+         count_cisco = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_cisco),
+         count_whitefish = case_when(total_effort_nothing_caught == "TRUE" ~ 0,
+                           TRUE ~ count_whitefish),
+         cpue_cisco = count_cisco/total_effort_1,
+         cpue_whitefish = count_whitefish/total_effort_1) %>% 
+  distinct(total_effort_ident, .keep_all = T) %>% 
+  select(lake_name, 
+         lake_id, 
+         county, 
+         nhdhr_id,
+         latitude_lake_centroid,
+         longitude_lake_centroid,
+         total_effort_ident,
+         date_total_effort_ident,
+         sampling_method,
+         total_effort_1,
+         total_effort_1_units,
+         cpue_invalid,
+         count_cisco,
+         count_whitefish,
+         cpue_cisco,
+         cpue_whitefish,
+         total_effort_nothing_caught
+         )
+write_csv(cisco_cpue, "cisco_gears_abundance.csv")
+```
+

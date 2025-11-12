@@ -1,0 +1,151 @@
+---
+title: "Data Example"
+author: "Denver Link"
+date: "2025-09-22"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+This script provides examples for working with the fish-as-rows database. In this format, each row represents a single fish. Survey- and lake-level data are repeated across rows, while individual fish retain their own attributes (e.g., length, weight, age).
+
+Because the full database is too large to load into R memory at once, we use the arrow package. Arrow reads parquet files efficiently by only pulling the data needed for each command, rather than loading everything at once. However, not all R/tidyverse functions are supported, so you may need to adjust workflows when working with Arrow. Helpful references:
+
+https://arrow.apache.org/docs/r/reference/acero.html - functions from tidyverse that can be used in arrow
+https://r4ds.hadley.nz/arrow.html - helpful workflow
+https://arrow.apache.org/docs/r/articles/data_wrangling.html - helpful workflow
+
+One important nuance: NA handling differs between parquet and tibbles. In parquet format, each NA is treated as unique, while in tibbles, all NAs are considered the same. For example, if many fish in a survey have missing ages, the parquet format will treat each missing value as distinct, whereas a tibble recognizes them as the same “missing” value.
+
+Our goal in building this database was to preserve state-provided data while standardizing the format for regional analyses. We retain state agency identifiers (e.g., survey IDs, notes, fish IDs) and use them to construct standardized variables across Midwestern states (e.g., total_effort_ident, sub_effort_ident, standardized gear types).
+
+The code below demonstrates how to explore the database with lake-, survey-, and fish-level summaries. Use it as a template, and feel free to adapt it to your needs. If questions come up, don’t hesitate to reach out.
+
+# library
+```{r, results='hide', message=FALSE, warning=FALSE}
+library(tidyverse)
+library(arrow)
+```
+
+# data
+
+*Note: You will need to update the file path to match the location where the dataset is stored on your computer. The open_dataset() function simply tells R where to find the file. In the example below, each quoted section represents a folder in the path, ending with the name of the parquet file.*
+```{r}
+data <- open_dataset(sources = file.path("[folder1]",
+                           "[folder2] - if needed",
+                           "[folder3] - if needed",
+                           "[folder...n] - if needed",
+                           "hived_update.parquet"))
+
+#here is a way to bring the entire dataset into R memory, this is not recommended as it requires significant memory and may crash your computer. Consider the operation and/or information you would like from your data before calling it to memory (see examples below)
+
+# data <- data %>% 
+#   collect()
+```
+
+# data overview
+```{r}
+#column names 
+names(data)
+
+#glimpse of 10 random rows
+data %>% 
+  slice_sample(n = 10) %>%
+  glimpse()
+
+#list of lake names with lake id, nhdhr_id, and lat/lon
+lake_data <- data %>% 
+  select(lake_name, lake_id, nhdhr_id, latitude_lake_centroid, longitude_lake_centroid) %>% 
+  collect() %>% 
+  distinct(lake_name, lake_id, nhdhr_id, latitude_lake_centroid, longitude_lake_centroid)
+
+lake_data %>% 
+  slice_sample(n = 10)
+
+rm(lake_data)
+
+#sampling method break down 
+data %>% 
+  distinct(sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  arrange(sampling_method_simple, sampling_method, sampling_method_2) %>% 
+  collect() %>% 
+  print(n = nrow(.))
+
+#how many surveys of each sampling method type?
+data %>% 
+  filter(!is.na(total_effort_ident)) %>% 
+  distinct(total_effort_ident, sampling_method) %>% 
+  group_by(sampling_method) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(desc(n)) %>% 
+  print(n = nrow(.))
+
+#survey information
+surveys <- data %>% 
+  filter(!is.na(total_effort_ident) &
+           !is.na(date_total_effort_ident)) %>% 
+  select(survey_id,
+         date_survey,
+           date_total_effort_ident,
+           date_sub_effort_ident,
+           survey_type,
+           total_effort_ident,
+           sub_effort_ident,
+           site_id) %>% 
+  collect() %>% 
+  distinct(survey_id,
+           date_survey,
+           date_total_effort_ident,
+           date_sub_effort_ident,
+           survey_type,
+           total_effort_ident,
+           sub_effort_ident,
+           site_id) 
+surveys %>% 
+  slice_sample(n = 10)
+rm(surveys)
+
+#how many fish of each species?
+data %>% 
+  filter(!is.na(species_1)) %>% 
+  group_by(species_1) %>% 
+  summarise(n = n()) %>% 
+  collect() %>% 
+  arrange(species_1) %>% 
+  print(n = nrow(.))
+
+#how is the length data stored?
+data %>% 
+  filter(!is.na(species_1)) %>% 
+  summarise(lengths = sum(!is.na(length_1)),
+            length_bins = sum(!is.na(length_bin)),
+            total_fish = n()) %>% 
+  collect()
+
+#aged fish summary
+data %>% 
+  summarise(n_fish = sum(!is.na(species_1)),
+            n_aged_fish = sum(!is.na(age)),
+            n_est_aged = sum(!is.na(est_age)),
+            n_est_aged_year = sum(alk == "year", na.rm = T)) %>% 
+  collect()
+
+#what are some notes and flags?
+notes <- data %>% 
+  select(gear_data_notes, 
+         location_notes_1,
+         notes_1,
+         flag) %>% 
+  distinct(gear_data_notes, 
+         location_notes_1,
+         notes_1,
+         flag) %>% 
+  collect()
+notes %>% 
+  slice_sample(n = 10)
+rm(notes)
+```
+

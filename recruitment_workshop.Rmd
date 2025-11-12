@@ -1,0 +1,70 @@
+---
+title: "Recruitment Workshop"
+author: "Denver Link"
+date: "2024-11-18"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+#Library
+```{r}
+library(tidyverse)
+library(arrow)
+```
+
+#Data
+```{r}
+mw_data <- open_dataset(sources = file.path("G:", "Shared drives", "Hansen Lab", "RESEARCH PROJECTS", "Fish Survey Data", "Parquet files", "hive_update"), partitioning = c("state")) 
+```
+
+#Fisheries data
+```{r}
+leech_yep <- mw_data %>% 
+  filter(state == "Minnesota") %>% 
+  filter(lake_name == "Leech") %>% 
+  filter(species_1 == "yellow_perch") %>% 
+  filter(sampling_method == "gill_net_standard") %>% 
+  filter(!is.na(length_1)) %>% 
+  collect()
+
+leech_yep_cpe <- leech_yep %>% 
+  group_by(total_effort_ident) %>% 
+  mutate(count = sum(species_1 == "yellow_perch"),
+            cpe = count/total_effort_1) %>%
+  ungroup() %>% 
+  distinct(total_effort_ident,
+           year,
+           count,
+           total_effort_1,
+           cpe)
+```
+
+# Data exploration
+```{r}
+leech_yep %>% 
+  summarise(min = min(year),
+            max = max(year),
+            n = n_distinct(year))
+
+leech_yep %>% 
+  filter(!is.na(age) & age < 4) %>% 
+  ggplot() +
+  geom_density(aes(length_1, fill = as.factor(age)), alpha = .5) +
+  geom_vline(xintercept = c(150, 175))
+
+leech_yep_cpe %>% 
+  summarise(min = min(cpe),
+            median = median(cpe),
+            max = max(cpe),
+            percent_under_11 = sum(cpe < 11)/17,
+            percent_under_14 = sum(cpe < 14)/17,
+            percent_under_20 = sum(cpe < 20)/17)
+
+leech_yep_cpe %>% 
+  ggplot() +
+  geom_line(aes(year, cpe)) +
+  geom_point(aes(year, cpe)) +
+  geom_hline(yintercept = c(11, 14, 20), linetype = "dashed", color = "red")
+```
+
